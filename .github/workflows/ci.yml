@@ -1,0 +1,38 @@
+# The whole suite on every push and pull request. The privacy guard is not
+# here: it needs a real workbook to say anything, and there is none on a
+# runner. That is the point.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - name: No spreadsheet may enter the repository
+        # A second lock beside .gitignore, for tracked files.
+        run: |
+          bad=$(git ls-files | grep -Ei '\.(xlsx|xlsm|xlsb|ods|numbers|csv)$' | grep -v '^examples/' || true)
+          if [ -n "$bad" ]; then echo "::error::tracked spreadsheet outside examples/: $bad"; exit 1; fi

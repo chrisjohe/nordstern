@@ -1,0 +1,18 @@
+# NORDSTERN — Ausnahmen des Wächters (tests/privacy.mjs)
+#
+# Eine Zeile je Nadel, die trotz Treffer keine Preisgabe ist. Entweder nur die
+# Nadel (gilt überall) oder "pfad:nadel" (gilt nur dort). Alles hinter # ist
+# die Begründung — und die ist Pflicht. Wer hier etwas einträgt, ohne sagen zu
+# können warum, hat den Wächter abgeschaltet statt ihn benutzt.
+
+Dashboard   # gewöhnliches englisches Wort; zufällig auch ein Blattname der privaten Mappe
+Inventory   # dasselbe — sagt über niemanden etwas aus
+README.md:Apple             # „Apple Numbers" im Formatvergleich — die Firma, nicht eine Position
+NOTICE:Apple      # „Apple and Numbers" im Markenhinweis — die Firma, nicht eine Position
+
+# Der Wächter trägt die Wendungen, nach denen er sucht, selbst im Quelltext.
+tests/privacy.mjs:des Autors        # die Liste selbst, nicht eine Aussage über jemanden
+tests/privacy.mjs:dem Autor         # dieselbe Liste
+tests/privacy.mjs:der Autor         # dieselbe Liste
+tests/privacy.mjs:the maintainer's  # dieselbe Liste
+tests/hook.mjs:des Autors        # prüft die Meldung des Wächters, nicht eine Aussage über jemanden

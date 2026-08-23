@@ -1,0 +1,101 @@
+/* NORDSTERN — visuelles System.
+   Farben, Typografie, Raster, Bewegung. Nichts hiervon ist inhaltsspezifisch. */
+
+:root {
+  /* --- Grund: tiefes Blau-Schwarz, kein reines Schwarz ------------------- */
+  --bg-void:      #04070e;
+  --bg-deep:      #070c17;
+  --bg-surface:   #0b1220;
+  --bg-raise:     #111a2c;
+  --bg-sunk:      #060a12;
+
+  --line-hair:    rgba(146, 180, 228, 0.09);
+  --line-soft:    rgba(146, 180, 228, 0.16);
+  --line-firm:    rgba(146, 180, 228, 0.28);
+
+  /* --- Schrift ----------------------------------------------------------- */
+  /* Vier Stufen, jede rund anderthalbmal so hell wie die nächste — gemessen
+     als Kontrast gegen --bg-void, nicht nach Augenmaß: 17 · 11 · 7 · 4,9 : 1.
+     Die unteren beiden tragen die kleinen Versaletiketten, die Achsen und die
+     Zeitraumschalter; unter 4,5 : 1 sind die auf einem dunklen Schirm zwar
+     noch da, aber nicht mehr lesbar. tests/behaviour.mjs rechnet die Rampe
+     nach. */
+  --ink:          #e9eff9;
+  --ink-2:        #b3c2da;
+  --ink-3:        #869ab9;
+  --ink-4:        #6c7f9d;
+  /* Kein Schriftton: Flächen und Marken, die bewusst zurücktreten. */
+  --ink-mute:     #45536a;
+
+  /* --- Eisblau: Vermögen, Positives, Struktur ---------------------------- */
+  --ice:          #7fb2e5;
+  --ice-deep:     #3987e5;
+  --ice-pale:     #b6d4f2;
+  --ice-dim:      rgba(127, 178, 229, 0.22);
+  --ice-veil:     rgba(57, 135, 229, 0.10);
+
+  /* --- Nordstern --------------------------------------------------------- */
+  --star:         #eaf2ff;
+  --star-halo:    rgba(198, 222, 255, 0.55);
+
+  /* --- Aurora: sparsamer Akzent, erreichte Zustände ---------------------- */
+  --aurora:       #2fbd8b;
+  --aurora-deep:  #199e70;
+  --aurora-veil:  rgba(47, 189, 139, 0.14);
+
+  /* --- Ember/Amber: Schulden und Vorbehalt -------------------------------
+     Zwei Töne, zwei Bedeutungen, eine Familie. Ember ist die Aussage über
+     einen Bestand — Schulden, Negatives. Amber ist die Aussage über einen
+     Zustand — noch nicht gedeckt, Hinweis, kein Fehler. Auf der Contingency-
+     Card liegen beide dicht beieinander, deshalb dürfen sie nicht derselbe
+     Ton werden: „noch nicht genug" sieht sonst aus wie „du schuldest".
+     Sie liegen aber nah genug (Farbton ~2° und ~22°), dass sie als gewollt
+     lesbar sind und nicht wie zwei zufällig gewählte Warmtöne. */
+  --ember:        #c9352f;
+  --ember-pale:   #f0574f;
+  --ember-veil:   rgba(201, 53, 47, 0.16);
+  --amber:        #d46a2e;
+  --amber-veil:   rgba(212, 106, 46, 0.14);
+
+  --violet:       #9085e9;
+
+  /* --- Typografie ------------------------------------------------------- */
+  /* Geometrische Grotesk, kein Inter/Roboto/Arial, in absteigender
+     Verfügbarkeit: macOS, dann Office, dann der freie Nachbau, den die meisten
+     Linux-Distributionen mitbringen, dann Windows-Grundausstattung. Ohne
+     „URW Gothic" fiele Linux bis auf die Systemschrift durch. */
+  --font-display: "Avenir Next", "Avenir", "Futura", "Century Gothic", "URW Gothic", "Trebuchet MS", sans-serif;
+  --font-text:    "Avenir Next", "Avenir", "Helvetica Neue", sans-serif;
+  --font-mono:    ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  --track-label:  0.26em;
+  --track-wide:   0.14em;
+  /* Kapitelwort: hängt an der Fensterhöhe, damit es im Ein-Blick-Layout
+     mitschrumpft, statt den Inhalt hinauszudrücken. */
+  --chapter:      clamp(19px, 3.1vh, 40px);
+
+  /* --- Raster ------------------------------------------------------------ */
+  --gutter:       clamp(18px, 1.9vw, 34px);
+  --card-h:       clamp(126px, 12.8vh, 158px);
+  --rail-gap:     clamp(6px, 0.7vw, 11px);
+  --rail-pad:     clamp(8px, 1.1vh, 14px);
+  /* Kartenschiene rechts und Vermögensblock links sind exakt gleich hoch. */
+  --rail-h:       calc(var(--card-h) * 2 + var(--rail-gap) + var(--rail-pad) + 1px);
+  --zone-pad-b:   clamp(10px, 1.3vh, 18px);
+  --head-h:       58px;
+
+  /* --- Bewegung ---------------------------------------------------------- */
+  --ease-out:     cubic-bezier(0.16, 0.84, 0.34, 1);
+  --ease-soft:    cubic-bezier(0.4, 0.0, 0.2, 1);
+  --pulse-dur:    5.6s;          /* Atemtakt: Stern, Chartlinie, Reservering */
+  /* Ankunft: links wie rechts genau eine Sekunde, danach steht alles still.
+     Bewegung, die etwas sagt, darf nicht länger dauern als der Satz. */
+  --arrive-line: 1000ms;         /* die Linie zeichnet sich */
+  --arrive-dial: 1000ms;         /* eine volle Umdrehung der Scheibe */
+  --arrive-bar:  440ms;          /* ein einzelner Balken */
+  --arrive-step: 80ms;           /* Abstand der Karten: 440 + 7 x 80 = 1000 */
+}
+
+/* Bewegung: app.js setzt data-motion auf "on", "calm" oder "off".
+   Alle Animationen hängen an "on"/"calm" — ohne Attribut bewegt sich nichts. */
+:root[data-motion="calm"] { --pulse-dur: 8.5s; }

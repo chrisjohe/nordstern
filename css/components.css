@@ -1,0 +1,824 @@
+/* NORDSTERN — Bausteine. Flächen statt Kästen, Kanten statt Rahmen. */
+
+/* ============================================================ Grundlagen == */
+h1, h2, h3, p, dl, dd, dt, figure { margin: 0; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--ice); outline-offset: 3px; border-radius: 1px; }
+.num, .kpi-val, .hero-val, .delta-abs, .legend-val, .orbit-core-val { font-variant-numeric: tabular-nums; }
+.pos { color: var(--aurora); } .neg { color: var(--ember-pale); } .muted { color: var(--ink-3); }
+
+/* =============================================================== Kopfzeile = */
+.wordmark {
+  font-family: var(--font-display);
+  font-size: 21px; font-weight: 500; letter-spacing: var(--track-label);
+  text-transform: lowercase; color: var(--ink);
+  margin-inline-start: 1px;
+}
+/* Der Stern ragt bewusst etwas über die Kopfzeile hinaus — die Korona
+   darf über die Kante laufen, sie trägt keine Bedienung. */
+.starbox { position: relative; width: 58px; height: 58px; display: grid; place-items: center; }
+
+.star { overflow: visible; }
+.star-core { fill: #ffffff; }
+/* Um die eigene Mitte, nicht um die der viewBox — sonst wandert der Stern
+   beim Skalieren aus. */
+.star-corona, .star-bloom, .star-spikes { transform-box: fill-box; transform-origin: center; }
+
+/* Drei Takte mit unrunden Verhältnissen. Ihre Überlagerung wabert, statt zu
+   blinken: die Korona atmet im Grundtakt (auf den auch Chartlinie und
+   Reservering hören), der Kern schneller, die Spitzen träger. Dazu selten
+   ein Funkeln — ein Stern steht nie ganz still. */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-motion="on"] .star-corona,
+  :root[data-motion="calm"] .star-corona { animation: nsCorona var(--pulse-dur) var(--ease-soft) infinite; }
+  :root[data-motion="on"] .star-bloom,
+  :root[data-motion="calm"] .star-bloom { animation: nsBloom calc(var(--pulse-dur) * 0.62) var(--ease-soft) infinite; }
+  :root[data-motion="on"] .star-spikes,
+  :root[data-motion="calm"] .star-spikes { animation: nsSpikes calc(var(--pulse-dur) * 1.47) var(--ease-soft) infinite; }
+  :root[data-motion="on"] .star-core { animation: nsTwinkle calc(var(--pulse-dur) * 4.3) ease-in-out infinite; }
+}
+@keyframes nsCorona { 0%, 100% { opacity: .70; transform: scale(.93); } 50% { opacity: 1; transform: scale(1.07); } }
+@keyframes nsBloom  { 0%, 100% { opacity: .84; transform: scale(.96); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes nsSpikes { 0%, 100% { opacity: .58; transform: scale(.95); } 50% { opacity: 1; transform: scale(1.05); } }
+@keyframes nsTwinkle { 0%, 90%, 100% { filter: none; } 95% { filter: drop-shadow(0 0 6px var(--star)); } }
+
+/* Ankunft der Scheibe: beide Ringe laufen gleichzeitig los und gegenläufig —
+   das Vermögen im Uhrzeigersinn, die Schulden dagegen —, mit derselben
+   Winkelgeschwindigkeit. Der kürzere Ring ist deshalb früher fertig; es
+   zeichnet ein Stift, es füllt sich kein Balken. Die Abschnitte des äusseren
+   Rings setzen nacheinander an, jeder dort, wo der vorige aufhört, sodass die
+   fünf Bögen zusammen eine einzige Umdrehung ergeben. Linear, weil eine
+   Beschleunigung an jeder Abschnittsgrenze als Stocken zu sehen wäre. */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-motion="on"] .orbit-svg .is-drawing,
+  :root[data-motion="calm"] .orbit-svg .is-drawing {
+    animation: nsDraw calc(var(--arrive-dial) * var(--frac, 1)) linear both;
+    animation-delay: calc(var(--arrive-dial) * var(--off, 0));
+  }
+  /* Kern und Legende gehören zum Ring, den sie beschriften — sie kommen mit
+     ihm, nicht vor ihm. */
+  :root[data-motion="on"] .is-arriving .orbit-core-lab,
+  :root[data-motion="calm"] .is-arriving .orbit-core-lab,
+  :root[data-motion="on"] .is-arriving .orbit-core-val,
+  :root[data-motion="calm"] .is-arriving .orbit-core-val,
+  :root[data-motion="on"] .is-arriving .legend-row,
+  :root[data-motion="calm"] .is-arriving .legend-row {
+    animation: nsArriveFade var(--arrive-dial) var(--ease-out) both;
+  }
+}
+
+/* Quadrat, kein Punkt: im Blatt gibt es keine runden Formen. */
+.status-dot::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px;
+  background: var(--ink-mute); vertical-align: 0;
+}
+.status-dot.is-ok::before { background: var(--aurora); }
+.status-dot.is-warn::before { background: var(--amber); }
+.status-dot.is-error::before { background: var(--ember); }
+.status-dot.is-busy::before { background: var(--ice); }
+
+.icon-btn {
+  width: 32px; height: 32px; display: grid; place-items: center;
+  color: var(--ink-3); transition: color .18s var(--ease-out), background .18s var(--ease-out);
+}
+.icon-btn:hover { color: var(--ink); background: rgba(146,180,228,.07); }
+
+/* ================================================================= Panels = */
+.panel-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding-bottom: clamp(2px, 0.5vh, 7px); min-width: 0;
+}
+/* Kapitelwort: groß, mager, klein geschrieben. Es trägt die Gliederung allein,
+   damit darunter nichts mehr eingerahmt werden muss. */
+.panel-title {
+  font-family: var(--font-display);
+  font-size: var(--chapter); font-weight: 300; line-height: 1.0;
+  letter-spacing: -0.015em; text-transform: lowercase;
+  color: var(--ink-3); white-space: nowrap;
+}
+/* Das führende Kapitel trägt die Aurora — Eis, Grün, Violett in einem Zug. */
+.panel-title.is-hero {
+  background-image: linear-gradient(96deg, var(--ice) 4%, var(--aurora) 52%, var(--violet) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+@supports not ((background-clip: text) or (-webkit-background-clip: text)) {
+  .panel-title.is-hero { color: var(--aurora); -webkit-text-fill-color: currentColor; }
+}
+.panel-note { font-size: 11px; color: var(--ink-4); }
+.block { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+
+/* ================================================================== Hero == */
+.hero-lab {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  color: var(--ink-3); margin-bottom: clamp(1px, 0.4vh, 5px);
+}
+.hero-val {
+  font-family: var(--font-display);
+  font-size: clamp(38px, 3.9vw, 62px); font-weight: 300; line-height: 1.0;
+  letter-spacing: -0.022em; color: var(--ink);
+  text-shadow: 0 0 34px rgba(127,178,229,.14);
+}
+.hero-deltas { display: flex; gap: clamp(14px, 2vw, 30px); margin-top: 10px; flex-wrap: wrap; }
+.delta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.delta-lab { font-size: 9.5px; letter-spacing: var(--track-wide); text-transform: uppercase; color: var(--ink-4); }
+.delta-abs { font-size: 15px; font-weight: 500; }
+.delta-rel { font-size: 11px; color: var(--ink-3); }
+.delta.pos .delta-abs { color: var(--aurora); }
+.delta.neg .delta-abs { color: var(--ember-pale); }
+.delta.muted .delta-abs { color: var(--ink-3); font-size: 12.5px; font-weight: 400; }
+
+.kpi-row {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, auto); grid-auto-flow: column;
+  column-gap: clamp(10px, 1.4vw, 24px); row-gap: clamp(6px, 0.9vh, 12px);
+  margin-top: clamp(8px, 1.3vh, 16px);
+  padding-block: clamp(8px, 1.1vh, 13px);
+  border-block: 1px solid var(--line-hair);
+}
+.kpi { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.kpi-lab { font-size: 9.5px; letter-spacing: var(--track-wide); text-transform: uppercase; color: var(--ink-4); }
+.kpi-val {
+  font-size: 17px; font-weight: 500; color: var(--ink); letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kpi-sub { font-size: 10.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi-lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Herkunftsangaben sind Beiwerk, kein Betrag — sie treten zurück. Aber nur
+   über die Farbe: Größe und Schnitt bleiben wie bei den anderen, sonst liest
+   sich die vierte Spalte als anderes Raster statt als leisere Aussage. */
+.kpi.is-meta .kpi-val { color: var(--ink-2); }
+.kpi.is-neg .kpi-val { color: var(--ember-pale); }
+.kpi.is-pos .kpi-val { color: var(--aurora); }
+
+/* ================================================================== Chart = */
+.block--chart { min-height: 130px; }
+.chart-body { position: relative; flex: 1; min-height: 0; cursor: crosshair; }
+.chart-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.chart-grid line { stroke: var(--line-hair); stroke-width: 1; }
+.chart-ylab { font-size: 9px; fill: var(--ink-4); letter-spacing: .06em; }
+.chart-xlab text { font-size: 9px; fill: var(--ink-4); text-anchor: middle; letter-spacing: .08em; }
+.chart-line { stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.chart-glow { stroke: var(--ice); stroke-width: 5; opacity: .16; filter: blur(3px); }
+.chart-ya { stroke: rgba(144,133,233,.48); stroke-width: 1; stroke-dasharray: 3 4; }
+.chart-ya-full { opacity: 0; }
+.chart-ya-stub, .chart-ya-full { transition: opacity .22s var(--ease-out); }
+.chart-body.is-probing .chart-ya-full { opacity: 1; }
+.chart-body.is-probing .chart-ya-stub { opacity: 0; }
+.chart-beam { pointer-events: none; }
+.chart-last { fill: var(--star); }
+/* Kein transform auf dem Halo: transform-origin bezieht sich in SVG auf die
+   viewBox, nicht auf den Kreis — der Halo wanderte dadurch aus dem Chart. */
+.chart-last-halo { fill: rgba(198,222,255,.14); }
+/* Skaliert um die eigene Mitte statt um die viewBox — derselbe Kniff wie beim
+   Stern. Ohne Bewegung ist der Ring unsichtbar, nicht bloß stehengeblieben. */
+.chart-last-ping {
+  fill: none; stroke: var(--star-halo); stroke-width: 1.2;
+  vector-effect: non-scaling-stroke; opacity: 0;
+  transform-box: fill-box; transform-origin: center;
+}
+.chart-cross line { stroke: rgba(198,222,255,.4); stroke-width: 1; stroke-dasharray: 2 3; }
+.chart-cross circle { fill: var(--star); stroke: rgba(4,7,14,.8); stroke-width: 2; }
+
+/* Ankunft der Linie: sie zeichnet sich von links nach rechts, Fläche und
+   Randwerk blenden dahinter auf. Läuft einmal je neuer Linie — neue Mappe,
+   anderer Zeitraum, andere Reihe —, danach steht sie still. `both` hält den
+   Anfangszustand vor dem ersten Bild, sonst blitzt die fertige Linie auf. */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-motion="on"] .chart-line.is-drawing,
+  :root[data-motion="calm"] .chart-line.is-drawing,
+  :root[data-motion="on"] .chart-glow.is-drawing,
+  :root[data-motion="calm"] .chart-glow.is-drawing {
+    animation: nsDraw var(--arrive-line) var(--ease-out) both;
+  }
+  :root[data-motion="on"] .chart-svg.is-arriving .chart-fill,
+  :root[data-motion="calm"] .chart-svg.is-arriving .chart-fill,
+  :root[data-motion="on"] .chart-svg.is-arriving .chart-beam,
+  :root[data-motion="calm"] .chart-svg.is-arriving .chart-beam,
+  :root[data-motion="on"] .chart-svg.is-arriving .chart-last,
+  :root[data-motion="calm"] .chart-svg.is-arriving .chart-last,
+  :root[data-motion="on"] .chart-svg.is-arriving .chart-last-halo,
+  :root[data-motion="calm"] .chart-svg.is-arriving .chart-last-halo,
+  :root[data-motion="on"] .chart-svg.is-arriving .chart-ya,
+  :root[data-motion="calm"] .chart-svg.is-arriving .chart-ya {
+    animation: nsArriveFade var(--arrive-line) var(--ease-out) both;
+  }
+}
+@keyframes nsDraw { from { stroke-dashoffset: var(--len); } }
+/* Die Fläche kommt später als der Strich: erst der Weg, dann das Licht. */
+@keyframes nsArriveFade { 0%, 45% { opacity: 0; } }
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-motion="on"] .chart-glow,
+  :root[data-motion="calm"] .chart-glow { animation: linepulse var(--pulse-dur) var(--ease-soft) infinite; }
+  :root[data-motion="on"] .chart-beam,
+  :root[data-motion="calm"] .chart-beam { animation: beampulse var(--pulse-dur) var(--ease-soft) infinite; }
+  :root[data-motion="on"] .chart-last-ping,
+  :root[data-motion="calm"] .chart-last-ping { animation: nsPing var(--pulse-dur) var(--ease-soft) infinite; }
+}
+/* Weit genug, um als Atmen gelesen zu werden: zwischen .11 und .26 sieht ein
+   Verlauf schlicht still aus. */
+@keyframes linepulse { 0%, 100% { opacity: .10; } 50% { opacity: .34; } }
+@keyframes beampulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+/* Ausschlagen und vergehen, dann Pause — ein Schlag, kein Zappeln. */
+@keyframes nsPing {
+  0%   { transform: scale(1);   opacity: .55; }
+  58%  { transform: scale(3.6); opacity: 0; }
+  100% { transform: scale(3.6); opacity: 0; }
+}
+
+/* Sieben Schalter in einer Zeile: Falls die Spalte doch einmal zu schmal wird,
+   rutschen die Jahre unter die Reihen, statt in das Kapitelwort zu laufen. */
+.chart-tools {
+  display: flex; align-items: center; gap: 0 0; min-width: 0;
+  flex-wrap: wrap; justify-content: flex-end; row-gap: 2px;
+}
+.range, .series { display: flex; gap: 2px; }
+.range-sep { width: 1px; height: 11px; margin: 0 6px; background: var(--line-soft); flex: 0 0 auto; }
+
+.range-btn {
+  font-size: 9.5px; letter-spacing: var(--track-wide); text-transform: uppercase;
+  color: var(--ink-4); padding: 3px 6px; transition: color .16s var(--ease-out);
+  white-space: nowrap; flex: 0 0 auto;
+}
+.range-btn:hover { color: var(--ink-2); }
+.range-btn[aria-pressed="true"] { color: var(--ice-pale); box-shadow: inset 0 -1px 0 var(--ice); }
+
+/* Das Fenster liegt über allem, was der Zeiger gerade nicht braucht: über den
+   Schaltern, dem Kapitelwort und den Kennzahlen darüber. Es fängt keine
+   Zeigerereignisse ab und ist fort, sobald man den Chart verlässt. */
+.chart-tip {
+  position: absolute; z-index: 6; pointer-events: none; opacity: 0;
+  min-width: 168px; padding: 9px 11px;
+  background: rgba(8,13,24,.93); border: 1px solid var(--line-soft);
+  backdrop-filter: blur(8px);
+  transition: opacity .13s var(--ease-out);
+}
+.chart-tip.is-on { opacity: 1; }
+.tip-key { font-size: 9.5px; letter-spacing: var(--track-wide); text-transform: uppercase; color: var(--ink-4); }
+.tip-val { font-size: 17px; font-weight: 500; margin: 1px 0 5px; font-variant-numeric: tabular-nums; }
+.tip-row { display: flex; justify-content: space-between; gap: 14px; font-size: 11px; color: var(--ink-3); }
+.tip-row b { color: var(--ink-2); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* ================================================================== Orbit = */
+.block--orbit { padding-top: 2px; min-height: 0; }
+.orbit-wrap {
+  display: flex; gap: clamp(12px, 1.8vw, 26px); align-items: center;
+  flex: 1; min-height: 0;
+}
+/* Die Legende bleibt senkrecht mittig neben der größeren Scheibe. */
+.orbit-legend { align-self: center; }
+/* Die Scheibe steht rechts und nimmt die volle Höhe der Spalte: sie ragt oben
+   in die Kapitelzeile hinein — dort ist neben dem Wort „structure“ ohnehin
+   nichts — und läuft unten bis an dieselbe Kante wie die Karten daneben. */
+.orbit-dial {
+  --bleed: calc(var(--chapter) + clamp(2px, 0.5vh, 7px));
+  flex: 0 0 auto; aspect-ratio: 1 / 1; max-width: 60%;
+  /* Gedehnt statt prozentual: der negative Rand oben vergrößert die genutzte
+     Höhe um genau die Kapitelzeile — ohne von einer auflösbaren Prozenthöhe
+     abzuhängen. Greift die Breitengrenze, bleibt die Zeichnung quadratisch
+     und wird nur mittig eingepasst. */
+  align-self: stretch;
+  margin-top: calc(-1 * var(--bleed));
+  margin-left: auto;                 /* bleibt an der rechten Kante der Spalte */
+}
+.orbit-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.orbit-grid line { stroke: var(--ice); }
+.orbit-inner-ring { fill: none; stroke: var(--line-hair); stroke-width: 1; }
+.orbit-track { fill: none; stroke: rgba(201,53,47,.15); }
+/* Die Strecke im Vermögensring, für die es kein Vermögen gibt. Blass genug,
+   um nicht als Sektion gelesen zu werden, und gestrichelt, damit sie auch
+   ohne Farbe als „fehlt" erkennbar bleibt. */
+.orbit-short {
+  fill: none; opacity: .38; stroke-linecap: butt;
+  stroke-dasharray: 3 5; pointer-events: none;
+}
+/* Ein Gegenring, der sich geschlossen hat, steht nicht mehr für einen Anteil,
+   sondern für ein Übermass — er tritt einen Schritt vor. */
+.orbit-liab.is-over { opacity: 1; filter: drop-shadow(0 0 6px rgba(201,53,47,.55)); }
+.orbit-arc {
+  fill: none; stroke-linecap: butt; cursor: pointer;
+  transition: stroke-width .2s var(--ease-out), opacity .2s var(--ease-out), filter .2s var(--ease-out);
+}
+/* Nur was sich öffnen lässt, verspricht auch einen Klick. */
+.orbit-arc:not([role="button"]) { cursor: default; }
+.orbit-weight { opacity: .5; }
+.has-hover .orbit-arc { opacity: .34; }
+.orbit-arc.is-hot { opacity: 1; stroke-width: 19; filter: drop-shadow(0 0 8px currentColor); }
+.orbit-liab.is-hot { stroke-width: 13; }
+.orbit-core-lab { font-size: 8.5px; fill: var(--ink-4); letter-spacing: var(--track-label); }
+.orbit-core-val { font-size: 23px; font-weight: 400; fill: var(--ink); letter-spacing: -0.01em; }
+.orbit-core-val.is-neg { fill: var(--ember-pale); }
+/* Ein Posten mit negativem Stand hat keinen Bogen auf der Scheibe. Der Punkt
+   vor ihm bleibt deshalb hohl statt gefüllt — die Legende sagt damit selbst,
+   dass es hier nichts zu zeigen gibt, ohne dass ein Wort dabeistehen muss. */
+.legend-row.is-owed .legend-dot {
+  background: transparent !important;
+  box-shadow: inset 0 0 0 1.5px var(--ember-pale);
+}
+/* Der Kern führt aus einer geöffneten Sektion zurück. Die Trefferfläche liegt
+   über der Beschriftung — deshalb muss sie Ereignisse annehmen, obwohl sie
+   nichts malt. */
+.orbit-core-back { font-size: 8px; fill: var(--ink-4); letter-spacing: .12em; }
+.orbit-core-hit { fill: transparent; pointer-events: all; cursor: pointer; }
+.orbit-core-hit:hover { fill: rgba(146, 180, 228, 0.05); }
+.orbit-core-hit:focus-visible { outline: none; fill: rgba(146, 180, 228, 0.08); }
+
+/* Feste Obergrenze statt freier Breite: jede Zeile ist ein eigenes Raster, die
+   Beträge stehen also nur untereinander, wenn alle Zeilen gleich breit sind —
+   und die Legende springt beim Öffnen einer Sektion nicht. */
+.orbit-legend {
+  flex: 1 1 auto; min-width: 0; min-height: 0; max-width: 440px;
+  display: flex; flex-direction: column; gap: 1px; overflow: auto;
+}
+.legend-row {
+  display: grid; grid-template-columns: 9px minmax(0, 1fr) auto auto; align-items: baseline;
+  gap: 10px; padding: 3.5px 0; font-size: 12px; color: var(--ink-2);
+  transition: color .16s var(--ease-out);
+}
+.legend-row.is-hot { color: var(--ink); }
+.has-hover .legend-row:not(.is-hot) { color: var(--ink-4); }
+.legend-dot { width: 7px; height: 7px; display: block; }
+.legend-lab { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend-val { font-weight: 500; font-variant-numeric: tabular-nums; }
+.legend-pct { font-size: 10px; color: var(--ink-4); min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+.legend-row.is-sum { color: var(--ink); font-size: 13px; padding-top: 5px; }
+.legend-row.is-sum .legend-val { font-weight: 500; }
+.legend-rule { height: 1px; background: var(--line-hair); margin: 5px 0; }
+.legend-row.is-open-able { cursor: pointer; }
+/* Zurück aus einer Sektion — steht in der Lesespalte, nicht in der Zeichnung. */
+.legend-back {
+  align-self: flex-start; padding: 2px 0 6px;
+  font-size: 10px; letter-spacing: var(--track-wide); text-transform: uppercase;
+  color: var(--ink-3); transition: color .16s var(--ease-out);
+}
+.legend-back:hover { color: var(--ink); }
+/* Steht unter der Prozentspalte, die sie erklärt — links stünde sie allein. */
+.legend-foot { font-size: 10px; color: var(--ink-4); padding-top: 3px; text-align: right; }
+
+/* =================================================================== Berg = */
+.mount-wrap { position: relative; min-height: 0; display: flex; flex-direction: column; }
+.mount-canvas {
+  flex: 1; width: 100%; min-height: 0; display: block; cursor: grab; touch-action: none;
+}
+.mount-canvas:focus-visible { outline-offset: -2px; }
+.mount-fallback { flex: 1; display: grid; place-items: center; padding: 24px; color: var(--ink-3); font-size: 13px; text-align: center; }
+.mount-fallback[hidden] { display: none; }   /* schlägt sonst das hidden-Attribut */
+.mount-foot {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 6px 0 8px; font-size: 9.5px; letter-spacing: var(--track-wide);
+  text-transform: uppercase; color: var(--ink-4);
+}
+.lg::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px;
+  border: 1.5px solid currentColor; border-radius: 50%; vertical-align: 0;
+}
+.lg-reached { color: var(--aurora); }
+.lg-current { color: var(--star); }
+.lg-future  { color: var(--ice); opacity: .85; }
+.lg-ring.is-ok { color: var(--aurora); }
+.lg-ring.is-warn { color: var(--amber); }
+.lg-ring::before { border-radius: 0; border-width: 0 0 2px 0; width: 12px; height: 0; vertical-align: 3px; }
+.mount-hint { margin-left: auto; text-transform: none; letter-spacing: .04em; }
+
+.mount-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.st-pos { font-size: 11.5px; color: var(--ink-2); }
+.st-next { font-size: 11px; color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.st-ring {
+  font-size: 10px; letter-spacing: var(--track-wide); text-transform: uppercase;
+  padding: 2px 8px; cursor: default;
+}
+.st-ring.is-ok { color: var(--aurora); background: var(--aurora-veil); }
+.st-ring.is-warn { color: var(--amber); background: var(--amber-veil); }
+.st-hint {
+  font-size: 10px; color: var(--amber); letter-spacing: .04em;
+  border-bottom: 1px dashed rgba(212,106,46,.5); padding-bottom: 1px;
+}
+
+/* ================================================================== Cards = */
+.card {
+  position: relative; perspective: 1100px; min-width: 0; min-height: 0;
+  cursor: pointer; outline-offset: 2px;
+}
+.card-inner {
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  transition: transform .62s var(--ease-out);
+}
+.card.is-flipped .card-inner { transform: rotateY(180deg); }
+:root[data-motion="off"] .card-inner { transition-duration: .01s; }
+
+.card-face {
+  position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  /* Leicht durchscheinend: der Schein des Bergs läuft unter der Schiene
+     weiter, statt an einer Kartenkante abzureißen. Ein späteres Foto legt
+     sich ohnehin deckend darüber. */
+  overflow: hidden; background: rgba(11, 18, 32, 0.72);
+  box-shadow: inset 0 0 0 1px var(--line-hair);
+}
+.card-front { display: flex; flex-direction: column; justify-content: flex-end; }
+.card-back {
+  transform: rotateY(180deg);
+  padding: 9px 12px 11px; display: flex; flex-direction: column; gap: 4px;
+}
+
+.card-wash { position: absolute; inset: 0; }
+.card-watermark {
+  position: absolute; right: -8px; top: 50%; transform: translateY(-50%);
+  color: rgba(233,239,249,.10); width: 64px; height: 64px;
+}
+/* Die Marke ist Inhalt, kein Platzhalter — deshalb eine durchgezogene
+   Haarlinie. Gestrichelt hieße „hier fehlt noch etwas". */
+.card-tag {
+  position: absolute; left: 7px; top: 6px;
+  max-width: calc(100% - 14px); white-space: nowrap; overflow: hidden;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .09em;
+  text-transform: uppercase;
+  border: 1px solid rgba(233,239,249,.16); padding: 2px 5px;
+}
+/* Die Zahl trägt, die Einheit steht nur dabei — aber „dabei" heisst lesbar:
+   unter 54 % Deckkraft über der Kartenfläche wird es zu wenig. */
+.card-tag b { font-weight: 400; color: rgba(233,239,249,.80); }
+.card-tag i { font-style: normal; color: rgba(233,239,249,.54); }
+.card-scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(178deg, rgba(4,7,14,0) 32%, rgba(4,7,14,.86) 100%);
+}
+.card-front-body { position: relative; padding: 0 12px 13px; display: flex; align-items: center; gap: 7px; }
+.card-name {
+  font-family: var(--font-display); font-size: 13.5px; font-weight: 500;
+  letter-spacing: .01em; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card-status { width: 6px; height: 6px; flex: 0 0 auto; background: var(--ice); opacity: .8; }
+.card[data-status="reached"] .card-status { background: var(--aurora); }
+.card[data-status="current"] .card-status { background: var(--star); box-shadow: 0 0 8px var(--star-halo); }
+.card[data-status="future"] .card-status { background: var(--ink-4); }
+
+.card-bar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+  background: rgba(146,180,228,.14);
+}
+.card-bar i {
+  position: absolute; inset: 0 auto 0 0; background: var(--ice);
+  transition: width .5s var(--ease-out); transform-origin: left center;
+}
+
+/* Ankunft der Karten: die Balken laufen nacheinander auf ihren Stand, in der
+   Reihenfolge der Leiter — Contingency zuerst, Apex zuletzt. Skaliert wird,
+   nicht die Breite bewegt: die Breite ist schon gesetzt, der Balken wächst
+   nur in sie hinein, und am Ende steht exakt der normale Zustand da. */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-motion="on"] .rail.is-arriving .card-bar i,
+  :root[data-motion="calm"] .rail.is-arriving .card-bar i {
+    animation: nsBarFill var(--arrive-bar) var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * var(--arrive-step));
+  }
+}
+@keyframes nsBarFill { from { transform: scaleX(0); } }
+.card[data-status="reached"] .card-bar i { background: var(--aurora); }
+.card[data-status="current"] .card-bar i { background: linear-gradient(90deg, var(--ice-deep), var(--star)); }
+.card[data-status="future"] .card-bar i { background: rgba(127,178,229,.45); }
+/* Die Reserve ist kein Meilenstein auf dem Weg, sondern eine Deckung: nicht
+   gedeckt heißt Warnung, nicht „als Nächstes dran“ — wie der Ring im Berg. */
+.card[data-id="contingency"][data-status="current"] .card-bar i { background: var(--amber); }
+.card[data-id="contingency"][data-status="current"] .card-status { background: var(--amber); box-shadow: none; }
+.card[data-id="contingency"][data-status="current"] .card-badge { color: var(--amber); background: var(--amber-veil); }
+
+.card:hover .card-face, .card.is-linked .card-face { box-shadow: inset 0 0 0 1px var(--line-firm); }
+.card.is-linked { transform: translateY(-2px); transition: transform .2s var(--ease-out); }
+
+.card-back-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.card-x {
+  flex: 0 0 auto; color: var(--ink-4); display: grid; place-items: center;
+  width: 16px; height: 16px; transition: color .16s var(--ease-out);
+}
+.card:hover .card-x, .card:focus-visible .card-x { color: var(--ink-2); }
+.card-meaning {
+  font-size: 10.5px; line-height: 1.36; color: var(--ink-3); text-wrap: pretty;
+  display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;
+  -webkit-line-clamp: 2;
+}
+.card-facts {
+  display: grid; grid-template-columns: auto 1fr; gap: 2px 10px;
+  font-size: 10.5px;
+}
+/* Rolle führt, Deckung begleitet — der Rang kommt aus dem helleren Wort, nicht
+   aus einem dunkleren: unter 4,5:1 geht hier nichts mehr. */
+.card-facts dt { color: var(--ink-3); letter-spacing: .03em; }
+.card-facts dt i { font-style: normal; color: var(--ink-4); }
+.card-facts dd { color: var(--ink-2); text-align: right; font-variant-numeric: tabular-nums; }
+.card-back-foot {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; margin-top: auto; padding-top: 3px;
+}
+.card-back-foot .f-pct { font-size: 14px; font-weight: 500; color: var(--ink); letter-spacing: -0.01em; }
+.card[data-status="reached"] .card-back-foot .f-pct { color: var(--aurora); }
+.card-badge {
+  font-size: 8.5px; letter-spacing: var(--track-wide); text-transform: uppercase; padding: 1px 6px;
+}
+.card-badge.is-reached { color: var(--aurora); background: var(--aurora-veil); }
+.card-badge.is-current { color: var(--star); background: rgba(198,222,255,.12); }
+.card-badge.is-future  { color: var(--ink-3); background: rgba(146,180,228,.07); }
+
+/* ============================================================ Overlay/Gate = */
+/* Über dem Vorhang (60), unter Ablegefläche (70) und Meldung (80): die
+   Einstellungen müssen sich auch bei leerem Dashboard öffnen lassen. */
+.overlay { position: fixed; inset: 0; z-index: 65; pointer-events: none; }
+.overlay.is-open { pointer-events: auto; }
+.sheet-scrim {
+  position: absolute; inset: 0; background: rgba(4,7,14,.68); backdrop-filter: blur(3px);
+  opacity: 0; transition: opacity .26s var(--ease-out);
+}
+.overlay.is-open .sheet-scrim { opacity: 1; }
+/* Zwei Spalten: links die fünf Namen, rechts genau ein Abschnitt. Der Kopf
+   läuft über beide, gescrollt wird nur rechts — die Namen stehen still. */
+.sheet {
+  position: absolute; top: 0; right: 0; bottom: 0; width: min(620px, 96vw);
+  background: var(--bg-deep); border-left: 1px solid var(--line-soft);
+  padding: 16px 26px 24px;
+  display: grid; grid-template-columns: 168px 1fr; grid-template-rows: auto 1fr;
+  column-gap: 30px; row-gap: 20px; overflow: hidden;
+  transform: translateX(100%); transition: transform .34s var(--ease-out);
+}
+.overlay.is-open .sheet { transform: none; }
+.sheet-head { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; }
+/* Der Name der Anwendung bleibt klein. Groß sind die Abschnitte. */
+.sheet-head h2 {
+  font-family: var(--font-display); font-size: 10px; font-weight: 500;
+  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ink-3);
+}
+
+/* --- Die fünf Namen -------------------------------------------------------
+   Der aktive Name ist die Überschrift des Blattes; im Paneel steht er kein
+   zweites Mal. Kleingeschrieben wie die Wortmarke, hell nur dort, wo man
+   gerade ist — der Block links ist die einzige Fläche, die Farbe trägt. */
+.sheet-nav { display: flex; flex-direction: column; gap: 2px; align-self: start; }
+.sheet-nav-item {
+  font-family: var(--font-display); font-size: 19px; font-weight: 300;
+  text-transform: lowercase; text-align: left; white-space: nowrap;
+  color: var(--ink-4); padding: 4px 0 4px 13px;
+  border-left: 2px solid transparent;
+  transition: color .16s var(--ease-out), border-color .16s var(--ease-out);
+}
+.sheet-nav-item:hover { color: var(--ink-2); }
+.sheet-nav-item[aria-selected="true"] { color: var(--star); border-left-color: var(--ice-deep); }
+
+/* Waagerecht bewusst zu: die Zeilen laufen beim Wechsel von rechts herein und
+   dürften sonst kurz eine Leiste aufblitzen lassen. */
+.sheet-body { overflow-y: auto; overflow-x: hidden; min-height: 0; padding-right: 6px; }
+.sheet-sec { display: flex; flex-direction: column; gap: 14px; }
+.sheet-sec[hidden] { display: none; }
+/* Das Paneel ist rollbar und deshalb anspringbar — der Ring gehört aber der
+   Tastatur, nicht der Maus. */
+.sheet-sec:focus:not(:focus-visible) { outline: none; }
+/* Der Wechsel wird erzählt, nicht geschnitten: die Zeilen laufen versetzt von
+   rechts herein. Die Staffel bricht nach der sechsten Zeile ab — was danach
+   kommt, ist ohnehin schon unter der Kante. */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="off"]) .sheet-sec > * { animation: sheetIn .3s var(--ease-out) both; }
+  :root:not([data-motion="off"]) .sheet-sec > :nth-child(2) { animation-delay: .045s; }
+  :root:not([data-motion="off"]) .sheet-sec > :nth-child(3) { animation-delay: .09s; }
+  :root:not([data-motion="off"]) .sheet-sec > :nth-child(4) { animation-delay: .135s; }
+  :root:not([data-motion="off"]) .sheet-sec > :nth-child(5) { animation-delay: .18s; }
+  :root:not([data-motion="off"]) .sheet-sec > :nth-child(n+6) { animation-delay: .225s; }
+}
+@keyframes sheetIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+
+.sheet-copy { font-size: 11.5px; line-height: 1.55; color: var(--ink-3); text-wrap: pretty; }
+/* Zwischenüberschrift im Paneel — dieselbe Tonlage wie die Etiketten im
+   Dashboard, damit das Blatt nicht seine eigene Sprache spricht. */
+.pane-sub {
+  font-size: 9.5px; font-weight: 500; letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--ink-3); margin-top: 6px;
+}
+.sheet-status { display: flex; align-items: center; gap: 10px; }
+.sheet-status .meta-import {
+  font-size: 10px; letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--ink-3); white-space: nowrap;
+}
+.sheet-link {
+  color: var(--ice); text-decoration: none;
+  border-bottom: 1px solid var(--ice-dim);
+  transition: color .16s var(--ease-out), border-color .16s var(--ease-out);
+}
+.sheet-link:hover { color: var(--ice-pale); border-bottom-color: var(--ice); }
+/* Der Kopf des About-Blatts: Stern, Wortmarke, Fassung — mittig, mit Luft,
+   und ohne Linie darunter. Die Kapitel darunter tragen die Gliederung selbst. */
+.about-head {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 2px 0 10px;
+}
+.about-head .star { margin-bottom: -2px; }
+/* Rechtshinweise: kleiner als der Rest, aber lesbar — nicht als Kleingedrucktes
+   getarnt. Die Werktitel bleiben in Gemischtschreibung: „nordstern" ist eine
+   Marke, keine Versalzeile.
+
+   Sperrung wirkt auch hinter dem letzten Buchstaben. Zentriert man den Kasten,
+   sitzt die Schrift darin um die halbe Sperrung nach links versetzt — bei
+   0,26 em auf 19 px sind das 2,5 px, und über einem 52 px grossen Stern sieht
+   man das sofort. Ein Innenabstand links in derselben Grösse legt links
+   dieselbe Luft an wie rechts, und die Buchstaben stehen wirklich mittig. */
+.about-mark {
+  font-family: var(--font-display);
+  font-size: 19px; font-weight: 500; letter-spacing: var(--track-label);
+  padding-inline-start: var(--track-label);
+  text-transform: lowercase; color: var(--ink);
+}
+.about-ver {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .06em;
+  padding-inline-start: .06em;
+  color: var(--ink-4);
+}
+.about-title {
+  font-size: 11px; font-weight: 500; color: var(--ink-2); letter-spacing: .02em;
+  margin-top: 2px;
+}
+.about-body {
+  font-size: 10.5px; line-height: 1.62; color: var(--ink-3);
+  text-wrap: pretty; overflow-wrap: anywhere;
+}
+.about-note { font-size: 10px; color: var(--ink-4); font-style: italic; padding-top: 2px; }
+/* Aufbau der Mappe als Abbild der Mappe: links wörtlich der Zellinhalt in
+   Schreibmaschine, rechts ein Beispiel. Vier Tonlagen tragen die Struktur —
+   Kopfzeile eines Abschnitts in Eisblau, Summenzeile hell, die beiden
+   Gesamtzeilen im Sternton, und die frei benennbaren Kontozeilen kursiv in der
+   Textschrift: Was kursiv steht, ist ein Beispiel und kein Pflichtwort. */
+.wbt { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+.wbt th {
+  font-size: 9px; font-weight: 500; letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--ink-3); text-align: left;
+  padding: 0 0 6px; border-bottom: 1px solid var(--line-soft);
+}
+.wbt td {
+  font-family: var(--font-mono); color: var(--ink-2);
+  padding: 3px 0; vertical-align: baseline; overflow-wrap: anywhere;
+}
+.wbt th:last-child, .wbt td:last-child { text-align: right; }
+.wbt td:last-child {
+  color: var(--ink-4); font-variant-numeric: tabular-nums;
+  padding-left: 14px; white-space: nowrap;
+}
+.wbt tbody tr:first-child td { padding-top: 6px; }
+.wbt .is-head td:first-child { color: var(--ice); }
+.wbt .is-item td:first-child {
+  font-family: var(--font-text); font-style: italic; color: var(--ink-4);
+  padding-left: 14px;
+}
+.wbt .is-key td:first-child { color: var(--star); }
+.wbt .is-sum td { padding-top: 11px; }
+
+/* Eine Kante links für die Beschriftung, eine rechts für die Zahl. */
+.sheet-facts {
+  display: grid; grid-template-columns: 1fr auto; gap: 7px 18px;
+  font-size: 12px; align-items: baseline;
+}
+.sheet-facts dt { color: var(--ink-3); }
+.sheet-facts dd { text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+/* Die Summe bekommt Luft und Größe, keine Linie darüber. */
+.sheet-facts .is-sum { margin-top: 15px; }
+.sheet-facts dt.is-sum {
+  font-size: 10px; letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--ink-3);
+}
+.sheet-facts .is-total {
+  font-family: var(--font-display); font-weight: 300; font-size: 27px; line-height: .92;
+  color: var(--ice-pale);
+}
+.sheet-facts .is-foot, .sheet-hint { font-size: 10.5px; color: var(--ink-4); }
+/* Dieselbe Liste, aber mit Sätzen statt Beträgen: schmale Spalte links, der
+   Text läuft links ausgerichtet und darf umbrechen. */
+.sheet-facts.is-wide { grid-template-columns: 88px 1fr; gap: 9px 16px; }
+.sheet-facts.is-wide dt {
+  font-size: 10px; letter-spacing: var(--track-wide); text-transform: uppercase;
+  color: var(--ink-4);
+}
+.sheet-facts.is-wide dd {
+  text-align: left; font-variant-numeric: normal; font-size: 11.5px;
+  line-height: 1.55; color: var(--ink-3); text-wrap: pretty;
+}
+
+.field { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.field-lab {
+  font-size: 10px; letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--ink-3);
+}
+.field-ctl { display: flex; align-items: baseline; gap: 6px; }
+/* Kein Kasten um die Zahl, nur eine Kante darunter — und die Zahl selbst so
+   groß wie die Summe, die sie mitbestimmt. */
+.field-num {
+  width: 104px; background: transparent; border: 0;
+  border-bottom: 1px solid var(--line-firm); color: var(--ink);
+  padding: 2px 0 3px; font-family: var(--font-display); font-weight: 300;
+  font-size: 22px; text-align: right; font-variant-numeric: tabular-nums;
+  transition: border-color .16s var(--ease-out);
+}
+.field-num:hover, .field-num:focus { border-bottom-color: var(--ice); }
+/* Die Pfeilchen des Zahlenfelds sind Systemzubehör: hell, gerundet, mit
+   eigenem Farbklang — auf dieser Fläche ein Fremdkörper. Sie fallen weg, ohne
+   dass etwas verlorengeht: getippt wird ohnehin, ↑/↓ auf der Tastatur wirken
+   weiter, und für das grobe Einstellen liegt das Band direkt darunter. */
+.field-num { appearance: textfield; -moz-appearance: textfield; }
+.field-num::-webkit-outer-spin-button,
+.field-num::-webkit-inner-spin-button { appearance: none; -webkit-appearance: none; margin: 0; }
+.field-unit { color: var(--ink-3); font-size: 12px; }
+/* Flaches Band, rechteckiger Griff — keine Pille, kein Verlauf. */
+.field-range { width: 100%; height: 18px; background: transparent; appearance: none; -webkit-appearance: none; }
+.field-range::-webkit-slider-runnable-track { height: 2px; background: var(--line-soft); }
+.field-range::-webkit-slider-thumb {
+  appearance: none; -webkit-appearance: none; width: 10px; height: 18px;
+  margin-top: -8px; background: var(--ice-deep); border: 0;
+}
+.field-range::-moz-range-track { height: 2px; background: var(--line-soft); }
+.field-range::-moz-range-thumb { width: 10px; height: 18px; border: 0; border-radius: 0; background: var(--ice-deep); }
+.field-range:hover::-webkit-slider-thumb { background: var(--ice); }
+.field-range:hover::-moz-range-thumb { background: var(--ice); }
+
+/* Metro-Schalter: eine Fläche, die von links nach rechts wandert. Darunter
+   liegt weiterhin eine echte Checkbox — unsichtbar, aber fokussierbar; der
+   Fokusring wird an das Band weitergereicht. */
+.metro-sw {
+  position: relative; display: grid; grid-template-columns: 36px 1fr auto;
+  align-items: center; gap: 12px; padding: 3px 0;
+  font-size: 12px; color: var(--ink-2); cursor: pointer;
+}
+.field-check {
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 36px; height: 14px; margin: 0; opacity: 0; cursor: pointer;
+}
+.sw-track { width: 36px; height: 14px; position: relative; box-shadow: inset 0 0 0 1px var(--line-firm); }
+.sw-track::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 9px; height: 10px;
+  background: var(--ink-4);
+  transition: transform .18s var(--ease-out), background .18s var(--ease-out);
+}
+.field-check:checked ~ .sw-track { box-shadow: inset 0 0 0 1px var(--ice-dim); }
+.field-check:checked ~ .sw-track::after { transform: translateX(23px); background: var(--ice-deep); }
+.field-check:focus-visible ~ .sw-track { outline: 2px solid var(--ice); outline-offset: 3px; }
+.sw-state {
+  font-size: 9.5px; letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--ink-4); transition: color .18s var(--ease-out);
+}
+.field-check:checked ~ .sw-state { color: var(--ice); }
+
+.sheet-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn {
+  padding: 10px 18px; font-size: 10px; letter-spacing: var(--track-label);
+  text-transform: uppercase; background: var(--ice-deep); color: #04070e; font-weight: 500;
+  transition: filter .16s var(--ease-out);
+}
+.btn:hover { filter: brightness(1.12); }
+.btn-ghost { background: transparent; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line-soft); }
+.btn-ghost:hover { color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-firm); }
+.btn-danger { color: var(--ember-pale); }
+.btn-primary { padding: 13px 26px; font-size: 11px; }
+.sheet-warn { display: flex; flex-direction: column; gap: 4px; }
+.warn-title { font-size: 11px; color: var(--amber); letter-spacing: .04em; }
+.warn-item { font-size: 10.5px; color: var(--ink-3); line-height: 1.4; padding-left: 10px; border-left: 1px solid var(--amber-veil); }
+.src-name { font-family: var(--font-mono); font-size: 11px !important; }
+
+/* Der Vorhang beginnt unter dem Kopf — Wortmarke, Einlesen und Einstellungen
+   bleiben sichtbar und bedienbar, während die leere Bühne verdeckt ist. */
+.gate {
+  position: fixed; inset: var(--head-h) 0 0 0; z-index: 60; display: grid; place-items: center;
+  background: radial-gradient(80% 60% at 50% 34%, rgba(11,18,32,.94), rgba(4,7,14,.99));
+  padding: 24px;
+}
+.gate[hidden] { display: none; }
+/* Zwei Sterne wären einer zu viel: solange der Vorhang steht, gehört er ihm. */
+body.is-gated .mast-star { display: none; }
+.gate-inner { max-width: 460px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.gate-star { width: 84px; height: 84px; display: grid; place-items: center; }
+.gate-title { font-family: var(--font-display); font-size: 24px; font-weight: 300; letter-spacing: .01em; }
+.gate-copy { font-size: 13px; line-height: 1.55; color: var(--ink-3); text-wrap: pretty; }
+.gate-errors { display: flex; flex-direction: column; gap: 5px; width: 100%; }
+.gate-err {
+  font-size: 11.5px; color: var(--ember-pale); text-align: left;
+  padding: 6px 10px; background: var(--ember-veil); border-left: 2px solid var(--ember);
+}
+/* Wenn die Mappe nicht passt, steht der Weg zu ihrem Aufbau direkt daneben. */
+.gate-more { align-self: center; margin-top: 6px; }
+
+.drop-veil {
+  position: fixed; inset: 0; z-index: 70; display: grid; place-items: center;
+  background: rgba(4,7,14,.82); backdrop-filter: blur(4px);
+  opacity: 0; pointer-events: none; transition: opacity .18s var(--ease-out);
+}
+.drop-veil.is-on { opacity: 1; }
+.drop-veil span {
+  font-family: var(--font-display); font-size: 17px; letter-spacing: var(--track-wide);
+  text-transform: uppercase; color: var(--ice-pale);
+  padding: 26px 44px; border: 1px dashed var(--line-firm);
+}
+
+.toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 14px); z-index: 80;
+  padding: 10px 18px; font-size: 12px; letter-spacing: .02em;
+  background: rgba(11,18,32,.96); border: 1px solid var(--line-soft); color: var(--ink-2);
+  opacity: 0; pointer-events: none; transition: opacity .22s var(--ease-out), transform .22s var(--ease-out);
+  max-width: min(560px, 90vw);
+}
+.toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+.toast.is-ok { border-color: rgba(47,189,139,.4); }
+.toast.is-warn { border-color: rgba(212,106,46,.45); }
+.toast.is-error { border-color: rgba(201,53,47,.5); color: var(--ember-pale); }

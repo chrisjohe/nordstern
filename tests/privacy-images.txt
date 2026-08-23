@@ -1,0 +1,12 @@
+# NORDSTERN — geprüfte Bilder (tests/privacy.mjs)
+#
+# Der Wächter liest Text, keine Pixel. Ein Screenshot der laufenden Anwendung
+# zeigt aber genau das, wonach er sucht. Deshalb braucht jedes Bild im
+# Repository eine Zeile hier: Prüfsumme, Pfad, und hinter dem # wie geprüft
+# wurde. Ändert sich das Bild, passt die Prüfsumme nicht mehr, und die Zeile
+# gilt nicht mehr — dann muss jemand erneut hinsehen.
+#
+# Diese Datei behauptet nicht, dass ein Bild harmlos ist. Sie hält nur fest,
+# dass jemand hingesehen hat, und wer das nachvollziehen will, weiss wie.
+
+1f68b7aa8053930cdc64431c9f02ac642251b56f1efa5f6a5b731f4801e8d5ab  docs/screenshot.png  # Geprüft 23.08.2026: zeigt ausschliesslich examples/nordstern-example.xlsx (450.239 / 883.024 / 432.785 / 345.198 — die erfundenen Zahlen der Beispielmappe). Texterkennung ueber das Bild, das Ergebnis gegen alle Nadeln der privaten Mappe: kein Treffer. Keine Titelleiste, kein Dateiname, kein zweites Fenster. Metadaten: nur Bildmasse und "Screenshot".

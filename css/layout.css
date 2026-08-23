@@ -1,0 +1,144 @@
+/* NORDSTERN — Panorama-Gerüst.
+   Desktop: ein Viewport, kein Scroll. Schmalere Fenster verdichten und scrollen. */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg-void);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+/* --- Atmosphäre: liegt hinter allem, kostet kein Layout -------------------- */
+.sky {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 62% -18%, rgba(57, 135, 229, 0.16), transparent 58%),
+    radial-gradient(90% 70% at 8% 108%, rgba(47, 189, 139, 0.055), transparent 62%),
+    radial-gradient(70% 60% at 96% 88%, rgba(201, 53, 47, 0.05), transparent 60%),
+    linear-gradient(178deg, #070d19 0%, #05090f 46%, #04070d 100%);
+}
+.sky::after {                     /* Sternenstaub */
+  content: ""; position: absolute; inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, rgba(233,239,249,.42), transparent 100%),
+    radial-gradient(1px 1px at 27% 64%, rgba(233,239,249,.22), transparent 100%),
+    radial-gradient(1px 1px at 41% 12%, rgba(233,239,249,.30), transparent 100%),
+    radial-gradient(1px 1px at 58% 78%, rgba(233,239,249,.18), transparent 100%),
+    radial-gradient(1px 1px at 69% 32%, rgba(233,239,249,.34), transparent 100%),
+    radial-gradient(1px 1px at 83% 58%, rgba(233,239,249,.20), transparent 100%),
+    radial-gradient(1px 1px at 91% 15%, rgba(233,239,249,.26), transparent 100%),
+    radial-gradient(1px 1px at 5% 84%, rgba(233,239,249,.16), transparent 100%);
+}
+
+.shell {
+  position: relative; z-index: 1;
+  height: 100vh; height: 100dvh;
+  display: grid;
+  grid-template-rows: var(--head-h) minmax(0, 1fr);
+}
+
+/* --- Kopfbereich ---------------------------------------------------------- */
+.masthead {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: var(--gutter);
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--line-hair);
+  min-width: 0;
+}
+.mast-left  { display: flex; align-items: baseline; gap: 18px; min-width: 0; }
+/* Die beiden Knöpfe gehören zusammen — Mappe lesen und Einstellungen sind
+   dieselbe Handbewegung. Der Abstand ist deshalb knapp: die Flächen bleiben
+   32 px gross und damit gut treffbar, nur die Lücke dazwischen schrumpft. */
+.mast-right { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+/* Der Stern liegt exakt auf der Mittelachse des Fensters, unabhängig davon,
+   wie breit Wortmarke und rechte Gruppe gerade sind. */
+.mast-star {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex; align-items: center; pointer-events: none;
+}
+
+/* --- Bühne ---------------------------------------------------------------- */
+/* Beide Hälften exakt gleich breit — die Trennkante trifft damit den Stern. */
+.stage {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) minmax(360px, 1fr);
+  min-height: 0; min-width: 0;
+}
+.zone { position: relative; min-width: 0; min-height: 0; }
+
+.zone--position {
+  display: grid;
+  grid-template-rows: auto minmax(110px, 1fr) var(--rail-h);
+  padding: clamp(14px, 1.6vh, 24px) var(--gutter) var(--zone-pad-b);
+  gap: clamp(8px, 1.2vh, 18px);
+}
+.zone--position::after {          /* Trennkante mit weichem Auslauf */
+  content: ""; position: absolute; right: 0; top: 6%; bottom: 6%; width: 1px;
+  background: linear-gradient(180deg, transparent, var(--line-soft) 22%, var(--line-soft) 78%, transparent);
+}
+
+.zone--mountain {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: clamp(14px, 1.6vh, 24px) var(--gutter) var(--zone-pad-b);
+  gap: 6px;
+}
+/* Der Grundschein des Bergs. Er gehört nicht in die Leinwand: dort bricht er an
+   deren Unterkante ab und legt einen dunklen Kasten unter die Karten. Hier
+   liegt er hinter der ganzen Hälfte und läuft unter der Schiene weich aus.
+   Mittelpunkt und Größe meldet der Berg selbst — er kennt seinen Ausschnitt. */
+.zone--mountain::before {
+  content: ""; position: absolute; z-index: 0; pointer-events: none;
+  left: var(--glow-x, 50%); top: var(--glow-y, 40%);
+  width: var(--glow-d, 78%); aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side,
+    rgba(57, 135, 229, 0.13) 0%, rgba(57, 135, 229, 0.05) 46%, rgba(57, 135, 229, 0) 100%);
+}
+.zone--mountain > * { position: relative; z-index: 1; }
+
+/* --- Kartenschiene: 2 × 4 unter dem Berg ---------------------------------- */
+.rail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, var(--card-h));
+  gap: var(--rail-gap);
+  padding-top: var(--rail-pad);
+  border-top: 1px solid var(--line-hair);
+  min-height: 0;
+}
+
+/* --- Verdichtung ----------------------------------------------------------
+   Unterhalb dieser Höhe passen Hero, Verlauf, Struktur und Kartenschiene nicht
+   mehr nebeneinander in einen Viewport: dann wird gestapelt und gescrollt,
+   statt dass sich die Blöcke überlagern. Die Kapitelworte hängen an der
+   Fensterhöhe, brauchen aber trotzdem ihren Anteil. */
+@media (max-width: 1180px), (max-height: 840px) {
+  body { overflow: auto; }
+  .shell { height: auto; min-height: 100vh; grid-template-rows: var(--head-h) auto; }
+  .stage { grid-template-columns: 1fr; }
+  .zone--position::after { display: none; }
+  .zone--position { border-bottom: 1px solid var(--line-hair); }
+  .zone--mountain { grid-template-rows: auto minmax(52vh, 1fr) auto; padding-bottom: 16px; }
+  .zone--position { grid-template-rows: auto minmax(240px, 1fr) auto; }
+}
+@media (max-width: 720px) {
+  /* Vier Kennzahlspalten sind hier zu viel: zwei Spalten, zeilenweise. */
+  .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; grid-auto-flow: row; }
+  .mast-star { display: none; }          /* kein Platz für den Stern zwischen Marke und Bedienung */
+  .rail { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, var(--card-h)); }
+  .zone--position { grid-template-rows: auto minmax(110px, 1fr) auto; }
+}

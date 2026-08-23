@@ -1,0 +1,41 @@
+{
+  "name": "nordstern",
+  "private": false,
+  "version": "1.0.0",
+  "description": "A local, offline, no-build dashboard for personal net worth, spending and FIRE progress. Reads your spreadsheet in the browser and sends nothing anywhere.",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "example": "node tools/make-example.mjs",
+    "privacy": "node tests/privacy.mjs",
+    "test": "node tests/smoke.mjs && node tests/behaviour.mjs && node tests/geometry.mjs && node tests/formats.mjs && node tests/example.mjs && node tests/build.mjs && node tests/hook.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0"
+  },
+  "keywords": [
+    "fire",
+    "financial-independence",
+    "net-worth",
+    "personal-finance",
+    "dashboard",
+    "offline-first",
+    "no-build",
+    "vanilla-js",
+    "xlsx",
+    "privacy"
+  ],
+  "homepage": "https://github.com/chrisjohe/nordstern#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrisjohe/nordstern.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chrisjohe/nordstern/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "Christian J. Heinze",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  }
+}

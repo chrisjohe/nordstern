@@ -1,0 +1,44 @@
+#!/bin/sh
+# nordstern — pre-commit: two locks before anything enters the history. A
+# later commit cannot take something back out, it only lays something on top.
+#
+# Enable:  git config core.hooksPath .githooks
+# Bypass:  git commit --no-verify
+#
+# Every branch fails closed: a guard that cannot tell whether it applies has to
+# assume it does. tests/hook.mjs proves both locks bite.
+
+fail() {
+  printf '\n\033[31m%s\033[0m\n' "$1"; shift
+  for l in "$@"; do printf '  %s\n' "$l"; done
+  printf '\n'
+  exit 1
+}
+
+# --- 1. No spreadsheet leaves this machine ------------------------------
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+bad=$(printf '%s\n' "$staged" | grep -Ei '\.(xlsx|xlsm|xlsb|ods|numbers|csv)$' | grep -v '^examples/' || true)
+[ -z "$bad" ] || fail "A spreadsheet is staged that is not the example workbook:" $bad \
+  "" "If this really is meant to be public, put it in examples/ and make sure" \
+  "every figure in it is invented."
+
+bad=$(printf '%s\n' "$staged" | grep -E '^(excel|backup)/' || true)
+[ -z "$bad" ] || fail "Staged from a directory that must never be committed:" $bad
+
+# --- 2. No figure out of a real workbook --------------------------------
+# The guard decides for itself whether it applies: with no workbook in excel/
+# it prints a note and exits 0. So it is always run — no shell condition here
+# can get that wrong.
+if command -v node >/dev/null 2>&1; then
+  if ! node "$(git rev-parse --show-toplevel)/tests/privacy.mjs"; then
+    fail "The privacy guard found real data in files this commit would carry." \
+      "" "It is listed above with file and line. Remove it before committing —" \
+      "a later commit cannot take it back out of the history."
+  fi
+elif [ -d excel ]; then
+  fail "There is an excel/ directory but no node to check it with." \
+    "" "Install Node, or commit with --no-verify if you are certain."
+fi
+
+exit 0

@@ -1,0 +1,58 @@
+nordstern
+Copyright 2026 Christian J. Heinze
+
+This product includes software developed by Christian J. Heinze.
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use these files except in compliance with the License. You may obtain a copy
+of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------
+Third-party components
+--------------------------------------------------------------------------
+
+SheetJS Community Edition 0.20.3
+Copyright (C) 2012-present SheetJS LLC
+Licensed under the Apache License, Version 2.0
+https://git.sheetjs.com/sheetjs/sheetjs
+
+  Vendored unmodified as js/vendor/xlsx.full.min.js, with the licence text
+  alongside it as js/vendor/xlsx.LICENSE.txt. nordstern uses it to read
+  spreadsheets. It never writes one.
+
+Material Symbols
+Copyright Google LLC
+Licensed under the Apache License, Version 2.0
+https://github.com/google/material-design-icons
+
+  Icon path data is used unmodified and recoloured through currentColor.
+  The unaltered source files are kept in sprites/ for provenance. Google's
+  name and trademarks are not used to imply any affiliation with, or
+  endorsement of, nordstern.
+
+--------------------------------------------------------------------------
+Fonts
+--------------------------------------------------------------------------
+
+nordstern bundles no font files and loads none. The families named in
+css/tokens.css — Avenir Next, Avenir, Futura, Century Gothic, URW Gothic,
+Trebuchet MS, Helvetica Neue, SF Mono, JetBrains Mono, Menlo — are requests
+to whatever is already installed on the reader's machine, and each falls
+through to the next until the generic sans-serif or monospace. Those names
+are trademarks of their respective owners; no font software is distributed
+with this project, and none is fetched at runtime. tests/build.mjs fails the
+build if an @font-face rule or a remote font host ever appears.
+
+--------------------------------------------------------------------------
+Trademarks
+--------------------------------------------------------------------------
+
+Microsoft and Excel are trademarks of Microsoft Corporation; Apple and Numbers
+of Apple Inc.; Google and Google Sheets of Google LLC; LibreOffice of The
+Document Foundation. nordstern names them only to say which files it can read
+and where those files come from — nominative use, no affiliation with or
+endorsement by any of them. nordstern is not a spreadsheet program, does not
+reimplement one, and writes no file any of them made.
+
+"nordstern" and the nordstern star are trademarks of Christian J. Heinze.
+The Apache License does not grant permission to use them; see Section 6.
+You may fork this software freely — please give your fork its own name.

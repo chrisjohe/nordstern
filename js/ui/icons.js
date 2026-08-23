@@ -1,0 +1,135 @@
+/* NORDSTERN — Meilenstein-Symbole.
+
+   ════════════════════════════════════════════════════════════════════════
+   HIER LIEGEN DIE ICONS — nur in der Tabelle GLYPHS unten.
+   Berg und Karten zeichnen beide aus dieser einen Quelle, sonst nirgends.
+
+   Es sind Material Symbols in der Outline-Fassung (FILL0, wght400) — die
+   scharfe, dünn gezeichnete Linie zum Zune-/Metro-Bild der Oberfläche. Die
+   Quelldateien liegen unverändert in sprites/; die Lizenz steht in ABOUT.
+
+   Je Meilenstein zwei Einträge, weil Material Symbols pro Zielgröße eine
+   eigene optische Größe hat — dieselbe Form, für klein gröber vereinfacht:
+     pin   — der Marker im Berg  (16-px-Fassung, opsz20)
+     card  — das Motiv der Karte (48-px-Fassung, opsz48)
+   Fehlt `card`, nimmt die Karte `pin`. Beide sind unabhängig austauschbar.
+
+   Ein Eintrag ist { box: '<viewBox>', d: '<Pfaddaten>' } und wird gefüllt
+   gezeichnet. Aus einer heruntergeladenen Datei werden genau zwei Angaben
+   gebraucht:
+
+     <svg ... viewBox="0 -960 960 960" ...><path d="M480-80q-83…"/></svg>
+                       └──── box ────┘              └── d ──┘
+
+   Die Pixelgröße im Dateinamen ist NICHT die box — sie steckt in der
+   Pfadform selbst. Gezeichnet wird in der Größe, die Berg und Karte gerade
+   brauchen; das Bild skaliert verlustfrei mit. Enthält eine Datei mehrere
+   <path>, dürfen ihre d-Angaben mit einem Leerzeichen aneinandergehängt
+   werden.
+   ════════════════════════════════════════════════════════════════════════ */
+(function (global) {
+  'use strict';
+  var NS = global.NORDSTERN || (global.NORDSTERN = {});
+
+  var GLYPHS = {
+    /* Contingency — Schutz, der auch Fürsorge ist — Material Symbols `shield_with_heart` */
+    contingency: {
+      pin:  { box: '0 -960 960 960', d: 'M480-338q100-90 128-126t28-73q0-35.18-25.52-60.59Q584.95-623 549.61-623 529-623 510-614t-30 23q-12-14-31-23t-39-9q-35.18 0-60.59 25.27Q324-572.46 324-537.47q0 18.47 5.5 34.97t21.93 37.3q16.44 20.79 46.89 50.78Q428.77-384.43 480-338Zm0 242q-135-33-223.5-152.84Q168-368.69 168-515v-229l312-120 312 120v229q0 146.31-88.5 266.16Q615-129 480-96Zm0-75q104-32.25 172-129t68-215v-180l-240-92-240 92v180q0 118.25 68 215t172 129Zm0-308Z' },
+      card: { box: '0 -960 960 960', d: 'M480-338q89-81 114.5-113.5T620-517q0-32-22.5-54.5T543-594q-19 0-35.5 7.5T480-566q-11-13-27.5-20.5T417-594q-32 0-54.5 22.5T340-517q0 16 4.5 30.5T364-453q15 19 42.5 46t73.5 69Zm0 257q-140-35-230-162.5T160-523v-238l320-120 320 120v238q0 152-90 279.5T480-81Zm0-62q115-38 187.5-143.5T740-523v-196l-260-98-260 98v196q0 131 72.5 236.5T480-143Zm0-337Z' }
+    },
+    /* First Light — Sonne genau auf dem Horizont — Material Symbols `wb_twilight` */
+    snowball:    {
+      pin:  { box: '0 -960 960 960', d: 'm723-524-51-51 85-85 50 51-84 85ZM96-144v-72h768v72H96Zm348-504v-120h72v120h-72ZM234-524l-85-85 51-51 85 85-51 51Zm42 164h408q-22-64-77-104t-127-40q-72 0-127 40t-77 104Zm-84 72q0-120 84-204t204-84q120 0 204 84t84 204H192Zm288-72Z' },
+      card: { box: '0 -960 960 960', d: 'm727-563-42-44 86-84 42 42-86 86ZM80-170v-60h800v60H80Zm370-510v-120h60v120h-60ZM233-564l-85-87 42-42 87 87-44 42Zm35 184h424q-19-71-77-115.5T480-540q-77 0-135 44.5T268-380Zm-68 60q0-117 81.5-198.5T480-600q117 0 198.5 81.5T760-320H200Zm280-60Z' }
+    },
+    /* Velocity — Tempo — Material Symbols `bolt` */
+    fyou:        {
+      pin:  { box: '0 -960 960 960', d: 'm437-249 183-231H471l26-221-173 269h146l-33 183ZM336-96l48-264H192l324-504h72l-36 312h216L408-96h-72Zm136-379Z' },
+      card: { box: '0 -960 960 960', d: 'm393-165 279-335H492l36-286-253 366h154l-36 255Zm-73 85 40-280H160l360-520h80l-40 320h240L400-80h-80Zm154-396Z' }
+    },
+    /* Stable Course — das Rudern hört auf, der Wind trägt — Material Symbols `sailing` */
+    coast:       {
+      pin:  { box: '0 -960 960 960', d: 'm144-408 312-456v456H144Zm136-72h104v-151L280-480Zm224 72q20-59 29-119t9-121q0-67-10.5-133T504-912q68 21 125 75t98.5 124.5Q769-642 792.5-562T816-408H504Zm94-72h140q-14-75-45.5-144.5T609-751q3 26 4 51.5t1 51.5q0 42-4 84t-12 84ZM360-192q-35 0-67-20.5T240-264q-13 17-24 28t-28 22q-35-25-59.5-63T96-360h768q-8 45-32.5 83T772-214q-17-11-28.5-22T720-264q-22 32-54 52t-66 20q-35 0-67-20t-53-52q-22 31-54 51.5T360-192ZM96-48v-72h24q34 0 65-12.5t55-35.5q25 23 55.5 35.5T360-120q33 0 64-12.5t56-35.5q24 23 55 35.5t65 12.5q33 0 64-12.5t56-35.5q25 23 55.5 35.5T840-120h24v72h-24q-32 0-62-7t-58-22q-28 15-58 22t-62 7q-32 0-62-7.5T480-77q-28 14-58 21.5T360-48q-32 0-62-7t-58-22q-28 15-58 22t-62 7H96Zm288-432Zm214 0Z' },
+      card: { box: '0 -960 960 960', d: 'm129-420 301-438v438H129Zm115-60h126v-187L244-480Zm270 60q19-60 27.5-120.5T550-670q0-66-8.5-128.5T514-918q47 19 101 66.5T716-737q47 67 79 148.5T830-420H514Zm75-60h175q-17-87-62.5-168T602-782q5 30 6.5 59t1.5 53q0 46-6.5 99T589-480ZM360-196q-34 0-65-18.5T240-261q-14 14-33.5 27.5T169-213q-29-18-54-53.5T82-340h796q-8 38-33 73.5T791-213q-18-7-37.5-20.5T720-261q-24 28-55 46.5T600-196q-34 0-65-18.5T480-261q-24 28-55 46.5T360-196ZM80-40v-60h40q32 0 61.5-10.5T240-149q29 28 59 38.5t61 10.5q32 0 61.5-10.5T480-149q29 28 59 38.5t61 10.5q32 0 61.5-10.5T720-149q29 28 58.5 38.5T840-100h40v60h-40q-29 0-59.5-8.5T720-80q-30 23-60.5 31.5T600-40q-29 0-59.5-8.5T480-80q-30 23-60.5 31.5T360-40q-29 0-59.5-8.5T240-80q-30 23-60.5 31.5T120-40H80Zm290-440Zm219 0Z' }
+    },
+    /* Aurora — geschichtete Bänder — Material Symbols `airwave` */
+    barista:     {
+      pin:  { box: '0 -960 960 960', d: 'M743-615q-25 25-58 38.5T617-563q-35 0-68-13.5T491-615l-74-74q-15-15-35-22.5t-41-7.5q-20 0-39 8t-34 22l-75 74-50-51 74-74q25-25 57-38.5t67-13.5q35 0 68 13.5t58 38.5l74 74q16 15 35 23.5t41 8.5q21 0 40.5-9t34.5-23l74-74 51 51-74 74Zm0 197q-26 25-58.5 39T617-365q-35 0-67.5-14T491-418l-74-74q-15-16-35-23t-41-7q-20 0-39.5 8T268-492l-74 74-51-50 74-74q25-25 57-39t67-14q35 0 68 14t58 39l74 74q16 15 35.5 23t40.5 8q21 0 40.5-8.5T692-468l75-74 50 50-74 74Zm1 198q-26 26-58.5 39T617-168q-35 0-68-13.5T491-220l-74-74q-15-16-35-23t-42-7q-20 0-39 8t-33 22l-74 74-50-51 73-74q25-25 57-38.5t67-13.5q35 0 68 13.5t58 38.5l74 74q16 15 35.5 23t41.5 8q21 0 40-8.5t34-22.5l75-74 50 51-73 74Z' },
+      card: { box: '0 -960 960 960', d: 'M743-631q-26 26-58 38.5T619-580q-34 0-66-12.5T495-631l-75-75q-17-17-37.5-25t-42.5-8q-22 0-42.5 8T260-706l-68 68-43-43 68-68q26-26 58-38.5t65-12.5q33 0 64.5 12.5T462-749l75 75q17 17 37.5 25.5T618-640q23 0 44-8.5t38-25.5l68-68 43 43-68 68Zm0 210q-26 26-58 38.5T619-370q-34 0-66-12.5T495-421l-75-75q-17-17-37.5-25t-42.5-8q-22 0-42.5 8T260-496l-68 68-43-42 68-69q26-26 58-38.5t65-12.5q33 0 64.5 12.5T462-539l75 75q17 17 38 25.5t44 8.5q23 0 43.5-8.5T700-464l68-68 43 43-68 68Zm-1 210q-26 26-57.5 38.5T619-160q-34 0-66-12.5T495-211l-76-75q-17-17-37.5-25t-42.5-8q-22 0-42.5 8T259-286l-68 68-42-42 68-69q26-26 57.5-38.5T339-380q33 0 65 12.5t58 38.5l75 75q17 17 38 25.5t44 8.5q23 0 43.5-8.5T700-254l68-68 42 43-68 68Z' }
+    },
+    /* Passage — ein Durchgang, kein Ziel — Material Symbols `gate` */
+    semi:        {
+      pin:  { box: '0 -960 960 960', d: 'M96-288v-384h72v384H96Zm120 72v-384q0-60 42-102t102-42h240q60 0 102 42t42 102v384H216Zm576-72v-384h72v384h-72ZM480-480ZM288-288h156v-156h-60v-72h60v-156h-84q-29.7 0-50.85 21.15Q288-629.7 288-600v312Zm228 0h156v-312q0-29.7-21.15-50.85Q629.7-672 600-672h-84v156h60v72h-60v156Z' },
+      card: { box: '0 -960 960 960', d: 'M80-280v-400h60v400H80Zm120 80v-410q0-63 44-106.5T350-760h260q63 0 106.5 43.5T760-610v410H200Zm620-80v-400h60v400h-60ZM480-480ZM260-260h190v-190h-80v-60h80v-190H350q-37 0-63.5 26T260-610v350Zm250 0h190v-350q0-38-26-64t-64-26H510v190h80v60h-80v190Z' }
+    },
+    /* Polaris — der Stern, nach dem navigiert wird — Material Symbols `flare` */
+    lean:        {
+      pin:  { box: '0 -960 960 960', d: 'M48-444v-72h240v72H48Zm271-147-80-80 50-51 81 80-51 51Zm125-81v-240h72v240h-72Zm197 82-51-51 80-80 51 51-80 80Zm31 146v-72h240v72H672Zm-277.5 49.5Q360-429 360-480t34.5-85.5Q429-600 480-600t85.5 34.5Q600-531 600-480t-34.5 85.5Q531-360 480-360t-85.5-34.5ZM670-239l-80-80 51-51 80 80-51 51Zm-381 0-51-50 80-81 51 51-80 80ZM444-48v-240h72v240h-72Z' },
+      card: { box: '0 -960 960 960', d: 'M40-450v-60h232v60H40Zm271-157-80-80 42-42 80 80-42 42Zm139-81v-232h60v232h-60Zm199 81-42-42 80-80 42 42-80 80Zm39 157v-60h232v60H688Zm-280.5 42.5Q378-437 378-480t29.5-72.5Q437-582 480-582t72.5 29.5Q582-523 582-480t-29.5 72.5Q523-378 480-378t-72.5-29.5ZM692-226l-85-85 42-42 85 85-42 42Zm-424 0-42-42 85-85 42 42-85 85ZM450-40v-232h60v232h-60Z' }
+    },
+    /* Apex — Gipfel mit gesetzter Flagge — Material Symbols `mountain_flag` */
+    fat:         {
+      pin:  { box: '0 -960 960 960', d: 'M480-356Zm-139-86 65 41 74-35 74 35 65-42-41-85H382l-41 86ZM210-168h540l-99-209-92 58-79-37-79 37-92-57-99 208ZM96-96l240-504h108v-264h228l-48 72 48 72H516v120h108L864-96H96Z' },
+      card: { box: '0 -960 960 960', d: 'M480-366Zm-153-79 75 50 78-39 77 40 75-50-47-96H374l-47 95ZM177-140h606L659-390l-97 65-82-41-82 40-98-65-123 251ZM80-80l256-520h114v-280h254l-35 70 35 70H510v140h110L880-80H80Z' }
+    }
+  };
+
+  /* ------------------------------------------------------------ Innereien */
+
+  /** Eintrag für eine Verwendung holen; `card` fällt auf `pin` zurück. */
+  function entry(id, variant) {
+    var g = GLYPHS[id];
+    if (!g) return null;
+    return (variant === 'card' ? g.card : g.pin) || g.pin || g.card || null;
+  }
+
+  var boxCache = {}, pathCache = {};
+
+  /** '0 -960 960 960' → { x, y, w, h } */
+  function box(entry) {
+    var s = entry.box || '0 0 24 24';
+    if (!(s in boxCache)) {
+      var p = s.split(/[\s,]+/).map(Number);
+      boxCache[s] = { x: p[0] || 0, y: p[1] || 0, w: p[2] || 24, h: p[3] || 24 };
+    }
+    return boxCache[s];
+  }
+
+  function path2d(e) {
+    if (!global.Path2D || !e) return null;
+    if (!(e.d in pathCache)) pathCache[e.d] = new Path2D(e.d);
+    return pathCache[e.d];
+  }
+
+  /* -------------------------------------------------------------- Zeichnen */
+
+  /** Symbol mittig um (0,0) in der gewünschten Kantenlänge auf Canvas malen. */
+  function draw(ctx, id, size, color, variant) {
+    var e = entry(id, variant || 'pin');
+    var p = path2d(e);
+    if (!p) return;
+    var b = box(e);
+    var s = size / Math.max(b.w, b.h);
+    ctx.save();
+    ctx.scale(s, s);
+    ctx.translate(-(b.x + b.w / 2), -(b.y + b.h / 2));
+    ctx.fillStyle = color;
+    ctx.fill(p);
+    ctx.restore();
+  }
+
+  /** Dasselbe Symbol als SVG-Element — für die Karten. */
+  function svg(id, size, cls, variant) {
+    var U = NS.util;
+    var e = entry(id, variant || 'card');
+    return U.svg('svg', {
+      viewBox: e ? e.box : '0 0 24 24',
+      width: size, height: size, class: cls || 'glyph',
+      fill: 'none', 'aria-hidden': 'true'
+    }, [
+      U.svg('path', { d: e ? e.d : '', fill: 'currentColor' })
+    ]);
+  }
+
+  NS.icons = { GLYPHS: GLYPHS, entry: entry, draw: draw, svg: svg, path2d: path2d };
+})(typeof window !== 'undefined' ? window : globalThis);

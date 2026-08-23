@@ -1,0 +1,27 @@
+# --- Personal financial data -------------------------------------------
+# These lines are why this file exists. Anything that could be a spreadsheet
+# stays out, with exactly one exception: the example workbook, which contains
+# invented numbers and is meant to ship.
+excel/
+*.xlsx
+*.xlsm
+*.xlsb
+*.ods
+*.numbers
+*.csv
+!examples/*.xlsx
+
+# Working copies of earlier revisions. They still contain the figures that
+# were in those revisions at the time.
+backup/
+
+# --- Generated ----------------------------------------------------------
+# The single-file build is derived from the sources; `npm run build` remakes
+# it in seconds, and GitHub Pages builds its own. A 1 MB blob that changes
+# with every edit does not belong in the history.
+export/
+
+# --- Tooling ------------------------------------------------------------
+node_modules/
+.DS_Store
+*.log
