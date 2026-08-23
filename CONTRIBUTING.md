@@ -52,7 +52,7 @@ machine too.
 git clone https://github.com/chrisjohe/nordstern
 cd nordstern
 npm install          # jsdom, for the tests
-npm test             # ~300 assertions, all headless
+npm test             # ~500 assertions, all headless
 npm run build        # → export/nordstern.html
 open index.html      # or just double-click it
 ```
@@ -61,7 +61,7 @@ There is no dev server and nothing to watch. Edit a file, reload the page.
 
 ## Tests
 
-`npm test` runs six suites and they must all be green:
+`npm test` runs seven suites and they must all be green:
 
 | Suite | What it holds down |
 |---|---|
@@ -69,6 +69,7 @@ There is no dev server and nothing to watch. Edit a file, reload the page.
 | `tests/behaviour.mjs` | empty state, import, persistence, every control |
 | `tests/geometry.mjs` | the mountain: contours, route, framing, marker spacing |
 | `tests/formats.mjs` | every format the file dialog offers actually parses |
+| `tests/example.mjs` | the shipped example workbook says what the docs say it does |
 | `tests/build.mjs` | the single-file build is self-contained and data-free |
 | `tests/hook.mjs` | the pre-commit hook bites — both of its locks |
 

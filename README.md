@@ -60,7 +60,7 @@ verify yourself in about two minutes:
 | Nothing *can* be uploaded | `grep -r "fetch\|XMLHttpRequest\|WebSocket" js/` — only the vendored SheetJS matches, and only in dead branches |
 | The browser enforces it | `export/nordstern.html` carries `connect-src 'none'; form-action 'none'` |
 | Your spreadsheet is not modified | There is no write path. `XLSX.write` is never called by the app |
-| Only two sheets are read | The example workbook ships with a third sheet that is deliberately ignored |
+| Only two sheets are read | The example workbook ships with a third sheet; neither its name nor its content appears in the app or in `localStorage` |
 | No web fonts, no CDN, no analytics | `npm test` fails the build if any of those appear |
 
 The parsed result is kept in your browser's `localStorage` and nowhere else,

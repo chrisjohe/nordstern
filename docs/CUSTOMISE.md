@@ -17,7 +17,7 @@ station, in order, from nearest to furthest:
 ```js
 { id: 'coast', name: 'Stable Course', term: 'Coast FI', months: 60,
   basis: 'investment', t: 13 / 34,
-  meaning: 'Five years of expenses. It grows on its own now.',
+  meaning: 'Five years of expenses. A break of years, not months.',
   basisLabel: '5 × annual expenses, covered by investments' },
 ```
 

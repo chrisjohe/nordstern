@@ -24,9 +24,14 @@ write path in the code — `XLSX.write` is never called by the application,
 only by the developer tools that generate the example workbook. Your file is
 not moved, renamed, re-saved or "helpfully" repaired.
 
-Only two sheets are read: **Data Input** and **Expenses**. Everything else in
-your workbook is ignored, including sheet names — the example workbook ships
-with a third sheet purely to demonstrate this.
+Only two sheets are read: **Data Input** and **Expenses**. The parser is
+handed those two names, so in `.xlsx`, `.xlsm` and `.xlsb` no other sheet is
+decoded at all. SheetJS ignores that filter for `.ods` and `.numbers`; there
+every sheet is decoded into memory, and everything but the two is dropped the
+moment the workbook is open, before a single cell is read out of it. Either
+way, no other sheet and no sheet name reaches the model or your
+`localStorage` — the example workbook ships with a third sheet purely to
+demonstrate this.
 
 ## Where your data actually sits
 

@@ -79,6 +79,29 @@
     var p = key.split('-');
     return MONTHS[Number(p[1]) - 1] + ' ' + p[0];
   }
+  /** Zeitpunkt eines Imports: '23.08.2026, 18:30'. Ohne Sekunden — wann eine
+      Mappe gelesen wurde, ist eine Angabe für den Menschen, keine Messung. */
+  var dtf = null;
+  function dateTime(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    if (!dtf) dtf = new Intl.DateTimeFormat('de-DE', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+    return dtf.format(d);
+  }
+
+  /** 'YYYY-MM' → fortlaufende Monatszahl. Nur zum Rechnen mit Abständen:
+      der Unterschied zweier Werte ist die Anzahl Monate dazwischen. */
+  function monthNo(key) {
+    if (!key) return null;
+    var p = String(key).split('-');
+    var y = Number(p[0]), m = Number(p[1]);
+    if (!isFinite(y) || !isFinite(m)) return null;
+    return y * 12 + (m - 1);
+  }
+
   /** 'YYYY-MM' → 'Aug 2026' */
   function monthShort(key) {
     if (!key) return '—';
@@ -168,12 +191,12 @@
   /* Eine Fassung, an einer Stelle. Ohne Bauschritt kann nichts sie aus
      package.json holen, also steht sie hier — und tests/behaviour.mjs hält
      beide gegeneinander, damit sie nicht auseinanderlaufen. */
-  NS.VERSION = '1.0.0';
+  NS.VERSION = '1.0.1';
 
   NS.util = {
     isNum: isNum, eur: eur, eur0: eur0, eurShort: eurShort, eurSigned: eurSigned,
     pct: pct, pctSigned: pctSigned, mult: mult,
-    monthLong: monthLong, monthShort: monthShort,
+    monthLong: monthLong, monthShort: monthShort, monthNo: monthNo, dateTime: dateTime,
     MONTHS_SHORT: MONTHS_SHORT,
     clamp: clamp, lerp: lerp, smoothstep: smoothstep, easeOutCubic: easeOutCubic, rng: rng,
     el: el, els: els, make: make, svg: svg, bus: bus

@@ -191,6 +191,15 @@ sec('Leerzustand ohne gespeicherte Daten');
   const left=files.flatMap(f=>{const t=fs.readFileSync(new URL(f,import.meta.url),'utf8');
     return longRowNames.filter(a=>new RegExp('[\'"]'+a+'[\'"]','i').test(t)).map(a=>f+': '+a);});
   ok(left.length===0,'keine Langform als Zeilenbezeichnung im Code: '+(left.join(' | ')||'—'));
+  /* Zahlen und Daten laufen über js/util.js, nicht über ein toLocaleString
+     an Ort und Stelle — sonst driftet die Schreibweise zwischen den Kacheln
+     auseinander, und niemand merkt es. AGENTS.md sagt es, hier steht es. */
+  const raw=['../js/util.js','../js/importer.js','../js/calc.js','../js/store.js','../js/app.js',
+    '../js/ui/settings.js','../js/ui/header.js','../js/ui/position.js','../js/ui/chart.js',
+    '../js/ui/orbit.js','../js/ui/cards.js','../js/ui/mountain.js','../js/ui/icons.js']
+    .filter(f=>f!=='../js/util.js')
+    .filter(f=>/toLocaleString|toLocaleDateString|toLocaleTimeString/.test(fs.readFileSync(new URL(f,import.meta.url),'utf8')));
+  ok(raw.length===0,'keine rohe Formatierung ausserhalb von js/util.js: '+(raw.join(' | ')||'—'));
   ok(d.querySelector('#starZone .star-corona')&&d.querySelector('#starZone .star-spikes'),'Stern hat Korona und Spitzen');
   ok([...d.querySelectorAll('.panel-title')].some(n=>n.textContent==='Route'),'Bergspalte heißt Route');
   ok(d.querySelectorAll('.rail .card').length===8,'acht Cards');
@@ -291,7 +300,45 @@ const store={};
   ok(lineD()===before&&label().startsWith('Net worth from'),'Zurückschalten stellt den alten Stand her');
   ok(d.querySelector('.sheet-status .meta-import').textContent==='stored locally',
      'Speicherstatus im Abschnitt „data source“: '+d.querySelector('.sheet-status .meta-import').textContent);
+  /* Der Zeitpunkt des Imports kommt aus js/util.js und sieht überall gleich
+     aus: Tag, Monat, Jahr, Uhrzeit — ohne Sekunden. */
+  const readOn=[...d.querySelectorAll('#settingsZone dt')].find(n=>n.textContent==='Read on');
+  ok(readOn&&/^\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}$/.test(readOn.nextElementSibling.textContent),
+     'der Lesezeitpunkt steht in einer Schreibweise: '+(readOn&&readOn.nextElementSibling.textContent));
   ok(errors.length===0,'keine Fehler');
+  w.close();
+}
+
+/* ---------- 2b. Beschädigter Speicher ---------- */
+/* Die Versionsnummer allein ist keine Zusicherung. Was im localStorage steht,
+   kann abgeschnitten, halb überschrieben oder von Hand gesetzt sein — und
+   fällt es beim ersten Zugriff um, ist der Leerzustand schon ausgeblendet und
+   der Bildschirm bleibt leer, ohne Weg zurück. Also: als läge nichts da. */
+sec('Beschädigtes Modell im Speicher');
+{
+  const KEY=Object.keys(store).find(k=>k.includes('model'));
+  const good=JSON.parse(store[KEY]);
+  const broken={
+    'nur die Versionsnummer':          JSON.stringify({version:good.version}),
+    'kaputtes JSON':                   '{"version":'+good.version+',"months":[',
+    'currentIndex neben der Reihe':    JSON.stringify({...good,currentIndex:good.months.length+5}),
+    'ein Monat ohne Net Worth':        JSON.stringify({...good,months:good.months.map((m,i)=>i===3?{...m,netWorth:null}:m)}),
+    'keine Monate':                    JSON.stringify({...good,months:[]}),
+    'Ausgaben fehlen':                 JSON.stringify({...good,expenses:null})
+  };
+  for(const [what,raw] of Object.entries(broken)){
+    const {w,errors}=await boot({storage:{[KEY]:raw}});
+    const d=w.document;
+    ok(!d.getElementById('gate').hidden,what+': der Leerzustand steht');
+    ok(errors.length===0,what+': ohne Fehler — '+errors.join(' | '));
+    ok(d.querySelector('.sheet-status .meta-import').textContent==='no import',
+       what+': und die Einstellungen sagen es — '+d.querySelector('.sheet-status .meta-import').textContent);
+    w.close();
+  }
+  /* Und das heile Modell kommt weiter durch — die Prüfung darf nicht mehr
+     aussortieren, als sie soll. */
+  const {w}=await boot({storage:{...store}});
+  ok(w.NORDSTERN.store.loadModel()!==null,'das heile Modell lädt unverändert');
   w.close();
 }
 
@@ -502,6 +549,58 @@ sec('Animationen abschaltbar & Systemvorgabe');
   w.close();
 }
 
+/* ---------- 5b. Das Blatt ist ein echter Dialog ---------- */
+/* Zu heisst zu: kein Schalter des geschlossenen Blatts steht in der
+   Tabreihenfolge, und kein Vorleseprogramm liest darin. Offen heisst offen:
+   dahinter ist nichts erreichbar, Tab läuft im Kreis, und nach dem Schliessen
+   steht der Fokus wieder dort, wo er losging. */
+sec('Einstellungen als Dialog: Fokus, inert, Rückgabe');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  const zone=d.getElementById('settingsZone');
+  const panel=d.querySelector('.sheet');
+  const gear=d.getElementById('btnSettings');
+  const key=k=>w.dispatchEvent(new w.KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true}));
+  const shiftKey=()=>w.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true}));
+
+  ok(zone.hasAttribute('inert'),'geschlossen: aus der Tabreihenfolge genommen');
+  ok(zone.getAttribute('aria-hidden')==='true','geschlossen: für Vorleseprogramme fort');
+  ok(!panel.hasAttribute('aria-modal'),'geschlossen: kein Dialog, der etwas verdeckt');
+
+  gear.focus();
+  gear.dispatchEvent(new w.Event('click'));
+  ok(!zone.hasAttribute('inert')&&!zone.hasAttribute('aria-hidden'),'offen: das Blatt ist da');
+  ok(panel.getAttribute('aria-modal')==='true','offen: und es ist modal');
+  ok(d.getElementById('shell').hasAttribute('inert'),'offen: die Hülle dahinter liegt still');
+  ok(d.getElementById('shell').getAttribute('aria-hidden')==='true','offen: und wird nicht mehr vorgelesen');
+  ok(d.getElementById('gate').hasAttribute('inert'),'offen: der Vorhang daneben auch');
+  ok(d.activeElement===panel,'offen: der Fokus steht im Blatt');
+
+  /* Tab läuft im Kreis — vom Blatt auf den ersten Schalter, vom letzten
+     zurück auf den ersten, mit Shift andersherum. */
+  const inSheet=()=>panel.contains(d.activeElement);
+  const list=[...panel.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+    .filter(n=>!n.closest('[hidden]'));
+  ok(list.length>2,'im sichtbaren Abschnitt stehen mehrere Schalter: '+list.length);
+  key('Tab');
+  ok(d.activeElement===list[0],'Tab führt auf den ersten Schalter im Blatt');
+  list[list.length-1].focus();
+  key('Tab');
+  ok(d.activeElement===list[0]&&inSheet(),'vom letzten Schalter geht es wieder von vorn los');
+  list[0].focus();
+  shiftKey();
+  ok(d.activeElement===list[list.length-1]&&inSheet(),'Shift+Tab andersherum');
+
+  key('Escape');
+  ok(!zone.classList.contains('is-open'),'Escape schliesst');
+  ok(zone.hasAttribute('inert'),'und legt das Blatt wieder still');
+  ok(!panel.hasAttribute('aria-modal'),'und nimmt den Dialog zurück');
+  ok(!d.getElementById('shell').hasAttribute('inert'),'die Hülle ist wieder bedienbar');
+  ok(d.activeElement===gear,'der Fokus steht wieder auf dem Zahnrad');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 6. Fehlerhafte Mappe ---------- */
 sec('Unbrauchbare Mappenstruktur');
 { const {w,errors}=await boot();
@@ -539,6 +638,82 @@ sec('Unbrauchbare Mappenstruktur');
   w.close();
 }
 
+/* ---------- 6b. Löchrige Zeitreihe ---------- */
+/* Eine Monatsspalte fehlt, eine steht doppelt. Beides sieht in der Mappe
+   harmlos aus und macht aus „im Vormonat" und „vor einem Jahr" stillschweigend
+   etwas anderes. Der Import sagt es, und die Berechnung vergleicht lieber
+   nicht, als falsch zu vergleichen. */
+sec('Lücken und Doppel in der Monatsreihe');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  /* Das Datum muss aus der Welt des Fensters kommen: SheetJS läuft dort und
+     prüft `instanceof Date` gegen deren Konstruktor, nicht gegen den hiesigen. */
+  const D=(y,m)=>new w.Date(y,m-1,1);
+  /* Eine Mappe, klein aber vollständig: alle Anker, drei Sektionen leer. */
+  const sheet=(months)=>XLSX.utils.aoa_to_sheet([
+    ['Month',        ...months.map(([y,m])=>D(y,m))],
+    ['Liquid'],
+    ['  Cash',       ...months.map((_,i)=>100+i)],
+    ['Total liquid', ...months.map((_,i)=>100+i)],
+    ['Claims'],
+    ['Total claims', ...months.map(()=>0)],
+    ['Investments'],
+    ['  Depot',      ...months.map((_,i)=>1000+100*i)],
+    ['Total investments', ...months.map((_,i)=>1000+100*i)],
+    ['Property'],
+    ['Total property', ...months.map(()=>0)],
+    ['Retirement'],
+    ['Total retirement', ...months.map(()=>0)],
+    ['Total assets', ...months.map((_,i)=>1100+100*i+i)],
+    ['Liabilities'],
+    ['  Loan',       ...months.map(()=>0)],
+    ['Total liabilities', ...months.map(()=>0)],
+    ['Total net worth', ...months.map((_,i)=>1100+100*i+i)]
+  ],{cellDates:true});
+  const expenses=XLSX.utils.aoa_to_sheet([
+    ['Kind','Amount'],['Rent',1000],['Monthly fixed costs',1000],
+    ['Insurance',1200],['Annual fixed costs',1200]
+  ]);
+  const read=(months)=>{
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,sheet(months),'Data Input');
+    XLSX.utils.book_append_sheet(wb,expenses,'Expenses');
+    return w.NORDSTERN.importer.parseWorkbook(wb,'reihe.xlsx');
+  };
+
+  /* Zum Vergleich: dieselbe Mappe ohne Loch. */
+  const clean=read([[2026,1],[2026,2],[2026,3]]);
+  ok(clean.ok&&clean.warnings.length===0,'die lückenlose Reihe kommt ohne Hinweis durch: '+clean.warnings.join(' | '));
+
+  const gap=read([[2026,1],[2026,2],[2026,4]]);
+  ok(gap.ok,'die löchrige Reihe wird trotzdem gelesen');
+  ok(gap.warnings.some(t=>/skips 1 month/.test(t)),'der Import nennt die Lücke: '+gap.warnings.join(' | '));
+
+  const dup=read([[2026,1],[2026,2],[2026,2]]);
+  ok(dup.warnings.some(t=>/more than one column/.test(t)),'und das Doppel: '+dup.warnings.join(' | '));
+
+  const back=read([[2026,1],[2026,3],[2026,2]]);
+  ok(back.warnings.some(t=>/ascending order/.test(t)),'und die verrutschte Spalte: '+back.warnings.join(' | '));
+
+  /* Und die Zahl daneben: über die Lücke hinweg wird nicht verglichen. */
+  const set=w.NORDSTERN.store.loadSettings();
+  ok(w.NORDSTERN.calc.derive(clean.model,set).mom!==null,'ohne Lücke steht der Vormonatsvergleich');
+  ok(w.NORDSTERN.calc.derive(gap.model,set).mom===null,'über die Lücke hinweg nicht');
+
+  /* Dasselbe eine Ebene höher: März fehlt, also gibt es zwölf Monate später
+     keinen Vorjahreswert und kein Tempo. */
+  const year=[]; for(let m=1;m<=13;m++) year.push(m<=12?[2025,m]:[2026,1]);
+  const full=read(year);
+  const holed=read(year.filter(([y,m])=>!(y===2025&&m===1)));
+  const dFull=w.NORDSTERN.calc.derive(full.model,set);
+  const dHoled=w.NORDSTERN.calc.derive(holed.model,set);
+  ok(dFull.yoy!==null&&dFull.pace!==null,'zwölf volle Monate ergeben Vorjahr und Tempo');
+  ok(dHoled.yoy===null&&dHoled.pace===null&&dHoled.etaMonths===null,
+     'mit Loch in der Reihe steht dort nichts: yoy='+dHoled.yoy+' pace='+dHoled.pace);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 7. Alle Meilensteine erreicht / kein Vorjahr ---------- */
 sec('Randfälle im Modell');
 { const {w}=await boot({storage:{...store}});
@@ -556,6 +731,22 @@ sec('Randfälle im Modell');
   const dt=w.document.querySelectorAll('.delta')[1].textContent;
   ok(dt.includes('no year-ago value'),'YoY-Leerzustand: '+dt);
   ok(w.document.querySelector('.kpi.is-neg')!==null,'Schulden-KPI vorhanden');
+
+  /* Veränderung aus einem negativen Ausgangswert: von −100 auf −50 sind
+     +50 %. Die alte Formel machte daraus −150 % und drehte damit das
+     Vorzeichen der Nachricht um. */
+  const m3=JSON.parse(JSON.stringify(w.NORDSTERN.store.loadModel()));
+  const j=m3.currentIndex;
+  const set=w.NORDSTERN.store.loadSettings();
+  m3.months[j-1].netWorth=-100; m3.months[j].netWorth=-50;
+  const up=w.NORDSTERN.calc.derive(m3,set).mom.rel;
+  ok(Math.abs(up-0.5)<1e-9,'−100 → −50 ist +50 %: '+(up*100).toFixed(1)+' %');
+  m3.months[j].netWorth=-150;
+  const down=w.NORDSTERN.calc.derive(m3,set).mom.rel;
+  ok(Math.abs(down+0.5)<1e-9,'−100 → −150 ist −50 %: '+(down*100).toFixed(1)+' %');
+  m3.months[j-1].netWorth=200; m3.months[j].netWorth=250;
+  const plain=w.NORDSTERN.calc.derive(m3,set).mom.rel;
+  ok(Math.abs(plain-0.25)<1e-9,'und im Positiven bleibt es, wie es war: '+(plain*100).toFixed(1)+' %');
   w.close();
 }
 

@@ -6,7 +6,10 @@
   'use strict';
 
   var NS = global.NORDSTERN || (global.NORDSTERN = {});
-  var MODEL_VERSION = 1;
+  /* 2 statt 1, seit das Modell die Blattnamen nicht mehr mitführt: ein unter
+     Version 1 gespeichertes Modell trägt sie noch, und die sollen weg. Ein
+     Versionssprung wirft es beim Laden fort — einmal neu importieren. */
+  var MODEL_VERSION = 2;
 
   /* ------------------------------------------------------- Zellen-Zugriffe */
 
@@ -50,6 +53,14 @@
     if (!m) return { r0: 0, c0: 0, r1: 0, c1: 0 };
     function ci(s) { var n = 0; for (var i = 0; i < s.length; i++) n = n * 26 + (s.charCodeAt(i) - 64); return n - 1; }
     return { r0: Number(m[2]) - 1, c0: ci(m[1]), r1: Number(m[4]) - 1, c1: ci(m[3]) };
+  }
+
+  /** 'YYYY-MM' → fortlaufende Monatszahl; die Differenz zweier Werte ist der
+      Abstand in Monaten. Eigene Zeile statt js/util.js: diese Datei kommt seit
+      jeher ohne den Rest der Anwendung aus. */
+  function monthNo(key) {
+    var p = String(key).split('-');
+    return Number(p[0]) * 12 + (Number(p[1]) - 1);
   }
 
   /** Excel-Seriennummer → Datum (nur Fallback, wenn cellDates nicht griff). */
@@ -197,6 +208,33 @@
        sagen es unter „data source". */
     var skipped = cols.length - used.length;
 
+    /* Die Reihe muss Monat für Monat aufsteigen. Sie tut es fast immer — und
+       wenn nicht, fällt es nirgends auf: die Berechnung liest die Spalte
+       links vom aktuellen Monat als „Vormonat" und die zwölfte als „vor einem
+       Jahr". Eine ausgelassene, doppelte oder verrutschte Spalte macht daraus
+       eine falsche Zahl, die aussieht wie jede andere. Also gesagt, was ist —
+       die Einstellungen zeigen es unter „notes while reading". */
+    var dups = [], jumps = [], missing = 0, firstGap = null;
+    for (var g = 1; g < used.length; g++) {
+      var step = monthNo(used[g].key) - monthNo(used[g - 1].key);
+      if (step === 0) dups.push(used[g].key);
+      else if (step < 0) jumps.push(used[g].key);
+      else if (step > 1) { missing += step - 1; if (!firstGap) firstGap = used[g - 1].key; }
+    }
+    if (dups.length) {
+      warnings.push('The same month stands in more than one column: ' + dups.join(', ') +
+        '. Only comparisons that fall on an actual month are shown.');
+    }
+    if (jumps.length) {
+      warnings.push('The month columns are not in ascending order — ' + jumps.join(', ') +
+        ' comes after a later month. Month-on-month and year-on-year are left blank where the order breaks.');
+    }
+    if (missing) {
+      warnings.push('The series skips ' + missing + ' month' + (missing === 1 ? '' : 's') +
+        ', the first gap after ' + firstGap +
+        '. Comparisons across a gap are left blank rather than counted as a month.');
+    }
+
     /* Monatsreihe */
     var months = used.map(function (mc) {
       var m = { key: mc.key, iso: mc.iso };
@@ -324,6 +362,47 @@
 
   /* ------------------------------------------------------------------- API */
 
+  /* Die zwei Blätter, die gelesen werden dürfen — und sonst keines. */
+  var WANTED = ['Data Input', 'Expenses'];
+
+  /** Unter welchen Namen die zwei Blätter in dieser Mappe wirklich stehen.
+      Groß-/Kleinschreibung und Leerraum dürfen abweichen (norm()), deshalb
+      lässt sich der Filter unten nicht einfach mit WANTED füttern. */
+  function resolveNames(sheetNames) {
+    var found = [];
+    WANTED.forEach(function (w) {
+      var n = norm(w);
+      for (var i = 0; i < sheetNames.length; i++) {
+        if (norm(sheetNames[i]) === n) { found.push(sheetNames[i]); return; }
+      }
+    });
+    return found;
+  }
+
+  /** Öffnet die Mappe in zwei Durchgängen: erst das Inhaltsverzeichnis, dann
+      ausschließlich die zwei erlaubten Blätter.
+
+      Der Umweg ist der Preis dafür, dass SheetJS ohne `sheets` jedes Blatt
+      parst — auch das, auf dem jemand seine Gehaltsverhandlung notiert hat.
+      `bookSheets: true` liest nur die Namensliste und keinen Blattinhalt.
+
+      Für ods und numbers ignoriert SheetJS den Filter und parst trotzdem
+      alles. Deshalb wird danach hart auf die zwei Blätter reduziert: was
+      nicht dazugehört, kommt nicht über diese Funktion hinaus. Mit derselben
+      Bewegung fallen die Mappen-Eigenschaften weg — dort steht sonst der
+      Name dessen, der die Datei angelegt hat. */
+  function openWorkbook(X, bytes) {
+    var toc = X.read(bytes, { type: 'array', bookSheets: true });
+    var names = resolveNames(toc.SheetNames || []);
+    if (!names.length) return { SheetNames: [], Sheets: {} };
+    var wb = X.read(bytes, {
+      type: 'array', cellDates: true, cellFormula: false, cellStyles: false, sheets: names
+    });
+    var kept = {};
+    names.forEach(function (n) { if (wb.Sheets[n]) kept[n] = wb.Sheets[n]; });
+    return { SheetNames: names.slice(), Sheets: kept };
+  }
+
   function findSheet(wb, wanted) {
     var w = norm(wanted);
     for (var i = 0; i < wb.SheetNames.length; i++) {
@@ -350,7 +429,6 @@
         version: MODEL_VERSION,
         importedAt: new Date().toISOString(),
         sourceName: fileName || null,
-        sheetNames: wb.SheetNames.slice(),
         months: data.months,
         currentIndex: data.currentIndex,
         accounts: data.accounts,
@@ -367,7 +445,7 @@
     if (!X) return { ok: false, errors: ['SheetJS (js/vendor/xlsx.full.min.js) was not loaded.'], warnings: [], model: null };
     var wb;
     try {
-      wb = X.read(new Uint8Array(buf), { type: 'array', cellDates: true, cellFormula: false, cellStyles: false });
+      wb = openWorkbook(X, new Uint8Array(buf));
     } catch (e) {
       return { ok: false, errors: ['The file could not be read: ' + (e && e.message ? e.message : e)], warnings: [], model: null };
     }
@@ -378,6 +456,7 @@
     MODEL_VERSION: MODEL_VERSION,
     parseWorkbook: parseWorkbook,
     parseArrayBuffer: parseArrayBuffer,
-    _norm: norm
+    _norm: norm,
+    _openWorkbook: openWorkbook
   };
 })(typeof window !== 'undefined' ? window : globalThis);

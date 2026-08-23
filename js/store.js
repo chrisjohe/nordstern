@@ -45,14 +45,47 @@
 
   var ok = available();
 
+  /* Die Versionsnummer allein sagt nichts über den Inhalt: ein von Hand
+     abgeschnittener, halb überschriebener oder aus einer Bastelei stammender
+     Eintrag wie {"version":2} kommt durch und wirft dann beim ersten Zugriff
+     — und zwar nach dem Ausblenden des Leerzustands, also vor einem leeren
+     Bildschirm ohne Weg zurück.
+
+     Geprüft wird deshalb, woran die Anwendung tatsächlich hängt. Nicht mehr:
+     das hier ist kein Schema-Validator, sondern die Frage, ob das Modell
+     benutzbar ist. Fällt es durch, ist es, als läge nichts da — „No data
+     yet", und die Mappe wird neu gezogen. */
+  function usable(m) {
+    if (!m || typeof m !== 'object') return false;
+    if (m.version !== NS.importer.MODEL_VERSION) return false;
+    if (!Array.isArray(m.months) || !m.months.length) return false;
+    for (var i = 0; i < m.months.length; i++) {
+      var mo = m.months[i];
+      if (!mo || typeof mo.key !== 'string') return false;
+      if (!num(mo.netWorth) || !num(mo.totalAssets) || !num(mo.liabilities)) return false;
+      if (!num(mo.liquid) || !num(mo.investment)) return false;
+    }
+    if (typeof m.currentIndex !== 'number' ||
+        m.currentIndex < 0 || m.currentIndex >= m.months.length) return false;
+    if (!m.accounts || typeof m.accounts !== 'object') return false;
+    if (!Array.isArray(m.sectionOrder) || !m.sectionOrder.length) return false;
+    for (var j = 0; j < m.sectionOrder.length; j++) {
+      if (!Array.isArray(m.accounts[m.sectionOrder[j]])) return false;
+    }
+    if (!m.expenses || typeof m.expenses !== 'object') return false;
+    if (!num(m.expenses.fixedMonthly)) return false;
+    if (!Array.isArray(m.expenses.monthlyItems) || !Array.isArray(m.expenses.annualItems)) return false;
+    return true;
+  }
+  function num(v) { return typeof v === 'number' && isFinite(v); }
+
   function loadModel() {
     if (!ok) return null;
     try {
       var raw = LS.getItem(KEY_MODEL);
       if (!raw) return null;
       var m = JSON.parse(raw);
-      if (!m || m.version !== NS.importer.MODEL_VERSION) return null;
-      return m;
+      return usable(m) ? m : null;
     } catch (e) { return null; }
   }
 
@@ -124,6 +157,7 @@
     available: ok,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS, DEFAULT_VARIABLE: DEFAULT_VARIABLE,
     loadModel: loadModel, saveModel: saveModel, clearModel: clearModel, clearAll: clearAll,
+    _usable: usable,
     loadSettings: loadSettings, saveSettings: saveSettings
   };
 })(typeof window !== 'undefined' ? window : globalThis);

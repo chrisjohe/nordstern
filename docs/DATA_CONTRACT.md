@@ -13,8 +13,9 @@ leaves the machine.
 ## 1. Sheets that are read
 
 Only **`Data Input`** and **`Expenses`**. Every other sheet in your file is
-ignored, whatever it is called. The example workbook ships with a third sheet
-purely to demonstrate that.
+dropped as the workbook is opened, whatever it is called, and never reaches
+the model. The example workbook ships with a third sheet purely to
+demonstrate that.
 
 Sheet names are matched case-insensitively and with whitespace normalised. If
 either of the two is missing, the import stops with a named error.

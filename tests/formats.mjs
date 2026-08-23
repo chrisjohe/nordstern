@@ -28,6 +28,11 @@ const read = (buf, name) =>
 
 const base = read(fs.readFileSync(FIXTURE), 'nordstern-example.xlsx');
 ok(base.ok && base.warnings.length === 0, 'die Beispielmappe selbst liest sich sauber');
+{
+  const kept = g.NORDSTERN.importer._openWorkbook(XLSX, new Uint8Array(fs.readFileSync(FIXTURE))).SheetNames;
+  ok(kept.join(' · ') === 'Data Input · Expenses',
+     'und gibt nur die zwei Blätter weiter, obwohl sie drei hat: ' + kept.join(' · '));
+}
 const ref = base.model.months[base.model.months.length - 1];
 
 /* Was index.html im accept anbietet — jedes Format einzeln nachgewiesen. */
@@ -47,6 +52,13 @@ for (const bt of accept.filter((f) => f !== 'numbers')) {
      bt + ' hat gleich viele Monate: ' + r.model.months.length);
   ok(last.netWorth === ref.netWorth && last.investment === ref.investment && last.liquid === ref.liquid,
      bt + ' ergibt dieselben Beträge: ' + last.netWorth + ' vs ' + ref.netWorth);
+
+  /* Und das dritte Blatt kommt in keinem Format durch. Geprüft wird das
+     Ergebnis, nicht die Absicht: für ods ignoriert SheetJS den `sheets`-
+     Filter und parst doch alles — dort trägt die Reduktion danach. */
+  const kept = g.NORDSTERN.importer._openWorkbook(XLSX, new Uint8Array(buf)).SheetNames;
+  ok(kept.join(' · ') === 'Data Input · Expenses',
+     bt + ' reicht nur die zwei Blätter weiter: ' + kept.join(' · '));
 }
 
 /* Und der Leser für Numbers ist wirklich im Bundle — geprüft am Code, weil

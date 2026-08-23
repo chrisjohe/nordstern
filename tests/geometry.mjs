@@ -224,5 +224,21 @@ for (let k = 0; k < 72; k++) for (const pitch of [C.PITCH_MIN, 0.42, C.PITCH_DEF
 console.log('kleinster Marker-Abstand über 360 Ansichten: ' + minGap.toFixed(0) + ' px');
 ok(minGap >= 26, 'Marker überlappen in keiner Ansicht');
 
+/* Die Position auf der Route. Bei Gesamtausgaben von 0 stehen alle Ziele auf
+   null — dann ist keine Station erreicht und die Figur gehört an den Anfang,
+   nicht auf den Gipfel. */
+{
+  const RP = NORDSTERN.calc.routePosition;
+  const flat = MS.map(m => ({ target: 0, t: m.t }));
+  ok(RP(flat, 500000) === 0, 'ohne Ausgaben keine Route: ' + RP(flat, 500000));
+  ok(RP(flat, 0) === 0, 'und ohne Depot erst recht');
+  const real = MS.map(m => ({ target: m.months * 1000, t: m.t }));
+  ok(RP(real, 0) === 0, 'leeres Depot steht am Anfang');
+  ok(RP(real, real[real.length - 1].target) === 1, 'am letzten Ziel steht sie am Gipfel');
+  const half = RP(real, real[0].target / 2);
+  ok(half > 0 && half < real[0].t, 'vor der ersten Station liegt sie dazwischen: ' + half.toFixed(3));
+  ok(RP([], 1000) === 0, 'ohne Stationen gibt es nichts zu stehen');
+}
+
 console.log('\n' + pass + ' bestanden, ' + fail + ' fehlgeschlagen');
 process.exit(fail ? 1 : 0);

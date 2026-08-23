@@ -255,7 +255,11 @@ Object.entries(M.accounts).forEach(([sec, rows]) =>
   rows.forEach((a) => add(a.name, 'Kontoname (' + sec + ')')));
 M.expenses.monthlyItems.concat(M.expenses.annualItems)
   .forEach((i) => add(i.name, 'Ausgabenposten'));
-M.sheetNames.filter((n) => !/^(data input|expenses)$/i.test(n))
+/* Die Namen der übrigen Blätter stehen nicht mehr im Modell — genau das ist
+   der Punkt. Sie kommen deshalb aus der Datei selbst; taucht einer davon
+   irgendwo auf, ist etwas durchgesickert. */
+XLSX.read(new Uint8Array(buf), { type: 'array', bookSheets: true }).SheetNames
+  .filter((n) => !/^(data input|expenses)$/i.test(n))
   .forEach((n) => add(n, 'Blattname'));
 add(path.basename(WORKBOOK).replace(/\.[^.]+$/, ''), 'Dateiname der Mappe');
 

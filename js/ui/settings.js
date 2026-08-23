@@ -19,11 +19,20 @@
   ];
 
   function create(root, bus, api) {
-    var panel = U.make('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true',
+    /* `aria-modal` gilt nur, solange das Blatt offen ist. Steht es dauerhaft
+       am Knoten, behauptet es auch im geschlossenen Zustand einen Dialog, der
+       den Rest der Seite verdeckt — und der geschlossene Dialog steht mit all
+       seinen Schaltern weiter in der Tabreihenfolge. Deshalb hier nichts
+       davon; open() und close() setzen es. */
+    var panel = U.make('div', { class: 'sheet', role: 'dialog',
       'aria-label': 'Settings', tabindex: '-1' });
     var scrim = U.make('div', { class: 'sheet-scrim' });
     root.appendChild(scrim);
     root.appendChild(panel);
+    /* Zu heisst: für Tastatur und Vorleseprogramm gar nicht da. Dasselbe
+       Mittel, mit dem app.js die verdeckte Bühne im Leerzustand stilllegt. */
+    root.setAttribute('inert', '');
+    root.setAttribute('aria-hidden', 'true');
 
     var refs = {};
     var tabs = {};
@@ -280,7 +289,7 @@
         return [U.make('dt', { text: term }), U.make('dd', { text: detail })];
       }
       var facts = [];
-      [['Read', 'The two sheets "Data Input" and "Expenses". Every other sheet is skipped, including its name.'],
+      [['Read', 'The two sheets "Data Input" and "Expenses". The parser is handed those two names; every other sheet is dropped as the file is opened. Nothing from it, not even its name, is kept, stored or shown.'],
        ['Written', 'Nothing. There is no write path — the app never calls XLSX.write, and your file is closed again unchanged.'],
        ['Sent', 'Nothing, anywhere. There is no fetch, no XMLHttpRequest, no WebSocket, no image request, no web font, no analytics, no error reporting.'],
        ['Stored', 'Two keys in this browser\u2019s localStorage: the parsed model and your settings. Nothing else, nowhere else.'],
@@ -407,20 +416,71 @@
       api.patchSettings({ variableMonthly: n, variableSet: true });
     }
 
+    /* Was hinter dem Blatt liegt, während es offen ist. Die Bühne steckt in
+       der Hülle; der Vorhang steht daneben und wäre sonst mit Tab erreichbar,
+       obwohl er verdeckt ist. */
+    function behind() {
+      return [U.el('#shell'), U.el('#gate')].filter(Boolean);
+    }
+
+    /* Alles, was im Blatt Fokus annehmen kann — ohne die Schalter in den
+       Abschnitten, die gerade nicht angezeigt werden. `hidden` steht am
+       Abschnitt, nicht am einzelnen Schalter, deshalb der Blick nach oben. */
+    function focusables() {
+      return U.els('a[href], button:not([disabled]), input:not([disabled]), ' +
+        'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])', panel)
+        .filter(function (n) { return !n.closest('[hidden]'); });
+    }
+
+    var lastFocus = null;
+
     /* `open('workbook')` führt direkt dorthin: der Hinweis unter dem Berg
        meint die Ausgaben, ein gescheiterter Import den Aufbau der Mappe. */
     function open(id) {
       if (id) select(id);
+      lastFocus = document.activeElement;
+      root.removeAttribute('inert');
+      root.removeAttribute('aria-hidden');
+      panel.setAttribute('aria-modal', 'true');
+      behind().forEach(function (n) {
+        n.setAttribute('inert', '');
+        n.setAttribute('aria-hidden', 'true');
+      });
       root.classList.add('is-open');
       panel.focus();
       global.addEventListener('keydown', onKey);
     }
     function close() {
       root.classList.remove('is-open');
+      panel.removeAttribute('aria-modal');
+      behind().forEach(function (n) {
+        n.removeAttribute('inert');
+        n.removeAttribute('aria-hidden');
+      });
+      root.setAttribute('inert', '');
+      root.setAttribute('aria-hidden', 'true');
       global.removeEventListener('keydown', onKey);
+      /* Der Fokus kommt dorthin zurück, wo er herkam — sonst steht er nach
+         dem Schliessen am Seitenanfang, und die Tastatur fängt von vorn an.
+         Nur, wenn es das Element noch gibt: „Delete local data" räumt die
+         Bühne ab, aus der heraus geöffnet worden sein kann. */
+      if (lastFocus && lastFocus.isConnected && lastFocus.focus) lastFocus.focus();
+      lastFocus = null;
       bus.emit('settings:close');
     }
-    function onKey(ev) { if (ev.key === 'Escape') close(); }
+
+    /* Tab läuft im Blatt im Kreis. Ohne das führt die Tabulatortaste hinter
+       den Vorhang, wo `inert` alles stilllegt — der Fokus verschwindet dann
+       aus dem sichtbaren Teil der Seite. */
+    function onKey(ev) {
+      if (ev.key === 'Escape') { close(); return; }
+      if (ev.key !== 'Tab') return;
+      var f = focusables();
+      if (!f.length) { ev.preventDefault(); panel.focus(); return; }
+      var first = f[0], last = f[f.length - 1], a = document.activeElement;
+      if (ev.shiftKey && (a === first || a === panel)) { ev.preventDefault(); last.focus(); }
+      else if (!ev.shiftKey && (a === last || a === panel)) { ev.preventDefault(); first.focus(); }
+    }
 
     build();
     paintSwitches();
@@ -467,8 +527,7 @@
             : '';
           refs.skippedRow.hidden = !sk;
           refs.skipped.hidden = !sk;
-          refs.when.textContent = model.importedAt
-            ? new Date(model.importedAt).toLocaleString('de-DE') : '—';
+          refs.when.textContent = U.dateTime(model.importedAt);
           refs.warn.innerHTML = '';
           if (model.warnings && model.warnings.length) {
             refs.warn.appendChild(U.make('p', { class: 'warn-title',

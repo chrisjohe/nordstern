@@ -24,7 +24,7 @@
       meaning: 'A year of expenses invested — enough to walk away.',
       basisLabel: '1 × annual expenses, covered by investments' },
     { id: 'coast',       name: 'Stable Course', term: 'Coast FI',     months: 60,  basis: 'investment', t: 13 / 34,
-      meaning: 'Five years of expenses. It grows on its own now.',
+      meaning: 'Five years of expenses. A break of years, not months.',
       basisLabel: '5 × annual expenses, covered by investments' },
     { id: 'barista',     name: 'Aurora',        term: 'Barista FI',   months: 120, basis: 'investment', t: 18 / 34,
       meaning: 'Ten years of expenses. Part-time covers the rest.',
@@ -33,7 +33,7 @@
       meaning: 'Twenty years of expenses. Halfway to independent.',
       basisLabel: '20 × annual expenses, covered by investments' },
     { id: 'lean',        name: 'Polaris',       term: 'Lean FI',      months: 300, basis: 'investment', t: 26 / 34,
-      meaning: '25 years of expenses — the 4 % rule holds for good.',
+      meaning: '25 years of expenses. The 4 % rule starts here.',
       basisLabel: '25 × annual expenses (4 % rule), covered by investments' },
     { id: 'fat',         name: 'Apex',          term: 'Fat FI',       months: 396, basis: 'investment', t: 34 / 34,
       meaning: '33 years of expenses — the 3 % rule, with slack.',
@@ -54,15 +54,43 @@
     retirement: 'Retirement'
   };
 
+  /* Die Veränderung, bezogen auf den Betrag des Ausgangswerts.
+
+     Der Betrag im Nenner, nicht der Wert: von −100 auf −50 ist eine
+     Verbesserung um 50 %, nicht um −50 %. Der Zähler muss dann aber die
+     Differenz sein — `now / |before| − 1` ergäbe hier −150 % und drehte das
+     Vorzeichen um. Bei einem Net Worth im Minus, dem Fall, in dem die Zahl am
+     meisten sagt, wäre das genau verkehrt. */
   function rel(now, before) {
     if (!U.isNum(now) || !U.isNum(before) || before === 0) return null;
-    return now / Math.abs(before) - 1;
+    return (now - before) / Math.abs(before);
+  }
+
+  /* Der Monat, der `n` Monate vor `i` liegt — und zwar nur, wenn er es
+     wirklich ist.
+
+     Die Reihe kommt aus einer Tabelle. Dort kann eine Monatsspalte fehlen,
+     doppelt stehen oder in falscher Reihenfolge eingefügt sein; `i - 12`
+     heisst dann nicht „vor einem Jahr", und `i - 1` nicht „im Vormonat".
+     Geprüft wird deshalb der Schlüssel. Kein Vergleich ist besser als ein
+     falscher: die Oberfläche zeigt dafür einen Strich. */
+  function back(months, i, n) {
+    var j = i - n;
+    if (j < 0) return null;
+    var m = months[j], here = U.monthNo(months[i] && months[i].key), there = U.monthNo(m && m.key);
+    if (here == null || there == null) return null;
+    return here - there === n ? m : null;
   }
 
   /** Fortschritt entlang der Bergroute aus dem investierten Vermögen. */
   function routePosition(stations, invested) {
     if (!stations.length) return 0;
     if (invested <= 0) return 0;
+    /* Ohne Ausgaben stehen alle Ziele auf null. Dann ist keines „erreicht" —
+       es gibt schlicht keine Route. Ohne diese Zeile fällt der Weg unten
+       durch jede Verzweigung und endet auf 1: die Figur stünde am Gipfel,
+       während unter dem Berg „no station reached" steht. */
+    if (!(stations[stations.length - 1].target > 0)) return 0;
     if (invested < stations[0].target) {
       return stations[0].t * (invested / stations[0].target);
     }
@@ -82,8 +110,8 @@
     var months = model.months;
     var i = model.currentIndex;
     var current = months[i];
-    var prev = i > 0 ? months[i - 1] : null;
-    var yearAgo = i >= 12 ? months[i - 12] : null;
+    var prev = back(months, i, 1);
+    var yearAgo = back(months, i, 12);
 
     /* --- Ausgaben ------------------------------------------------------- */
     var fixedMonthly = model.expenses ? model.expenses.fixedMonthly : 0;
@@ -173,10 +201,7 @@
 
     /* --- Tempo: 12-Monats-Mittel der Depotveränderung --------------------- */
     var pace = null;
-    if (i >= 12) {
-      var delta = current.investment - months[i - 12].investment;
-      pace = delta / 12;
-    }
+    if (yearAgo) pace = (current.investment - yearAgo.investment) / 12;
     var etaMonths = null;
     if (nextStation && pace && pace > 0) {
       etaMonths = Math.ceil(nextStation.remaining / pace);
@@ -185,15 +210,16 @@
 
     /* --- Serie für den Verlaufs-Chart ------------------------------------ */
     var series = months.map(function (m, idx) {
+      var ya = back(months, idx, 12);
       return {
         key: m.key, iso: m.iso, value: m.netWorth,
         assets: m.totalAssets, liabilities: m.liabilities,
         investment: m.investment, liquid: m.liquid,
-        yearAgo: idx >= 12 ? months[idx - 12].netWorth : null,
+        yearAgo: ya ? ya.netWorth : null,
         /* Eigener Vorjahreswert je Reihe — die gestrichelte Spur muss dem
            folgen, was gerade gezeichnet wird, sonst vergleicht sie Äpfel. */
-        assetsYearAgo: idx >= 12 ? months[idx - 12].totalAssets : null,
-        investmentYearAgo: idx >= 12 ? months[idx - 12].investment : null,
+        assetsYearAgo: ya ? ya.totalAssets : null,
+        investmentYearAgo: ya ? ya.investment : null,
         index: idx
       };
     });
