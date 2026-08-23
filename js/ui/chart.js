@@ -319,7 +319,7 @@
       geo.cross.children[1].setAttribute('cy', py);
 
       var delta = d.yearAgo != null ? d.value - d.yearAgo : null;
-      var relY = d.yearAgo ? d.value / Math.abs(d.yearAgo) - 1 : null;
+      var relY = NS.calc.rel(d.value, d.yearAgo);
       tip.innerHTML = '';
       tip.appendChild(U.make('div', { class: 'tip-key', text: U.monthLong(d.key) }));
       tip.appendChild(U.make('div', { class: 'tip-val', text: U.eur(d.value) }));

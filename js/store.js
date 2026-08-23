@@ -61,23 +61,55 @@
     if (!Array.isArray(m.months) || !m.months.length) return false;
     for (var i = 0; i < m.months.length; i++) {
       var mo = m.months[i];
-      if (!mo || typeof mo.key !== 'string') return false;
+      if (!mo || typeof mo !== 'object') return false;
+      if (!/^\d{4}-\d{2}$/.test(mo.key)) return false;
       if (!num(mo.netWorth) || !num(mo.totalAssets) || !num(mo.liabilities)) return false;
       if (!num(mo.liquid) || !num(mo.investment)) return false;
     }
-    if (typeof m.currentIndex !== 'number' ||
-        m.currentIndex < 0 || m.currentIndex >= m.months.length) return false;
+    /* Ganzzahlig, nicht nur im Bereich: months[0.5] ist undefined, und der
+       Zugriff darauf wirft. `% 1` statt Number.isInteger — diese Datei bleibt
+       ES5, wie der Rest der Anwendung. */
+    if (!num(m.currentIndex) || m.currentIndex % 1 !== 0) return false;
+    if (m.currentIndex < 0 || m.currentIndex >= m.months.length) return false;
+    /* Jede Kontenliste, nicht nur die aus sectionOrder: „liabilities" steht
+       nicht darin und wird trotzdem gelesen (js/calc.js, itemsOf). Ein
+       Schlüssel, den der Importer nie schreibt, gilt als beschädigt. */
     if (!m.accounts || typeof m.accounts !== 'object') return false;
+    for (var k in m.accounts) {
+      if (!Object.prototype.hasOwnProperty.call(m.accounts, k)) continue;
+      if (!accountList(m.accounts[k], m.months.length)) return false;
+    }
     if (!Array.isArray(m.sectionOrder) || !m.sectionOrder.length) return false;
     for (var j = 0; j < m.sectionOrder.length; j++) {
       if (!Array.isArray(m.accounts[m.sectionOrder[j]])) return false;
     }
     if (!m.expenses || typeof m.expenses !== 'object') return false;
     if (!num(m.expenses.fixedMonthly)) return false;
-    if (!Array.isArray(m.expenses.monthlyItems) || !Array.isArray(m.expenses.annualItems)) return false;
+    if (!items(m.expenses.monthlyItems) || !items(m.expenses.annualItems)) return false;
     return true;
   }
   function num(v) { return typeof v === 'number' && isFinite(v); }
+
+  /* Ein Konto trägt einen Namen und für jeden Monat einen Stand — eine kürzere
+     Reihe fällt genau dann auf, wenn jemand den letzten Monat ansieht. */
+  function accountList(rows, monthCount) {
+    if (!Array.isArray(rows)) return false;
+    for (var i = 0; i < rows.length; i++) {
+      var a = rows[i];
+      if (!a || typeof a.name !== 'string') return false;
+      if (!Array.isArray(a.values) || a.values.length !== monthCount) return false;
+      for (var j = 0; j < a.values.length; j++) if (!num(a.values[j])) return false;
+    }
+    return true;
+  }
+
+  function items(rows) {
+    if (!Array.isArray(rows)) return false;
+    for (var i = 0; i < rows.length; i++) {
+      if (!rows[i] || typeof rows[i].name !== 'string' || !num(rows[i].amount)) return false;
+    }
+    return true;
+  }
 
   function loadModel() {
     if (!ok) return null;

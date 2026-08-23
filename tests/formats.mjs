@@ -55,10 +55,27 @@ for (const bt of accept.filter((f) => f !== 'numbers')) {
 
   /* Und das dritte Blatt kommt in keinem Format durch. Geprüft wird das
      Ergebnis, nicht die Absicht: für ods ignoriert SheetJS den `sheets`-
-     Filter und parst doch alles — dort trägt die Reduktion danach. */
-  const kept = g.NORDSTERN.importer._openWorkbook(XLSX, new Uint8Array(buf)).SheetNames;
+     Filter und parst doch alles — dort trägt die Reduktion danach.
+
+     Der Spion zählt mit, wie viele Blätter SheetJS im zweiten Durchgang
+     wirklich dekodiert hat. Damit steht die Ausnahme als Zahl da, statt als
+     Fussnote: sie darf nicht wachsen, und wenn SheetJS den Filter eines
+     Tages auch für ods beachtet, sagt es diese Reihe. */
+  const decoded = [];
+  const spy = Object.assign(Object.create(XLSX), {
+    read(b, o) {
+      const wbx = XLSX.read(b, o);
+      if (!o.bookSheets) decoded.push(Object.keys(wbx.Sheets).length);
+      return wbx;
+    }
+  });
+  const kept = g.NORDSTERN.importer._openWorkbook(spy, new Uint8Array(buf)).SheetNames;
   ok(kept.join(' · ') === 'Data Input · Expenses',
      bt + ' reicht nur die zwei Blätter weiter: ' + kept.join(' · '));
+  const expected = bt === 'ods' ? 3 : 2;
+  ok(decoded.length === 1 && decoded[0] === expected,
+     bt + ': ' + decoded[0] + ' von 3 Blättern dekodiert' +
+     (expected === 3 ? ' — SheetJS kennt für dieses Format keinen Filter' : ''));
 }
 
 /* Und der Leser für Numbers ist wirklich im Bundle — geprüft am Code, weil

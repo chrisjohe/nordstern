@@ -53,7 +53,14 @@ export async function boot(opts={}){
   w.eval(fs.readFileSync(path.join(ROOT,'js/vendor/xlsx.full.min.js'),'utf8'));   // exakt das ausgelieferte Bundle
   const {calls,mem}=stubs(w,opts);
   const files=['js/util.js','js/importer.js','js/calc.js','js/store.js','js/ui/icons.js','js/ui/header.js','js/ui/position.js','js/ui/chart.js','js/ui/orbit.js','js/ui/mountain.js','js/ui/cards.js','js/ui/settings.js','js/app.js'];
-  for(const f of files){ try{ w.eval(fs.readFileSync(path.join(ROOT,f),'utf8')); }catch(e){ errors.push('EVAL '+f+': '+e.message); } }
+  /* `patch` greift zwischen den Bausteinen und js/app.js — der einzige
+     Moment, in dem NORDSTERN vollständig dasteht und noch nichts gestartet
+     ist. Damit lässt sich prüfen, was der Start tut, wenn ein Baustein
+     wirft. */
+  for(const f of files){
+    if(f==='js/app.js' && opts.patch) { try{ opts.patch(w); }catch(e){ errors.push('PATCH: '+e.message); } }
+    try{ w.eval(fs.readFileSync(path.join(ROOT,f),'utf8')); }catch(e){ errors.push('EVAL '+f+': '+e.message); }
+  }
   await new Promise(r=>setTimeout(r,120));
   return {w,dom,errors,calls,mem};
 }

@@ -318,13 +318,24 @@ sec('Beschädigtes Modell im Speicher');
 {
   const KEY=Object.keys(store).find(k=>k.includes('model'));
   const good=JSON.parse(store[KEY]);
+  const bend=f=>{const m=JSON.parse(store[KEY]); f(m); return JSON.stringify(m);};
   const broken={
     'nur die Versionsnummer':          JSON.stringify({version:good.version}),
     'kaputtes JSON':                   '{"version":'+good.version+',"months":[',
     'currentIndex neben der Reihe':    JSON.stringify({...good,currentIndex:good.months.length+5}),
     'ein Monat ohne Net Worth':        JSON.stringify({...good,months:good.months.map((m,i)=>i===3?{...m,netWorth:null}:m)}),
     'keine Monate':                    JSON.stringify({...good,months:[]}),
-    'Ausgaben fehlen':                 JSON.stringify({...good,expenses:null})
+    'Ausgaben fehlen':                 JSON.stringify({...good,expenses:null}),
+    /* Alles, was durch die erste Fassung der Prüfung noch durchkam und dann
+       beim Start warf — die Zahl zwischen zwei Monaten, das leere Konto. */
+    'currentIndex als Bruch':          JSON.stringify({...good,currentIndex:0.5}),
+    'ein Konto ist null':              bend(m=>{m.accounts.liquid=[null];}),
+    'ein Konto ohne Stände':           bend(m=>{delete m.accounts.liquid[0].values;}),
+    'eine zu kurze Kontenreihe':       bend(m=>{m.accounts.liquid[0].values.pop();}),
+    'ein Stand ist keine Zahl':        bend(m=>{m.accounts.liquid[0].values[3]=null;}),
+    'die Verbindlichkeiten sind hin':  bend(m=>{m.accounts.liabilities=[{name:'Darlehen'}];}),
+    'ein Posten ohne Betrag':          bend(m=>{m.expenses.monthlyItems[0].amount='viel';}),
+    'ein Monatsschlüssel entstellt':   bend(m=>{m.months[2].key='2026-8';})
   };
   for(const [what,raw] of Object.entries(broken)){
     const {w,errors}=await boot({storage:{[KEY]:raw}});
@@ -340,6 +351,20 @@ sec('Beschädigtes Modell im Speicher');
   const {w}=await boot({storage:{...store}});
   ok(w.NORDSTERN.store.loadModel()!==null,'das heile Modell lädt unverändert');
   w.close();
+
+  /* Der zweite Boden: das Modell besteht jede Prüfung, und die Berechnung
+     wirft trotzdem. Dann steht der Vorhang, statt dass ein leerer Bildschirm
+     ohne Knopf zurückbleibt. */
+  { const {w,errors}=await boot({storage:{...store},
+      patch:win=>{ win.NORDSTERN.calc.derive=()=>{ throw new TypeError('geplatzt'); }; }});
+    const d=w.document;
+    ok(!d.getElementById('gate').hidden,'wirft die Berechnung, steht der Leerzustand');
+    ok(d.querySelector('.sheet-status .meta-import').textContent==='no import',
+       'und die Einstellungen sagen es: '+d.querySelector('.sheet-status .meta-import').textContent);
+    ok(!d.querySelector('.hero-val'),'auf der Bühne steht nichts Halbfertiges');
+    ok(errors.length===0,'und nichts dringt als Ausnahme nach draussen: '+errors.join(' | '));
+    w.close();
+  }
 }
 
 /* ---------- 3. Variabler Anteil wirkt sofort ---------- */
@@ -504,6 +529,22 @@ sec('Vorjahreslinie folgt dem Zeiger');
   ok(late<0,'wo sie hoch steht, tritt es darüber hinaus: top '+late);
   ok(late<early,'es folgt also der Linie: '+early+' → '+late);
   ok(Number.parseFloat(tip.style.left)>=4,'waagerecht folgt es dem Punkt: left '+tip.style.left);
+
+  /* Und die Prozentzahl darin kommt aus derselben Funktion wie die Kachel
+     darüber. Aus einem negativen Vorjahreswert heraus rechnete der Chart
+     lange sein eigenes Ergebnis: −100 → −50 stand als −150 % statt als
+     +50 %, mit umgedrehtem Vorzeichen und roter Farbe. */
+  const mm=JSON.parse(JSON.stringify(w.NORDSTERN.store.loadModel()));
+  const LL=mm.currentIndex;
+  mm.months[LL].netWorth=-50; mm.months[LL-12].netWorth=-100;
+  w.NORDSTERN.app.state.model=mm; w.NORDSTERN.app.refresh(); await tick(30);
+  hover(600);
+  const ya=[...d.querySelectorAll('.chart-tip .tip-row')].find(r=>r.textContent.includes('vs. last year'));
+  ok(ya,'das Lesefenster nennt den Vorjahresvergleich');
+  ok(N(ya.querySelector('b').textContent).includes('+50,0 %'),
+     'aus −100 wird +50 %, nicht −150 %: '+N(ya.querySelector('b').textContent));
+  ok(ya.querySelector('b').classList.contains('pos'),'und die Verbesserung steht nicht in Rot');
+  ok(w.NORDSTERN.calc.rel(-50,-100)===0.5,'Chart und Kennzahlen rechnen dieselbe Zahl');
 
   body.dispatchEvent(new w.Event('pointerleave'));
   await tick(20);

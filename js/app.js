@@ -282,15 +282,28 @@
       if (ev.key === 'Escape' && ui.cards.openId()) ui.cards.close();
     });
 
+    /* Der zweite Boden unter der Strukturprüfung in js/store.js. Die prüft,
+       woran die Anwendung bekanntermaßen hängt; hier fängt der Start alles
+       ab, woran sie es unbekannterweise tut. Der Preis eines Fehlschlags ist
+       sonst hoch: der Vorhang ist beim Werfen schon fort, und zurück führt
+       kein Weg — ein leerer Bildschirm ohne Knopf. */
     var stored = NS.store.loadModel();
+    var standing = false;
     if (stored) {
-      state.model = stored;
-      hideGate();
-      state.arriving = true;
-      refresh();
-      ui.settings.setStatus(stored.warnings && stored.warnings.length ? 'warn' : 'ok',
-        'stored locally');
-    } else {
+      try {
+        state.model = stored;
+        hideGate();
+        state.arriving = true;
+        refresh();
+        ui.settings.setStatus(stored.warnings && stored.warnings.length ? 'warn' : 'ok',
+          'stored locally');
+        standing = true;
+      } catch (e) {
+        state.model = null;
+        state.arriving = false;
+      }
+    }
+    if (!standing) {
       showGate('No data yet',
         'Drop the workbook with your snapshots here — or pick it. Excel, Numbers, LibreOffice, or a spreadsheet exported from Google Sheets. Only the sheets "Data Input" and "Expenses" are read. The file stays unchanged, and nothing leaves this machine.');
       ui.settings.setStatus('none', 'no import');

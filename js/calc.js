@@ -265,6 +265,10 @@
     MILESTONES: MILESTONES,
     SECTION_LABELS: SECTION_LABELS,
     derive: derive,
+    /* Nach draussen, weil der Chart dieselbe Veränderung zeigt wie die
+       Kennzahlen darüber. Zwei Formeln für eine Zahl waren schon einmal eine
+       zu viel: die eine wurde korrigiert, die andere blieb falsch stehen. */
+    rel: rel,
     routePosition: routePosition
   };
 })(typeof window !== 'undefined' ? window : globalThis);

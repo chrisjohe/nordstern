@@ -1,6 +1,9 @@
 /* NORDSTERN — Importer.
    SÄMTLICHES Wissen über den Aufbau der Arbeitsmappe lebt in dieser Datei.
-   Ausgelesen werden ausschließlich die Blätter "Data Input" und "Expenses".
+   Ausgewertet, behalten und gespeichert werden ausschließlich die Blätter
+   "Data Input" und "Expenses"; für xlsx, xlsm und xlsb wird kein anderes
+   überhaupt dekodiert (siehe openWorkbook, wo auch steht, warum ods und
+   numbers das nicht können).
    Die Datei wird nur gelesen — nie geschrieben, nie ergänzt. */
 (function (global) {
   'use strict';

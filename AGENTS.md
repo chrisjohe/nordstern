@@ -70,6 +70,8 @@ It runs from `file://` with no server and no build step.
 * Two-space indent, single quotes, semicolons. Match the file you are in.
 * The interface is English. Numbers and dates are `de-DE`, formatted through
   `js/util.js` — never with raw `toLocaleString` at the call site.
+* Commit messages are English, like the interface and the docs. German lives
+  in the comments inside `js/` and `css/`, and stays there.
 * Prose — in the interface, the docs and the comments — is specific rather
   than decorative. If a sentence could be deleted without loss, delete it.
 

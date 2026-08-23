@@ -289,7 +289,7 @@
         return [U.make('dt', { text: term }), U.make('dd', { text: detail })];
       }
       var facts = [];
-      [['Read', 'The two sheets "Data Input" and "Expenses". The parser is handed those two names; every other sheet is dropped as the file is opened. Nothing from it, not even its name, is kept, stored or shown.'],
+      [['Read', 'The two sheets "Data Input" and "Expenses" — nothing else is kept, evaluated or stored, not even a sheet name. In .xlsx, .xlsm and .xlsb the parser is handed those two names and decodes no other sheet. For .ods and .numbers SheetJS offers no such filter: there the whole workbook is decoded, and everything but the two is dropped the moment it is open.'],
        ['Written', 'Nothing. There is no write path — the app never calls XLSX.write, and your file is closed again unchanged.'],
        ['Sent', 'Nothing, anywhere. There is no fetch, no XMLHttpRequest, no WebSocket, no image request, no web font, no analytics, no error reporting.'],
        ['Stored', 'Two keys in this browser\u2019s localStorage: the parsed model and your settings. Nothing else, nowhere else.'],
