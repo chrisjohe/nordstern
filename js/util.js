@@ -44,6 +44,15 @@
     return (v > 0 ? '+' : v < 0 ? '−' : '±') + nfEur.format(Math.abs(v));
   }
 
+  /** Dasselbe ohne Cent — für die Position, wo Stand, Veränderung und
+      Kennzahlen nebeneinander stehen. Zwei Nachkommastellen bei der einen und
+      keine bei der nächsten liest sich wie zwei verschiedene Genauigkeiten;
+      es ist aber dieselbe Zahl aus derselben Zeile der Mappe. */
+  function eurSigned0(v) {
+    if (!isNum(v)) return '—';
+    return (v > 0 ? '+' : v < 0 ? '−' : '±') + nfEur0.format(Math.abs(v));
+  }
+
   var pctCache = {};
   function pct(v, digits) {
     if (!isNum(v)) return '—';
@@ -191,10 +200,10 @@
   /* Eine Fassung, an einer Stelle. Ohne Bauschritt kann nichts sie aus
      package.json holen, also steht sie hier — und tests/behaviour.mjs hält
      beide gegeneinander, damit sie nicht auseinanderlaufen. */
-  NS.VERSION = '1.0.1';
+  NS.VERSION = '1.0.2';
 
   NS.util = {
-    isNum: isNum, eur: eur, eur0: eur0, eurShort: eurShort, eurSigned: eurSigned,
+    isNum: isNum, eur: eur, eur0: eur0, eurShort: eurShort, eurSigned: eurSigned, eurSigned0: eurSigned0,
     pct: pct, pctSigned: pctSigned, mult: mult,
     monthLong: monthLong, monthShort: monthShort, monthNo: monthNo, dateTime: dateTime,
     MONTHS_SHORT: MONTHS_SHORT,

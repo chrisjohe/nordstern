@@ -55,6 +55,28 @@ Every column to the right of A whose header cell contains a date is a month.
 The month key is `YYYY-MM` taken from the **local** date — workbooks carry
 end-of-month dates, and a UTC conversion would shift the month by a day.
 
+The columns must run **in ascending order**. A month that stands after a later
+one **stops the import**: "now" is the column furthest right, so a series
+reading January, March, February would take February as the current state, and
+every figure on the page follows from that. Sorting the columns would mean
+repairing a broken file by guessing which order was meant.
+
+A **gap** and a **repeated month** are different: both are carried. Comparisons
+work from the distance in months and stay blank where none fits, the chart
+draws a gap as a gap, and *Settings → notes while reading* names both.
+
+### Numbers stored as text
+
+An amount pasted from a bank statement often sits in the cell as text.
+`1.234,56` is read as one thousand two hundred, not as 1,234 — the reader
+accepts only what matches one of the two notations completely: German (`.`
+groups, `,` separates the decimals) or English (the other way round). Anything
+else is **not read at all** rather than read in part; the cell then counts as
+empty. Where both notations fit — `1.234` — the German reading applies.
+
+Both cases are named in *Settings → notes while reading*, with the count and
+the first cell address.
+
 ### Which column is "now"
 
 Some workbooks carry **projected** columns to the right of the last real
@@ -106,11 +128,19 @@ own file warns, the difference is in your file, not in the reader.
 
 A third column is read as a due date if it is there, and ignored if it is not.
 
-The monthly load is **always computed**: `monthly + annual ÷ 12`. If a total
-row is missing, its line items are added up instead. If the line items and the
-total row disagree by more than 0.02 €, both are kept and a warning is shown —
-the total row wins, because that is the number you look at in your own
-spreadsheet.
+**Both total rows are required.** They are not there for their sums but as
+the boundaries: above the first stand the monthly items, between the two the
+annual ones. Without them there is no way to tell which item is which — a
+missing monthly row would count every annual item as a monthly load as well, a
+missing annual row would drop it altogether, and all eight FIRE targets follow
+from that figure. A missing row therefore stops the import, exactly as in
+`Data Input`.
+
+Their **amounts** may be left blank; then the line items above them are added
+up instead. The monthly load is **always computed**: `monthly + annual ÷ 12`.
+If the line items and the total row disagree by more than 0.02 €, both are
+kept and a warning is shown — the total row wins, because that is the number
+you look at in your own spreadsheet.
 
 ## 4. Assumptions
 

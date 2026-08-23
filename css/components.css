@@ -161,6 +161,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .chart-line { stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 .chart-glow { stroke: var(--ice); stroke-width: 5; opacity: .16; filter: blur(3px); }
 .chart-ya { stroke: rgba(144,133,233,.48); stroke-width: 1; stroke-dasharray: 3 4; }
+/* Der Steg über eine Lücke: dieselbe Spur wie die Linie, nur gestrichelt und
+   halb so hell — hier ist kein Stand eingetragen, die Strecke ist geraten. */
+.chart-bridge { stroke: var(--ice); stroke-width: 1.4; opacity: .3; stroke-dasharray: 2 4; stroke-linecap: round; }
 .chart-ya-full { opacity: 0; }
 .chart-ya-stub, .chart-ya-full { transition: opacity .22s var(--ease-out); }
 .chart-body.is-probing .chart-ya-full { opacity: 1; }

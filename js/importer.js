@@ -27,12 +27,67 @@
     var c = ws[addr(row, col)];
     return c === undefined ? null : c;
   }
+  /* Zahlen, die als Text in der Zelle stehen.
+
+     parseFloat wäre hier falsch, und leise falsch: „1.234,56" wird, wenn man
+     nur das Komma tauscht, zu „1.234.56", und parseFloat hört am zweiten Punkt
+     auf — 1,234 statt 1.234,56. Ein Faktor tausend, ohne ein Zeichen davon im
+     Programm. Auch die Gegenprobe gegen die Summenzeile fängt es nicht, wenn
+     die Summe ebenfalls Text ist: dann ist sie genauso falsch.
+
+     Gelesen wird deshalb nur, was einer der beiden Schreibweisen ganz
+     entspricht — deutsch (Punkt gruppiert, Komma trennt ab) oder englisch
+     (umgekehrt). Was auf keine passt, ist keine Zahl.
+
+     Wo beide passen — „1.234" ist deutsch tausendzweihundert und englisch
+     eins Komma zwei — gilt die deutsche Lesart: die Mappe schreibt ihre Daten
+     deutsch, und das Programm zeigt sie so. Dass überhaupt Text statt einer
+     Zahl in der Zelle stand, sagen die Einstellungen; dann kann man nachsehen. */
+  var DE_NUM = /^\d{1,3}(\.\d{3})+(,\d+)?$|^\d+(,\d+)?$/;
+  var EN_NUM = /^\d{1,3}(,\d{3})+(\.\d+)?$|^\d+(\.\d+)?$/;
+
+  function parseNumber(v) {
+    var s = String(v).replace(/\s/g, '').replace(/[€$£¥]/g, '');
+    var sign = 1, first = s.charAt(0);
+    if (first === '+') s = s.slice(1);
+    else if (first === '-' || first === '−') { sign = -1; s = s.slice(1); }
+    var n = null;
+    if (DE_NUM.test(s)) n = Number(s.replace(/\./g, '').replace(',', '.'));
+    else if (EN_NUM.test(s)) n = Number(s.replace(/,/g, ''));
+    return n != null && isFinite(n) ? sign * n : null;
+  }
+
+  /* Was beim Lesen eines Blattes an Textzellen auffiel. Nicht als Liste —
+     eine Mappe mit hundert Textspalten schriebe hundert Adressen mit. Die
+     Anzahl und die erste Adresse genügen, um nachzusehen. */
+  var noted = null;
+  function noteInit(sheet) { noted = { sheet: sheet, textN: 0, textAt: null, badN: 0, badAt: null }; }
+  function noteFlush(warnings) {
+    var n = noted;
+    noted = null;
+    if (!n) return;
+    if (n.textN) {
+      warnings.push(n.textN + (n.textN === 1 ? ' amount is' : ' amounts are') +
+        ' stored as text on "' + n.sheet + '" (first: ' + n.textAt +
+        '). Read as German numbers — 1.234,56 is one thousand two hundred.');
+    }
+    if (n.badN) {
+      warnings.push(n.badN + (n.badN === 1 ? ' cell holds' : ' cells hold') +
+        ' text that is not a number on "' + n.sheet + '" (first: ' + n.badAt +
+        '). They count as empty.');
+    }
+  }
+
   function num(ws, row, col) {
     var c = cell(ws, row, col);
     if (!c || c.v == null || c.v === '') return null;
     if (typeof c.v === 'number') return isFinite(c.v) ? c.v : null;
-    var n = parseFloat(String(c.v).replace(/\s/g, '').replace(',', '.'));
-    return isFinite(n) ? n : null;
+    var n = parseNumber(c.v);
+    if (noted) {
+      if (n == null) { noted.badN++; if (!noted.badAt) noted.badAt = addr(row, col); }
+      else { noted.textN++; if (!noted.textAt) noted.textAt = addr(row, col); }
+    }
+    return n;
   }
   function str(ws, row, col) {
     var c = cell(ws, row, col);
@@ -126,6 +181,7 @@
   }
 
   function parseDataInput(ws, errors, warnings) {
+    noteInit('Data Input');
     var range = decodeRange(ws);
     var L = labelRows(ws, range);
 
@@ -215,22 +271,33 @@
        wenn nicht, fällt es nirgends auf: die Berechnung liest die Spalte
        links vom aktuellen Monat als „Vormonat" und die zwölfte als „vor einem
        Jahr". Eine ausgelassene, doppelte oder verrutschte Spalte macht daraus
-       eine falsche Zahl, die aussieht wie jede andere. Also gesagt, was ist —
-       die Einstellungen zeigen es unter „notes while reading". */
+       eine falsche Zahl, die aussieht wie jede andere.
+
+       Lücken und Doppelungen trägt das Programm: die Vergleiche rechnen mit
+       dem Monatsabstand und bleiben leer, wo keiner passt (calc.back), der
+       Verlauf zeichnet die Lücke als Lücke, und die Einstellungen sagen es
+       unter „notes while reading".
+
+       Eine verrutschte Spalte trägt es nicht. „Zuletzt" ist die Spalte ganz
+       rechts, und wenn die Reihe Januar, März, Februar heisst, ist das der
+       Februar — ein falscher aktueller Stand, aus dem alles Weitere folgt.
+       Sortieren wäre möglich, hiesse aber, eine kaputte Mappe stillschweigend
+       zu reparieren und dabei zu raten. Also abgelehnt und gesagt, wo. */
     var dups = [], jumps = [], missing = 0, firstGap = null;
     for (var g = 1; g < used.length; g++) {
       var step = monthNo(used[g].key) - monthNo(used[g - 1].key);
       if (step === 0) dups.push(used[g].key);
-      else if (step < 0) jumps.push(used[g].key);
+      else if (step < 0) jumps.push('column ' + colName(used[g].col) + ' (' + used[g].key + ')');
       else if (step > 1) { missing += step - 1; if (!firstGap) firstGap = used[g - 1].key; }
+    }
+    if (jumps.length) {
+      errors.push('The month columns must run in ascending order. ' + jumps.join(', ') +
+        ' stands after a later month.');
+      return null;
     }
     if (dups.length) {
       warnings.push('The same month stands in more than one column: ' + dups.join(', ') +
         '. Only comparisons that fall on an actual month are shown.');
-    }
-    if (jumps.length) {
-      warnings.push('The month columns are not in ascending order — ' + jumps.join(', ') +
-        ' comes after a later month. Month-on-month and year-on-year are left blank where the order breaks.');
     }
     if (missing) {
       warnings.push('The series skips ' + missing + ' month' + (missing === 1 ? '' : 's') +
@@ -290,6 +357,7 @@
     });
     if (badTA) warnings.push('Total assets differ from the sum of sections in ' + badTA + ' month(s).');
     if (badNW) warnings.push('Net worth differs from (assets − liabilities) in ' + badNW + ' month(s).');
+    noteFlush(warnings);
 
     return {
       months: months,
@@ -307,34 +375,54 @@
   var EXP_HEADER        = 'kind';
 
   function parseExpenses(ws, errors, warnings) {
+    noteInit('Expenses');
     var range = decodeRange(ws);
     var L = labelRows(ws, range);
     var rMonthly = L.map[EXP_MONTHLY_TOTAL];
     var rAnnual  = L.map[EXP_ANNUAL_TOTAL];
+    var before = errors.length;
 
-    if (rMonthly == null && rAnnual == null) {
-      errors.push('Sheet "Expenses": neither "Monthly fixed costs" nor "Annual fixed costs" found.');
-      return null;
+    /* Beide Zeilen sind Pflicht — und nicht ihrer Summe wegen, sondern weil
+       sie die Grenzen sind. Über der ersten stehen die monatlichen Posten,
+       zwischen beiden die jährlichen; ohne sie lässt sich nicht sagen, welcher
+       Posten welcher ist. Fehlte die monatliche Zeile, zählte jeder
+       Jahresposten zusätzlich als Monatslast; fehlte die jährliche, fiele er
+       ganz aus. Beides verschiebt alle acht Zielbeträge, und beides sähe aus
+       wie ein sauberer Import.
+
+       Dieselbe Regel wie in "Data Input": jede Sektion braucht ihren Kopf und
+       ihre Summenzeile, auch wenn sie bei null steht. Eine leere Zelle in der
+       Summenzeile ist etwas anderes und bleibt erlaubt — dann rechnet der
+       Importer die Posten darüber zusammen. */
+    if (rMonthly == null) errors.push('Sheet "Expenses": row "Monthly fixed costs" not found. It marks where the monthly items end.');
+    if (rAnnual == null) errors.push('Sheet "Expenses": row "Annual fixed costs" not found. It marks where the annual items end.');
+    if (rMonthly != null && rAnnual != null && rAnnual < rMonthly) {
+      errors.push('Sheet "Expenses": "Annual fixed costs" stands above "Monthly fixed costs". The annual items belong between the two rows.');
     }
+    if (errors.length > before) return null;
 
     function items(from, to) {
       var out = [];
       for (var r = from; r < to; r++) {
         var name = str(ws, r, 0).replace(/ /g, ' ').trim();
+        if (!name) continue;
+        /* Erst die Zeile einordnen, dann den Betrag lesen: in der Kopfzeile
+           steht in Spalte B das Wort „Amount", und das ist keine Zahl, die
+           jemand nur falsch geschrieben hätte. */
+        var k = norm(name);
+        if (k === EXP_MONTHLY_TOTAL || k === EXP_ANNUAL_TOTAL || k === EXP_HEADER) continue;
         var amount = num(ws, r, 1);
-        if (!name || amount == null) continue;
-        if (norm(name) === EXP_MONTHLY_TOTAL || norm(name) === EXP_ANNUAL_TOTAL) continue;
-        if (norm(name) === EXP_HEADER) continue;   // Kopfzeile des Blattes
+        if (amount == null) continue;
         out.push({ name: name, amount: amount, due: str(ws, r, 2).trim() || null });
       }
       return out;
     }
 
-    var monthlyItems = items(range.r0, rMonthly == null ? range.r1 + 1 : rMonthly);
-    var annualItems  = rAnnual == null ? [] : items(rMonthly == null ? range.r0 : rMonthly + 1, rAnnual);
+    var monthlyItems = items(range.r0, rMonthly);
+    var annualItems  = items(rMonthly + 1, rAnnual);
 
-    var monthlyFixed = rMonthly == null ? null : num(ws, rMonthly, 1);
-    var annualFixed  = rAnnual == null ? null : num(ws, rAnnual, 1);
+    var monthlyFixed = num(ws, rMonthly, 1);
+    var annualFixed  = num(ws, rAnnual, 1);
     if (monthlyFixed == null) monthlyFixed = monthlyItems.reduce(function (a, b) { return a + b.amount; }, 0);
     if (annualFixed == null) annualFixed = annualItems.reduce(function (a, b) { return a + b.amount; }, 0);
 
@@ -352,6 +440,7 @@
     if (Math.abs(sumA - annualFixed) > 0.02) {
       warnings.push('Annual line items add up to ' + sumA.toFixed(2) + ' €, the total row says ' + annualFixed.toFixed(2) + ' €.');
     }
+    noteFlush(warnings);
 
     return {
       monthlyItems: monthlyItems,
@@ -460,6 +549,7 @@
     parseWorkbook: parseWorkbook,
     parseArrayBuffer: parseArrayBuffer,
     _norm: norm,
+    _parseNumber: parseNumber,
     _openWorkbook: openWorkbook
   };
 })(typeof window !== 'undefined' ? window : globalThis);

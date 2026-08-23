@@ -52,7 +52,7 @@ machine too.
 git clone https://github.com/chrisjohe/nordstern
 cd nordstern
 npm install          # jsdom, for the tests
-npm test             # ~500 assertions, all headless
+npm test             # ~600 assertions, all headless
 npm run build        # → export/nordstern.html
 open index.html      # or just double-click it
 ```

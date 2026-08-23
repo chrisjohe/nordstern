@@ -222,7 +222,16 @@ const store={};
 { const {w,errors}=await boot({storage:store});
   const d=w.document;
   ok(d.getElementById('gate').hidden,'Gate zu nach Neustart');
-  ok(N(d.querySelector('.hero-val').textContent)==='450.239,15 €','Net Worth aus Speicher: '+d.querySelector('.hero-val').textContent);
+  ok(N(d.querySelector('.hero-val').textContent)==='450.239 €','Net Worth aus Speicher: '+d.querySelector('.hero-val').textContent);
+  /* Eine Genauigkeit für den ganzen Block. Zwei Nachkommastellen beim Stand
+     und keine bei der Kennzahl darunter läse sich wie zwei verschiedene
+     Messungen — es ist dieselbe Spalte derselben Mappe. */
+  { const money=[d.querySelector('.hero-val'),
+                 ...d.querySelectorAll('.hero-deltas .delta-abs'),
+                 ...d.querySelectorAll('.kpi-val'),...d.querySelectorAll('.kpi-sub')]
+                .map(n=>N(n.textContent)).filter(t=>t.includes('€'));
+    ok(money.length>=7&&money.every(t=>!/,\d/.test(t)),
+       'kein Cent in der Position: '+money.join(' · ')); }
   const kpi=lab=>[...d.querySelectorAll('.kpi')].find(k=>k.querySelector('.kpi-lab').textContent===lab);
   ok(d.documentElement.getAttribute('lang')==='en','Seitensprache ist Englisch');
   ok(d.title==='nordstern','der Fenstertitel ist die Wortmarke, klein: '+d.title);
@@ -733,8 +742,15 @@ sec('Lücken und Doppel in der Monatsreihe');
   const dup=read([[2026,1],[2026,2],[2026,2]]);
   ok(dup.warnings.some(t=>/more than one column/.test(t)),'und das Doppel: '+dup.warnings.join(' | '));
 
+  /* Die verrutschte Spalte ist kein Hinweis, sondern ein Abbruch: „zuletzt"
+     ist die Spalte ganz rechts, und die hiesse hier Februar. Ein falscher
+     aktueller Stand trägt jede weitere Zahl mit sich. */
   const back=read([[2026,1],[2026,3],[2026,2]]);
-  ok(back.warnings.some(t=>/ascending order/.test(t)),'und die verrutschte Spalte: '+back.warnings.join(' | '));
+  ok(!back.ok&&back.errors.some(t=>/ascending order/.test(t)),
+     'die verrutschte Spalte wird abgelehnt: '+back.errors.concat(back.warnings).join(' | '));
+  ok(back.errors.some(t=>/column D \(2026-02\)/.test(t)),
+     'und die Meldung nennt die Spalte: '+back.errors.join(' | '));
+  ok(back.model===null,'nichts davon wird zum Modell');
 
   /* Und die Zahl daneben: über die Lücke hinweg wird nicht verglichen. */
   const set=w.NORDSTERN.store.loadSettings();
@@ -751,6 +767,183 @@ sec('Lücken und Doppel in der Monatsreihe');
   ok(dFull.yoy!==null&&dFull.pace!==null,'zwölf volle Monate ergeben Vorjahr und Tempo');
   ok(dHoled.yoy===null&&dHoled.pace===null&&dHoled.etaMonths===null,
      'mit Loch in der Reihe steht dort nichts: yoy='+dHoled.yoy+' pace='+dHoled.pace);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6c. Zahlen, die als Text in der Zelle stehen ---------- */
+/* Wer Beträge aus einem Kontoauszug in die Mappe kopiert, hat sie oft als
+   Text darin: „1.234,56". Die alte Lesart tauschte nur das Komma und liess
+   parseFloat den Rest machen — das hörte am zweiten Punkt auf und ergab
+   1,234. Ein Faktor tausend, und die Gegenprobe gegen die Summenzeile schwieg
+   dazu, weil die genauso falsch gelesen wurde. */
+sec('Zahlen als Text');
+{ const {w,errors}=await boot();
+  const P=w.NORDSTERN.importer._parseNumber;
+  const good=[['1.234,56',1234.56],['1,234.56',1234.56],['-1.234,56',-1234.56],
+              ['−1.234,56',-1234.56],['+980',980],['0',0],['12,5',12.5],
+              ['1 234,56',1234.56],['1.234,56 €',1234.56],
+              ['1.234',1234],       // beides möglich, deutsch gewinnt
+              ['1.2345',1.2345],    // als deutsche Gruppierung unmöglich
+              ['1.234.567,89',1234567.89],['12,345',12.345]];
+  good.forEach(([t,v])=>ok(P(t)===v,'„'+t+'" ist '+v+', gelesen: '+P(t)));
+  const bad=['1.234.56','abc','12,34,56','1.23.456','','12 %','1.2.3','--5','1,2345.6'];
+  bad.forEach(t=>ok(P(t)===null,'„'+t+'" ist keine Zahl, gelesen: '+P(t)));
+
+  /* Und dasselbe in einer Mappe, in der Posten und Summenzeile beide Text
+     sind — der Fall, den die Gegenprobe nicht sieht. */
+  const XLSX=w.XLSX;
+  const D=(y,m)=>new w.Date(y,m-1,1);
+  const wb=(depot)=>{
+    const b=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(b,XLSX.utils.aoa_to_sheet([
+      ['Month',        D(2026,1), D(2026,2)],
+      ['Liquid'],['  Cash',0,0],['Total liquid',0,0],
+      ['Claims'],['Total claims',0,0],
+      ['Investments'],['  Depot',depot,depot],['Total investments',depot,depot],
+      ['Property'],['Total property',0,0],
+      ['Retirement'],['Total retirement',0,0],
+      ['Total assets',depot,depot],
+      ['Liabilities'],['  Loan',0,0],['Total liabilities',0,0],
+      ['Total net worth',depot,depot]
+    ],{cellDates:true}),'Data Input');
+    XLSX.utils.book_append_sheet(b,XLSX.utils.aoa_to_sheet([
+      ['Kind','Amount'],['Rent',1000],['Monthly fixed costs',1000],
+      ['Insurance',1200],['Annual fixed costs',1200]
+    ]),'Expenses');
+    return w.NORDSTERN.importer.parseWorkbook(b,'text.xlsx');
+  };
+  const asText=wb('1.234,56'), asNumber=wb(1234.56);
+  ok(asText.ok&&asText.model.months[1].investment===1234.56,
+     'die Textzelle ergibt denselben Betrag wie die Zahl: '+asText.model.months[1].investment);
+  ok(asNumber.model.months[1].netWorth===asText.model.months[1].netWorth,
+     'und denselben Vermögensstand');
+  ok(asText.warnings.some(t=>/stored as text/.test(t)),
+     'dass sie Text war, steht in den Hinweisen: '+asText.warnings.join(' | '));
+  ok(asNumber.warnings.length===0,'die Zahlenfassung schweigt: '+asNumber.warnings.join(' | '));
+
+  /* Was auf keine der beiden Schreibweisen passt, wird nicht halb gelesen. */
+  const broken=wb('1.234.56');
+  ok(broken.warnings.some(t=>/not a number/.test(t)),
+     'Unleserliches wird benannt: '+broken.warnings.join(' | '));
+  ok(broken.model.months[1].investment===0,
+     'und zählt als leer, nicht als 1,234: '+broken.model.months[1].investment);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6d. Die zwei Grenzen im Blatt „Expenses" ---------- */
+/* Die Summenzeilen sind nicht der Summe wegen da, sondern als Grenze: über
+   der ersten stehen die monatlichen Posten, zwischen beiden die jährlichen.
+   Fehlt eine, ist nicht mehr zu sagen, welcher Posten welcher ist — und alle
+   acht Zielbeträge hängen daran. Also abgelehnt, nicht geraten. */
+sec('Die Ausgaben brauchen ihre zwei Grenzen');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const D=(y,m)=>new w.Date(y,m-1,1);
+  const data=XLSX.utils.aoa_to_sheet([
+    ['Month',        D(2026,1), D(2026,2)],
+    ['Liquid'],['  Cash',100,110],['Total liquid',100,110],
+    ['Claims'],['Total claims',0,0],
+    ['Investments'],['  Depot',1000,1100],['Total investments',1000,1100],
+    ['Property'],['Total property',0,0],
+    ['Retirement'],['Total retirement',0,0],
+    ['Total assets',1100,1210],
+    ['Liabilities'],['  Loan',0,0],['Total liabilities',0,0],
+    ['Total net worth',1100,1210]
+  ],{cellDates:true});
+  const read=(rows)=>{
+    const b=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(b,data,'Data Input');
+    XLSX.utils.book_append_sheet(b,XLSX.utils.aoa_to_sheet(rows),'Expenses');
+    return w.NORDSTERN.importer.parseWorkbook(b,'ausgaben.xlsx');
+  };
+  const both=read([['Kind','Amount'],['Rent',1000],['Monthly fixed costs',1000],
+                   ['Insurance',1200],['Annual fixed costs',1200]]);
+  ok(both.ok&&both.model.expenses.fixedMonthly===1100,
+     'mit beiden Grenzen: 1000 + 1200/12 = '+both.model.expenses.fixedMonthly);
+
+  const noMonthly=read([['Kind','Amount'],['Rent',1000],
+                        ['Insurance',1200],['Annual fixed costs',1200]]);
+  ok(!noMonthly.ok&&noMonthly.errors.some(t=>/"Monthly fixed costs" not found/.test(t)),
+     'ohne die monatliche Grenze bricht es ab: '+noMonthly.errors.join(' | '));
+
+  const noAnnual=read([['Kind','Amount'],['Rent',1000],['Monthly fixed costs',1000],
+                       ['Insurance',1200]]);
+  ok(!noAnnual.ok&&noAnnual.errors.some(t=>/"Annual fixed costs" not found/.test(t)),
+     'ohne die jährliche ebenso: '+noAnnual.errors.join(' | '));
+
+  const swapped=read([['Kind','Amount'],['Insurance',1200],['Annual fixed costs',1200],
+                      ['Rent',1000],['Monthly fixed costs',1000]]);
+  ok(!swapped.ok&&swapped.errors.some(t=>/stands above/.test(t)),
+     'und vertauscht auch: '+swapped.errors.join(' | '));
+
+  /* Eine leere Zelle in der Summenzeile bleibt erlaubt — die Grenze steht ja,
+     also lassen sich die Posten darüber zusammenzählen. */
+  const blank=read([['Kind','Amount'],['Rent',700],['Coffee',300],['Monthly fixed costs'],
+                    ['Insurance',1200],['Annual fixed costs',1200]]);
+  ok(blank.ok&&blank.model.expenses.monthlyFixed===1000,
+     'leere Summenzelle: die Posten darüber ergeben '+blank.model.expenses.monthlyFixed);
+  ok(blank.warnings.length===0,'und das ohne Hinweis: '+blank.warnings.join(' | '));
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6e. Die Lücke im Verlauf ---------- */
+/* Nach Index verteilt sah ein halbes Jahr ohne Eintrag aus wie ein
+   Monatsschritt: die Kurve wurde flacher, und man las ruhige Monate statt
+   fehlender. Jetzt trägt die Waagerechte Zeit, und über die Lücke geht kein
+   durchgezogener Strich. */
+sec('Zeitlücken im Verlauf');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  const base=JSON.parse(JSON.stringify(w.NORDSTERN.store.loadModel()));
+  const cut=(keys)=>{
+    const m=JSON.parse(JSON.stringify(base));
+    m.months=m.months.slice(0,keys.length).map((mo,i)=>({...mo,key:keys[i],iso:keys[i]+'-01'}));
+    Object.keys(m.accounts).forEach(k=>
+      m.accounts[k]=m.accounts[k].map(a=>({...a,values:a.values.slice(0,keys.length)})));
+    m.currentIndex=keys.length-1;
+    return m;
+  };
+  const show=(keys)=>{ w.NORDSTERN.app.state.model=cut(keys); w.NORDSTERN.app.refresh();
+    return d.querySelector('.chart-line').getAttribute('d'); };
+  const xs=dd=>[...dd.matchAll(/[ML]([\d.]+) [\d.]+/g)].map(m=>Number(m[1]));
+
+  const dense=show(['2026-01','2026-02','2026-03']);
+  ok(!d.querySelector('.chart-bridge'),'ohne Lücke kein Steg');
+  ok((dense.match(/M/g)||[]).length===1,'und ein durchgehender Strich');
+  const a=xs(dense);
+  ok(Math.abs((a[1]-a[0])/(a[2]-a[0])-0.5)<0.01,
+     'drei Monate stehen in gleichen Abständen: '+a.join(' · '));
+
+  /* Januar, Februar, August: der zweite Punkt gehört auf ein Siebtel der
+     Strecke, nicht auf die Hälfte. */
+  const holed=show(['2026-01','2026-02','2026-08']);
+  const b=xs(holed);
+  ok(Math.abs((b[1]-b[0])/(b[2]-b[0])-1/7)<0.01,
+     'mit Loch nach Monatsabstand: '+b.join(' · '));
+  ok((holed.match(/M/g)||[]).length===2,'der Strich bricht an der Lücke ab: '+holed);
+  const bridge=d.querySelector('.chart-bridge');
+  ok(!!bridge,'und ein gestrichelter Steg deutet sie an');
+  ok(Math.abs(xs(bridge.getAttribute('d'))[0]-b[1])<0.01,
+     'der Steg beginnt am letzten eingetragenen Monat');
+  ok(w.getComputedStyle(bridge).strokeDasharray!=='none','der Steg ist gestrichelt');
+  /* Die Fläche bleibt geschlossen — sie ist Atmosphäre, kein Wert. */
+  ok((d.querySelector('.chart-fill').getAttribute('d').match(/M/g)||[]).length===1,
+     'der Vorhang dahinter bleibt einer');
+
+  /* Und das Lesefenster trifft weiterhin den gemeinten Punkt, obwohl die
+     Punkte nicht mehr in gleichen Abständen stehen. */
+  const body=d.querySelector('.chart-body');
+  const hover=x=>{ const e=new w.Event('pointermove'); e.clientX=x; e.clientY=300; body.dispatchEvent(e);
+    return d.querySelector('.chart-tip .tip-key').textContent; };
+  ok(hover(400)==='August 2026','ganz rechts steht der letzte Stand: '+hover(400));
+  ok(hover(0)==='January 2026','ganz links der erste: '+hover(0));
+  ok(hover(Math.round(b[1]))==='February 2026',
+     'und am zweiten Punkt der zweite: '+hover(Math.round(b[1])));
+  /* Im Loch steht kein Punkt — gezeigt wird der nähere Rand. */
+  ok(hover(Math.round(b[1]+(b[2]-b[1])*0.75))==='August 2026','in der Lücke der nähere Rand');
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }

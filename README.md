@@ -116,8 +116,10 @@ helper row such as `Liabilities *(-1)` is left alone.
 | *Liability insurance* | *84,00* |
 | Annual fixed costs | 704,00 |
 
-The monthly load is always computed as `monthly + annual ÷ 12`. A first row
-called `Kind` is treated as a header and skipped.
+Both total rows are needed: they separate the monthly items from the annual
+ones. Their amounts may be left blank, and the items above them are added up
+instead. The monthly load is always computed as `monthly + annual ÷ 12`. A
+first row called `Kind` is treated as a header and skipped.
 
 The same tables are inside the app under *Settings → workbook*, so you can
 compare them against your own file without leaving the page. The full contract

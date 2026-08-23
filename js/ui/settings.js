@@ -248,9 +248,10 @@
         ]),
         U.make('p', { class: 'sheet-copy', text:
           'Column A the name, column B the amount. Monthly items stand above their total ' +
-          'row, annual items between the two total rows. Both totals may be left out — ' +
-          'then the line items above them are added up instead. Monthly fixed costs = ' +
-          'monthly total + annual total ÷ 12.' })
+          'row, annual items between the two total rows. Both total rows are needed — they ' +
+          'are what tells the two kinds apart. Their amounts may be left blank; then the ' +
+          'items above them are added up. Monthly fixed costs = monthly total + annual ' +
+          'total ÷ 12.' })
       ]));
 
       /* --- Bewegung --------------------------------------------------------

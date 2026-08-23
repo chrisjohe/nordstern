@@ -10,7 +10,7 @@
     var cls = !d ? 'muted' : d.abs > 0 ? 'pos' : d.abs < 0 ? 'neg' : 'muted';
     return U.make('div', { class: 'delta ' + cls }, [
       U.make('span', { class: 'delta-lab', text: label }),
-      U.make('span', { class: 'delta-abs', text: d ? U.eurSigned(d.abs) : (fallback || '—') }),
+      U.make('span', { class: 'delta-abs', text: d ? U.eurSigned0(d.abs) : (fallback || '—') }),
       U.make('span', { class: 'delta-rel', text: d && d.rel != null ? U.pctSigned(d.rel) : '' })
     ]);
   }
@@ -43,7 +43,10 @@
         hero.appendChild(U.make('div', { class: 'hero-lab' }, [
           U.make('h2', { class: 'panel-title is-hero', text: 'Net worth' })
         ]));
-        hero.appendChild(U.make('div', { class: 'hero-val', text: U.eur(v.current.netWorth) }));
+        /* Ohne Cent, wie alles in diesem Block. Ein Vermögensstand auf zwei
+           Nachkommastellen sagt eine Genauigkeit zu, die es nicht gibt: die
+           Depotspalte der Mappe ist ein Kurs von einem Stichtag. */
+        hero.appendChild(U.make('div', { class: 'hero-val', text: U.eur0(v.current.netWorth) }));
         var deltas = U.make('div', { class: 'hero-deltas' }, [
           delta('vs. last month', v.mom),
           delta('vs. last year', v.yoy, 'no year-ago value')
@@ -66,7 +69,7 @@
            unten und Weiss für oben hiesse: das eine ist eine Nachricht, das
            andere der Normalzustand — und direkt darüber, bei den Deltas am
            Hero, sind beide Richtungen längst gefärbt. */
-        kpis.appendChild(kpi('Portfolio pace', v.pace == null ? '—' : U.eurSigned(v.pace),
+        kpis.appendChild(kpi('Portfolio pace', v.pace == null ? '—' : U.eurSigned0(v.pace),
           v.pace == null ? 'no year-ago value' : 'avg. per month, 12 months',
           v.pace == null ? '' : v.pace < 0 ? 'is-neg' : v.pace > 0 ? 'is-pos' : ''));
         /* Der Hebel steht neben dem Tempo: beides sagt nichts über den Stand,

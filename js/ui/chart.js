@@ -136,8 +136,22 @@
       if (min > 0 && min < span * 0.5) min = 0;
 
       var iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-      var X = function (i) { return pad.l + (i / (data.length - 1)) * iw; };
+      /* Die Waagerechte ist Zeit, nicht Reihenfolge.
+
+         Nach Index verteilt sieht ein halbes Jahr ohne Eintrag aus wie ein
+         gewöhnlicher Monatsschritt — die Kurve wird flacher, und man hält es
+         für ruhige Monate statt für fehlende. Der Abstand kommt deshalb aus
+         dem Monatsschlüssel. Ist die Reihe lückenlos, ist es dieselbe Achse
+         wie zuvor; steht sie ganz auf einem Monat (Doppelspalten), bleibt es
+         beim Index, weil es sonst keine Strecke gäbe. */
+      var t0 = U.monthNo(data[0].key);
+      var tSpan = U.monthNo(data[data.length - 1].key) - t0;
+      var at = data.map(function (d, i) {
+        return tSpan > 0 ? (U.monthNo(d.key) - t0) / tSpan : i / (data.length - 1);
+      });
+      var X = function (i) { return pad.l + at[i] * iw; };
       var Y = function (v) { return pad.t + ih - ((v - min) / (max - min)) * ih; };
+      function isGap(i) { return i > 0 && U.monthNo(data[i].key) - U.monthNo(data[i - 1].key) > 1; }
 
       var edge = Math.min(0.16, Math.max(28, iw * 0.075) / iw);
       var g = U.svg('svg', { class: 'chart-svg', viewBox: '0 0 ' + w + ' ' + h, width: w, height: h,
@@ -225,14 +239,29 @@
       });
       g.appendChild(gx);
 
-      /* Fläche + Linie */
-      var dLine = '', dArea = '';
+      /* Fläche + Linie.
+
+         Über eine Lücke hinweg bricht der Strich ab; die Strecke dorthin
+         bekommt stattdessen einen gestrichelten Steg. Zwischen zwei Ständen,
+         die ein halbes Jahr auseinanderliegen, ist die Gerade eine Behauptung
+         über sechs Monate, die niemand eingetragen hat.
+
+         Die Fläche läuft weiter durch: sie ist Atmosphäre, kein Wert — dieselbe
+         Trennung wie oben bei den Farben. Sie braucht ohnehin einen
+         geschlossenen Umriss, und ein Vorhang mit Löchern sähe aus wie ein
+         zweiter Verlauf. */
+      var dFull = '', dLine = '', dGap = '';
       data.forEach(function (d, i) {
-        var x = X(i), y = Y(d.value);
-        dLine += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+        var x = X(i).toFixed(1), y = Y(d.value).toFixed(1);
+        dFull += (i ? 'L' : 'M') + x + ' ' + y;
+        if (isGap(i)) {
+          dGap += 'M' + X(i - 1).toFixed(1) + ' ' + Y(data[i - 1].value).toFixed(1) + 'L' + x + ' ' + y;
+        }
+        dLine += (i && !isGap(i) ? 'L' : 'M') + x + ' ' + y;
       });
-      dArea = dLine + 'L' + X(data.length - 1).toFixed(1) + ' ' + (pad.t + ih) + 'L' + X(0).toFixed(1) + ' ' + (pad.t + ih) + 'Z';
+      var dArea = dFull + 'L' + X(data.length - 1).toFixed(1) + ' ' + (pad.t + ih) + 'L' + X(0).toFixed(1) + ' ' + (pad.t + ih) + 'Z';
       g.appendChild(U.svg('path', { d: dArea, class: 'chart-fill', fill: 'url(#nsFill)' }));
+      if (dGap) g.appendChild(U.svg('path', { d: dGap, class: 'chart-bridge', fill: 'none' }));
 
       /* Vorjahreslinie */
       var yaPts = data.filter(function (d) { return d.yearAgo != null; });
@@ -265,6 +294,7 @@
       if (state.arrive) {
         var len = 0;
         for (var q = 1; q < data.length; q++) {
+          if (isGap(q)) continue;            /* was nicht gezeichnet wird, zählt nicht mit */
           var ddx = X(q) - X(q - 1), ddy = Y(data[q].value) - Y(data[q - 1].value);
           len += Math.sqrt(ddx * ddx + ddy * ddy);
         }
@@ -299,7 +329,7 @@
       g.appendChild(cross);
 
       body.appendChild(g);
-      state.geom = { X: X, Y: Y, data: data, pad: pad, w: w, h: h, cross: cross, ih: ih,
+      state.geom = { X: X, Y: Y, at: at, data: data, pad: pad, w: w, h: h, cross: cross, ih: ih,
         yaCursor: g.querySelector('#nsYaCursor') };
     }
 
@@ -308,8 +338,14 @@
       if (!geo) return;
       var r = body.getBoundingClientRect();
       var x = ev.clientX - r.left;
-      var i = Math.round((x - geo.pad.l) / (geo.w - geo.pad.l - geo.pad.r) * (geo.data.length - 1));
-      i = U.clamp(i, 0, geo.data.length - 1);
+      /* Nicht mehr zurückgerechnet, sondern gesucht: die Punkte stehen seit
+         der echten Zeitachse nicht mehr in gleichen Abständen. Gemeint ist
+         der nächstgelegene — auch mitten in einer Lücke. */
+      var frac = (x - geo.pad.l) / (geo.w - geo.pad.l - geo.pad.r);
+      var i = 0;
+      for (var k = 1; k < geo.at.length; k++) {
+        if (Math.abs(geo.at[k] - frac) < Math.abs(geo.at[i] - frac)) i = k;
+      }
       var d = geo.data[i];
       var px = geo.X(i), py = geo.Y(d.value);
       geo.cross.setAttribute('opacity', '1');
