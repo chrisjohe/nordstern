@@ -139,7 +139,7 @@
       art.addEventListener('focus', function () { bus.emit('card:hover', { id: ms.id }); });
       art.addEventListener('blur', function () { bus.emit('card:hover', null); });
 
-      cards[ms.id] = { root: art, front: front, back: back, img: img };
+      cards[ms.id] = { root: art, front: front, back: back };
       return art;
     }
 
@@ -232,5 +232,5 @@
     };
   }
 
-  NS.cards = { create: create, STATUS_LABEL: STATUS_LABEL, BASIS_LABEL: BASIS_LABEL };
+  NS.cards = { create: create };
 })(typeof window !== 'undefined' ? window : globalThis);

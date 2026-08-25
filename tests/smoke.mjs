@@ -87,5 +87,4 @@ console.log('\nCanvas-Aufrufe:', Object.entries(calls).map(([k,v])=>k+'='+v).sor
 console.log('\nFehler gesamt:', errors.length);
 errors.forEach(e=>console.log('  ! '+e));
 
-errors.forEach(()=>{});
 process.exit(errors.length?1:0);

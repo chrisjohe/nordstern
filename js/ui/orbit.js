@@ -400,9 +400,7 @@
         root.classList.remove('has-hover');
         root.classList.remove('is-arriving');
       },
-      setData: function (v, arrive) { state.view = v; if (arrive) state.arrive = true; render(); },
-      openSection: openSection,
-      openId: function () { return state.open; }
+      setData: function (v, arrive) { state.view = v; if (arrive) state.arrive = true; render(); }
     };
   }
 

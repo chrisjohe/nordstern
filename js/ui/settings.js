@@ -510,7 +510,6 @@
 
     return {
       open: open, close: close,
-      section: function () { return active; },
       setStatus: function (kind, text) {
         refs.status.textContent = text;
         refs.status.className = 'meta-import status-dot is-' + kind;
@@ -582,5 +581,5 @@
     };
   }
 
-  NS.settings = { create: create, SECTIONS: SECTIONS };
+  NS.settings = { create: create };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -25,7 +25,7 @@
     return box;
   }
 
-  function create(root, bus) {
+  function create(root) {
     var hero = U.make('div', { class: 'hero' });
     var kpis = U.make('div', { class: 'kpi-row' });
     root.appendChild(hero);

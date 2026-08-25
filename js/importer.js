@@ -541,8 +541,7 @@
       annualItems: annualItems,
       monthlyFixed: monthlyFixed,
       annualFixed: annualFixed,
-      fixedMonthly: computed,
-      note: null
+      fixedMonthly: computed
     };
   }
 
@@ -646,7 +645,6 @@
     MODEL_VERSION: MODEL_VERSION,
     parseWorkbook: parseWorkbook,
     parseArrayBuffer: parseArrayBuffer,
-    _norm: norm,
     _parseNumber: parseNumber,
     _openWorkbook: openWorkbook,
     _currencyOfFormat: currencyOfFormat

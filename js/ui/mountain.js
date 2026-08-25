@@ -1176,8 +1176,6 @@
           }
         }
       },
-      resize: resize,
-      redraw: function () { state.needsDraw = true; },
       /* Nur für kopflose Prüfungen — spiegelt den inneren Zustand. */
       peek: function () {
         return { hover: state.hover, ringHover: state.ringHover, selected: state.selected,
@@ -1193,7 +1191,7 @@
   }
 
   NS.mountain = {
-    create: create, Z_MAX: Z_MAX,
+    create: create,
     /* nur für kopflose Prüfungen */
     _geom: {
       buildField: buildField, buildContours: buildContours, buildRoute: buildRoute,

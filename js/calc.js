@@ -168,7 +168,6 @@
     var sectionItems = {};
     model.sectionOrder.forEach(function (id) { sectionItems[id] = itemsOf(id); });
     sectionItems.liabilities = itemsOf('liabilities');
-    var liabilityItems = sectionItems.liabilities;
 
     /* --- Meilensteine ---------------------------------------------------- */
     var stations = [], contingency = null;
@@ -235,7 +234,6 @@
       leverage: leverage,
       sections: sections,
       sectionItems: sectionItems,
-      liabilityItems: liabilityItems,
       expenses: {
         fixedMonthly: fixedMonthly,
         variableMonthly: variableMonthly,

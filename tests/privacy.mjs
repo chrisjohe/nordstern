@@ -235,7 +235,7 @@ const g = { window: null };
 g.window = g;
 const XLSX = createRequire(import.meta.url)(path.join(ROOT, 'js/vendor/xlsx.full.min.js'));
 g.XLSX = XLSX;
-const run = (f) => new Function('window', 'globalThis' in g ? 'g' : 'g',
+const run = (f) => new Function('window', 'g',
   fs.readFileSync(path.join(ROOT, f), 'utf8')).call(g, g, g);
 run('js/util.js');
 run('js/importer.js');

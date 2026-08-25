@@ -428,8 +428,7 @@
         state.view = null; state.arrive = false;
         body.querySelectorAll('svg').forEach(function (n) { n.remove(); });
       },
-      setData: function (view, arrive) { state.view = view; if (arrive) state.arrive = true; render(); },
-      render: render
+      setData: function (view, arrive) { state.view = view; if (arrive) state.arrive = true; render(); }
     };
   }
 

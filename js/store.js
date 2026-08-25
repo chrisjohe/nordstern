@@ -24,7 +24,6 @@
     variableSet: false,        // hat je ein Mensch den Betrag bestätigt?
     animations: true,
     motionIntensity: 'normal', // 'ruhig' | 'normal'
-    mountainQuality: 'auto',
     currency: 'EUR'
   };
 
@@ -196,7 +195,6 @@
   }
 
   NS.store = {
-    available: ok,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS, DEFAULT_VARIABLE: DEFAULT_VARIABLE,
     loadModel: loadModel, saveModel: saveModel, clearModel: clearModel, clearAll: clearAll,
     _usable: usable,

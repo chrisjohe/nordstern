@@ -254,7 +254,7 @@
 
     ui.header = NS.header.create(U.el('#starZone'));
     NS.header.mount(U.el('#gateStar'), 84, 'gate');
-    ui.position = NS.position.create(U.el('#posZone'), bus);
+    ui.position = NS.position.create(U.el('#posZone'));
     ui.chart = NS.chart.create(U.el('#chartZone'), bus);
     ui.orbit = NS.orbit.create(U.el('#orbitZone'), bus);
     ui.cards = NS.cards.create(railZone, bus);
