@@ -30,7 +30,7 @@ sec('Leerzustand ohne gespeicherte Daten');
   /* jsdom rechnet Kaskade und Schichten nicht aus — geprüft wird deshalb die
      Regel selbst: der Vorhang setzt unter dem Kopf an und liegt unter dem Blatt. */
   const css=fs.readFileSync(new URL('../css/components.css',import.meta.url),'utf8');
-  const zOf=sel=>Number((new RegExp(sel.replace(/\./g,'\\.')+'\\s*\\{[^}]*z-index:\\s*(\\d+)').exec(css)||[])[1]);
+  const zOf=sel=>Number((new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*\\{[^}]*z-index:\\s*(\\d+)').exec(css)||[])[1]);
   ok(/\.gate\s*\{[^}]*inset:\s*var\(--head-h\) 0 0 0/.test(css),'der Vorhang beginnt unter dem Kopf');
   ok(zOf('.overlay')>zOf('.gate'),
      'die Einstellungen liegen über dem Vorhang: '+zOf('.overlay')+' vs '+zOf('.gate'));
