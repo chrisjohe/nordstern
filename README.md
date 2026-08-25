@@ -230,9 +230,9 @@ Escape closes the sheet.
 
 * **expenses** — your total per month, and the variable share, which moves all
   eight targets immediately.
-* **data source** — import status as a square plus a word, then file, time and
-  data age; warnings from the import, then *Re-read workbook* and *Delete local
-  data*.
+* **data source** — currency (EUR, USD, GBP, CHF), then import status as a
+  square plus a word, then file, time and data age; warnings from the import,
+  then *Re-read workbook* and *Delete local data*.
 * **workbook** — the two tables above, inside the app, so you can compare them
   against your own file line by line.
 * **privacy** — what is read, written, sent, stored and required to sign in,
@@ -248,6 +248,17 @@ Escape closes the sheet.
 There is no data export: the workbook is the source, the dashboard only the
 display. The sheet is reachable before any file is loaded, and a failed import
 puts a button to **workbook** next to the reason it failed.
+
+**Currency** is a display setting, not a conversion — EUR by default, or USD,
+GBP, CHF. The workbook is assumed to be entirely in one currency; switching
+the setting reformats every number and axis label (1.234,56 € becomes
+$1,234.56 or CHF 1'234.56) without changing a single figure, including the
+variable monthly amount. The interface itself stays English throughout —
+language and locale are separate things. Importing a workbook helps: if the
+Excel number format behind the amount cells carries exactly one currency
+symbol, the setting switches to match and the import toast says so; a
+workbook whose formats mix currencies leaves the setting as it is and adds a
+warning instead.
 
 ## The build
 

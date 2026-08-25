@@ -13,6 +13,11 @@
      Version 1 gespeichertes Modell trägt sie noch, und die sollen weg. Ein
      Versionssprung wirft es beim Laden fort — einmal neu importieren. */
   var MODEL_VERSION = 2;
+  /* Anzeigewährung für die Warnhinweise unten ("… 5.855,00 USD, …") — vom
+     Aufrufer über opts.currency gesetzt, je Lauf neu, wie `noted`. Betrifft
+     nur den Text der Warnung, nicht die Zahl: die Mappe wird nicht
+     umgerechnet, nur benannt. */
+  var dispCode = 'EUR';
 
   /* ------------------------------------------------------- Zellen-Zugriffe */
 
@@ -42,26 +47,109 @@
      Wo beide passen — „1.234" ist deutsch tausendzweihundert und englisch
      eins Komma zwei — gilt die deutsche Lesart: die Mappe schreibt ihre Daten
      deutsch, und das Programm zeigt sie so. Dass überhaupt Text statt einer
-     Zahl in der Zelle stand, sagen die Einstellungen; dann kann man nachsehen. */
+     Zahl in der Zelle stand, sagen die Einstellungen; dann kann man nachsehen.
+
+     Eine dritte Schreibweise kommt aus der Schweiz: Gruppen durch Apostroph
+     getrennt, der Punkt bleibt Dezimaltrennzeichen — „1'234.56". Ein
+     Apostroph steht in keiner der beiden anderen Schreibweisen, die Lesart
+     ist also nie mehrdeutig. */
   var DE_NUM = /^\d{1,3}(\.\d{3})+(,\d+)?$|^\d+(,\d+)?$/;
   var EN_NUM = /^\d{1,3}(,\d{3})+(\.\d+)?$|^\d+(\.\d+)?$/;
+  var CH_NUM = /^\d{1,3}(['’]\d{3})+(\.\d+)?$/;
 
   function parseNumber(v) {
-    var s = String(v).replace(/\s/g, '').replace(/[€$£¥]/g, '');
+    var s = String(v).replace(/\s/g, '').replace(/[€$£¥]/g, '').replace(/EUR|USD|GBP|CHF/gi, '');
     var sign = 1, first = s.charAt(0);
     if (first === '+') s = s.slice(1);
     else if (first === '-' || first === '−') { sign = -1; s = s.slice(1); }
     var n = null;
     if (DE_NUM.test(s)) n = Number(s.replace(/\./g, '').replace(',', '.'));
     else if (EN_NUM.test(s)) n = Number(s.replace(/,/g, ''));
+    else if (CH_NUM.test(s)) n = Number(s.replace(/['’]/g, ''));
     return n != null && isFinite(n) ? sign * n : null;
+  }
+
+  /* ------------------------------------------------------------- Währung */
+
+  /* Erkennung der Währung aus dem Zahlenformat einer Zelle (c.z), nicht aus
+     ihrem Wert — der Wert ist eine reine Zahl, das Format trägt das Symbol.
+
+     Ein reiner Gebietsschema-Tag wie „[$-409]" trägt kein Symbol und wird
+     zuerst entfernt. Übrig bleiben entweder Symbol-Tags wie „[$€-407]",
+     „[$CHF-807]" oder „[$CHF]" (der Text zwischen „[$" und „-" bzw. „]" ist
+     das Symbol), oder ein blankes Symbol/Kürzel irgendwo im Format, auch in
+     Anführungszeichen wie „"CHF "". Alles, was auf keine der vier Währungen
+     passt (¥, kr, …), wird ignoriert — der Import kennt nur die vier, die
+     die Einstellungen auch anbieten. */
+  var LOCALE_ONLY_RE = /\[\$-[^\]]*\]/g;
+  var BRACKET_TAG_RE = /\[\$([^\]-]*)(?:-[^\]]*)?\]/;
+  var BRACKET_TAG_ALL_RE = /\[\$[^\]]*\]/g;
+  var BARE_SYMBOL_RE = /[€$£]/;
+  var LITERAL_CODE_RE = /\b(EUR|USD|GBP|CHF)\b/i;
+
+  function symbolToCurrency(s) {
+    var t = String(s == null ? '' : s).trim();
+    if (!t) return null;
+    if (t === '€') return 'EUR';
+    if (t === '$') return 'USD';
+    if (t === '£') return 'GBP';
+    var up = t.toUpperCase();
+    if (up === 'EUR' || up === 'USD' || up === 'GBP' || up === 'CHF') return up;
+    return null;
+  }
+
+  /** Eine Zahlenformat-Zeichenkette → Währungscode oder null. */
+  function currencyOfFormat(fmt) {
+    if (!fmt) return null;
+    var s = String(fmt).replace(LOCALE_ONLY_RE, '');
+    var m = BRACKET_TAG_RE.exec(s);
+    if (m) {
+      var fromTag = symbolToCurrency(m[1]);
+      if (fromTag) return fromTag;
+    }
+    var rest = s.replace(BRACKET_TAG_ALL_RE, '');
+    var bare = BARE_SYMBOL_RE.exec(rest);
+    if (bare) return symbolToCurrency(bare[0]);
+    var lit = LITERAL_CODE_RE.exec(rest);
+    if (lit) return symbolToCurrency(lit[1]);
+    return null;
+  }
+
+  /* Zählung je Lauf, über beide Blätter hinweg — wie `noted`, aber nicht auf
+     ein Blatt beschränkt: erst parseWorkbook weiß, ob eine oder mehrere
+     Währungen vorkommen. `currencySeen` verhindert die doppelte Zählung
+     derselben Zelle: „Data Input" liest z. B. die Summenzeile einer Sektion
+     einmal für die Monatsreihe und ein zweites Mal für die Gegenprobe. */
+  var currencyTally = null;
+  var currencySeen = null;
+  function currencyTallyReset() { currencyTally = {}; }
+  function currencySeenReset() { currencySeen = {}; }
+  function currencyNote(addrStr, fmt) {
+    if (!currencyTally || (currencySeen && currencySeen[addrStr])) return;
+    if (currencySeen) currencySeen[addrStr] = true;
+    var code = currencyOfFormat(fmt);
+    if (code) currencyTally[code] = (currencyTally[code] || 0) + 1;
+  }
+  /** Genau eine gezählte Währung → ihr Code; keine → null; mehr als eine →
+      null, dazu eine Warnung mit den Codes nach Häufigkeit sortiert. */
+  function currencyResult(warnings, shownAs) {
+    var codes = Object.keys(currencyTally || {});
+    if (codes.length === 0) return null;
+    if (codes.length === 1) return codes[0];
+    codes.sort(function (a, b) { return currencyTally[b] - currencyTally[a]; });
+    warnings.push('Amounts are formatted in more than one currency on the sheets (' +
+      codes.join(', ') + '). Shown as ' + shownAs + ' — change it in settings.');
+    return null;
   }
 
   /* Was beim Lesen eines Blattes an Textzellen auffiel. Nicht als Liste —
      eine Mappe mit hundert Textspalten schriebe hundert Adressen mit. Die
      Anzahl und die erste Adresse genügen, um nachzusehen. */
   var noted = null;
-  function noteInit(sheet) { noted = { sheet: sheet, textN: 0, textAt: null, badN: 0, badAt: null }; }
+  function noteInit(sheet) {
+    noted = { sheet: sheet, textN: 0, textAt: null, badN: 0, badAt: null };
+    currencySeenReset();       // Dedup gilt je Blatt, die Zählung selbst je Lauf
+  }
   function noteFlush(warnings) {
     var n = noted;
     noted = null;
@@ -81,13 +169,19 @@
   function num(ws, row, col) {
     var c = cell(ws, row, col);
     if (!c || c.v == null || c.v === '') return null;
-    if (typeof c.v === 'number') return isFinite(c.v) ? c.v : null;
-    var n = parseNumber(c.v);
-    if (noted) {
-      if (n == null) { noted.badN++; if (!noted.badAt) noted.badAt = addr(row, col); }
-      else { noted.textN++; if (!noted.textAt) noted.textAt = addr(row, col); }
+    var result;
+    if (typeof c.v === 'number') {
+      result = isFinite(c.v) ? c.v : null;
+    } else {
+      var n = parseNumber(c.v);
+      if (noted) {
+        if (n == null) { noted.badN++; if (!noted.badAt) noted.badAt = addr(row, col); }
+        else { noted.textN++; if (!noted.textAt) noted.textAt = addr(row, col); }
+      }
+      result = n;
     }
-    return n;
+    if (result != null) currencyNote(addr(row, col), c.z);
+    return result;
   }
   function str(ws, row, col) {
     var c = cell(ws, row, col);
@@ -343,7 +437,7 @@
       });
       if (bad) {
         warnings.push('Section "' + id + '": ' + bad + ' month(s) differ from the total row (max. ' +
-          worst.toFixed(2) + ' € in ' + worstKey + ').');
+          worst.toFixed(2) + ' ' + dispCode + ' in ' + worstKey + ').');
       }
     }
     SECTIONS.forEach(function (s) { checkSums(s.id, accounts[s.id], s._total); });
@@ -434,11 +528,11 @@
 
     var sumM = monthlyItems.reduce(function (a, b) { return a + b.amount; }, 0);
     if (Math.abs(sumM - monthlyFixed) > 0.02) {
-      warnings.push('Monthly line items add up to ' + sumM.toFixed(2) + ' €, the total row says ' + monthlyFixed.toFixed(2) + ' €.');
+      warnings.push('Monthly line items add up to ' + sumM.toFixed(2) + ' ' + dispCode + ', the total row says ' + monthlyFixed.toFixed(2) + ' ' + dispCode + '.');
     }
     var sumA = annualItems.reduce(function (a, b) { return a + b.amount; }, 0);
     if (Math.abs(sumA - annualFixed) > 0.02) {
-      warnings.push('Annual line items add up to ' + sumA.toFixed(2) + ' €, the total row says ' + annualFixed.toFixed(2) + ' €.');
+      warnings.push('Annual line items add up to ' + sumA.toFixed(2) + ' ' + dispCode + ', the total row says ' + annualFixed.toFixed(2) + ' ' + dispCode + '.');
     }
     noteFlush(warnings);
 
@@ -503,20 +597,24 @@
     return null;
   }
 
-  function parseWorkbook(wb, fileName) {
+  function parseWorkbook(wb, fileName, opts) {
+    dispCode = (opts && opts.currency) || 'EUR';
+    currencyTallyReset();
     var errors = [], warnings = [];
     var wsData = findSheet(wb, 'Data Input');
     var wsExp = findSheet(wb, 'Expenses');
     if (!wsData) errors.push('Sheet "Data Input" is missing.');
     if (!wsExp) errors.push('Sheet "Expenses" is missing.');
-    if (errors.length) return { ok: false, errors: errors, warnings: warnings, model: null };
+    if (errors.length) return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
 
     var data = parseDataInput(wsData, errors, warnings);
     var exp = data ? parseExpenses(wsExp, errors, warnings) : null;
-    if (errors.length || !data || !exp) return { ok: false, errors: errors, warnings: warnings, model: null };
+    if (errors.length || !data || !exp) return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
+
+    var currency = currencyResult(warnings, dispCode);
 
     return {
-      ok: true, errors: [], warnings: warnings,
+      ok: true, errors: [], warnings: warnings, currency: currency,
       model: {
         version: MODEL_VERSION,
         importedAt: new Date().toISOString(),
@@ -532,16 +630,16 @@
     };
   }
 
-  function parseArrayBuffer(buf, fileName) {
+  function parseArrayBuffer(buf, fileName, opts) {
     var X = global.XLSX;
-    if (!X) return { ok: false, errors: ['SheetJS (js/vendor/xlsx.full.min.js) was not loaded.'], warnings: [], model: null };
+    if (!X) return { ok: false, errors: ['SheetJS (js/vendor/xlsx.full.min.js) was not loaded.'], warnings: [], model: null, currency: null };
     var wb;
     try {
       wb = openWorkbook(X, new Uint8Array(buf));
     } catch (e) {
-      return { ok: false, errors: ['The file could not be read: ' + (e && e.message ? e.message : e)], warnings: [], model: null };
+      return { ok: false, errors: ['The file could not be read: ' + (e && e.message ? e.message : e)], warnings: [], model: null, currency: null };
     }
-    return parseWorkbook(wb, fileName);
+    return parseWorkbook(wb, fileName, opts);
   }
 
   NS.importer = {
@@ -550,6 +648,7 @@
     parseArrayBuffer: parseArrayBuffer,
     _norm: norm,
     _parseNumber: parseNumber,
-    _openWorkbook: openWorkbook
+    _openWorkbook: openWorkbook,
+    _currencyOfFormat: currencyOfFormat
   };
 })(typeof window !== 'undefined' ? window : globalThis);

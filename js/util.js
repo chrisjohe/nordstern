@@ -7,33 +7,79 @@
 
   /* ---------------------------------------------------------------- Zahlen */
 
-  var nfEur = new Intl.NumberFormat('de-DE', {
-    style: 'currency', currency: 'EUR',
-    minimumFractionDigits: 2, maximumFractionDigits: 2
-  });
-  var nfEur0 = new Intl.NumberFormat('de-DE', {
-    style: 'currency', currency: 'EUR',
-    minimumFractionDigits: 0, maximumFractionDigits: 0
-  });
-  var nfNum = new Intl.NumberFormat('de-DE', {
-    minimumFractionDigits: 2, maximumFractionDigits: 2
-  });
-  var nfInt = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+  /* Welche Währungen wählbar sind, und mit welchem Locale jede formatiert
+     wird — die Schreibweise (Tausendertrennzeichen, Symbolposition) folgt der
+     Währung, nicht der Sprache der Oberfläche, die englisch bleibt. */
+  var CURRENCIES = {
+    EUR: { locale: 'de-DE' },
+    USD: { locale: 'en-US' },
+    GBP: { locale: 'en-GB' },
+    CHF: { locale: 'de-CH' }
+  };
+
+  var curCode, nfEur, nfEur0, nfNum, nfInt, pctCache, dtf;
+
+  /** Stellt alle Zahlen- und Datumsformatierer auf eine Währung um. Ein
+      unbekannter Code fällt auf EUR zurück, statt die App mit einer
+      werfenden Formatierung zu blockieren. Gibt den tatsächlich gesetzten
+      Code zurück, damit der Aufrufer (z. B. Einstellungen) weiß, was
+      angekommen ist. */
+  function setCurrency(code) {
+    var c = Object.prototype.hasOwnProperty.call(CURRENCIES, code) ? code : 'EUR';
+    var locale = CURRENCIES[c].locale;
+    curCode = c;
+    nfEur = new Intl.NumberFormat(locale, {
+      style: 'currency', currency: c,
+      minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+    nfEur0 = new Intl.NumberFormat(locale, {
+      style: 'currency', currency: c,
+      minimumFractionDigits: 0, maximumFractionDigits: 0
+    });
+    nfNum = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+    nfInt = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
+    /* Beide sind an das Locale gekoppelt — ohne Reset würden pct() und
+       dateTime() nach einem Währungswechsel weiter in der alten Sprache
+       formatieren. */
+    pctCache = {};
+    dtf = null;
+    return curCode;
+  }
+
+  function currency() { return curCode; }
+
+  /** Das Symbol, wie Intl es für die aktuelle Währung/Locale tatsächlich
+      rendert ('€', '$', '£', 'CHF') — kein fest verdrahtetes Mapping, das mit
+      einer neuen Währung veralten könnte. */
+  function currencySymbol() {
+    if (!nfEur.formatToParts) return curCode;
+    var parts = nfEur.formatToParts(0);
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].type === 'currency') return parts[i].value;
+    }
+    return curCode;
+  }
 
   function isNum(v) { return typeof v === 'number' && isFinite(v); }
 
-  /** Vollständiger Betrag mit Cent — überall dort, wo Genauigkeit zählt. */
+  /** Vollständiger Betrag mit Cent, in der über setCurrency() gewählten
+      Währung — überall dort, wo Genauigkeit zählt. */
   function eur(v) { return isNum(v) ? nfEur.format(v) : '—'; }
 
   /** Gerundeter Betrag für Achsen, Marker und enge Flächen. */
   function eur0(v) { return isNum(v) ? nfEur0.format(v) : '—'; }
 
   /** Kompakt (12,4k / 1,25M) — nur für Achsenbeschriftungen. Die Sprache ist
-      englisch, die Zahlenschreibweise bleibt deutsch: es ist dasselbe Geld. */
+      englisch, die Zahlenschreibweise folgt der gewählten Währung: es ist
+      dasselbe Geld. */
   function eurShort(v) {
     if (!isNum(v)) return '—';
     var a = Math.abs(v), s = v < 0 ? '−' : '';
-    if (a >= 1e6) return s + nfNum.format(a / 1e6).replace(',00', '') + 'M';
+    /* ',00' bei de-DE/de-CH, '.00' bei en-US/en-GB — welches Zeichen das
+       Locale als Dezimaltrenner nutzt, ist hier egal. */
+    if (a >= 1e6) return s + nfNum.format(a / 1e6).replace(/[.,]00$/, '') + 'M';
     if (a >= 1e3) return s + Math.round(a / 1e3) + 'k';
     return s + Math.round(a);
   }
@@ -53,11 +99,10 @@
     return (v > 0 ? '+' : v < 0 ? '−' : '±') + nfEur0.format(Math.abs(v));
   }
 
-  var pctCache = {};
   function pct(v, digits) {
     if (!isNum(v)) return '—';
     var d = digits == null ? 1 : digits;
-    var f = pctCache[d] || (pctCache[d] = new Intl.NumberFormat('de-DE', {
+    var f = pctCache[d] || (pctCache[d] = new Intl.NumberFormat(CURRENCIES[curCode].locale, {
       minimumFractionDigits: d, maximumFractionDigits: d
     }));
     return f.format(v * 100) + ' %';
@@ -90,13 +135,15 @@
   }
   /** Zeitpunkt eines Imports: '23.08.2026, 18:30'. Ohne Sekunden — wann eine
       Mappe gelesen wurde, ist eine Angabe für den Menschen, keine Messung. */
-  var dtf = null;
   function dateTime(iso) {
     if (!iso) return '—';
     var d = new Date(iso);
     if (isNaN(d.getTime())) return '—';
-    if (!dtf) dtf = new Intl.DateTimeFormat('de-DE', {
-      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    /* hourCycle: 'h23' fest verdrahtet — sonst wechselt en-US auf 12-Stunden
+       mit AM/PM, was die Spalte breiter macht und nichts beiträgt. */
+    if (!dtf) dtf = new Intl.DateTimeFormat(CURRENCIES[curCode].locale, {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      hourCycle: 'h23'
     });
     return dtf.format(d);
   }
@@ -200,13 +247,19 @@
   /* Eine Fassung, an einer Stelle. Ohne Bauschritt kann nichts sie aus
      package.json holen, also steht sie hier — und tests/behaviour.mjs hält
      beide gegeneinander, damit sie nicht auseinanderlaufen. */
-  NS.VERSION = '1.0.2';
+  NS.VERSION = '1.0.3';
+
+  /* Formatierer müssen existieren, bevor irgendetwas eur()/pct()/dateTime()
+     aufruft — auch in Tests, die util.js allein ohne app.js laden. EUR ist
+     der Startwert, bis Einstellungen (js/store.js) etwas anderes laden. */
+  setCurrency('EUR');
 
   NS.util = {
     isNum: isNum, eur: eur, eur0: eur0, eurShort: eurShort, eurSigned: eurSigned, eurSigned0: eurSigned0,
     pct: pct, pctSigned: pctSigned, mult: mult,
     monthLong: monthLong, monthShort: monthShort, monthNo: monthNo, dateTime: dateTime,
     MONTHS_SHORT: MONTHS_SHORT,
+    CURRENCIES: CURRENCIES, setCurrency: setCurrency, currency: currency, currencySymbol: currencySymbol,
     clamp: clamp, lerp: lerp, smoothstep: smoothstep, easeOutCubic: easeOutCubic, rng: rng,
     el: el, els: els, make: make, svg: svg, bus: bus
   };

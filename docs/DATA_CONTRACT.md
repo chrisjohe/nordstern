@@ -69,10 +69,12 @@ draws a gap as a gap, and *Settings → notes while reading* names both.
 
 An amount pasted from a bank statement often sits in the cell as text.
 `1.234,56` is read as one thousand two hundred, not as 1,234 — the reader
-accepts only what matches one of the two notations completely: German (`.`
-groups, `,` separates the decimals) or English (the other way round). Anything
-else is **not read at all** rather than read in part; the cell then counts as
-empty. Where both notations fit — `1.234` — the German reading applies.
+accepts only what matches one of a fixed set of notations completely: German
+(`.` groups, `,` separates the decimals), English (the other way round), or
+Swiss (`'` groups, `.` separates the decimals — `1'234.56`), each optionally
+carrying a leading currency code (`CHF 1'234.56`). Anything else is **not
+read at all** rather than read in part; the cell then counts as empty. Where
+more than one notation fits — `1.234` — the German reading applies.
 
 Both cases are named in *Settings → notes while reading*, with the count and
 the first cell address.
@@ -235,8 +237,36 @@ opened. Nothing else changes.
 
 ## 7. Numbers and dates
 
-The interface is English; number and date formats are `de-DE`
-(`450.239,15 €`, `31.08.2026`). Language and locale are two different things,
-and the locale here matches the workbooks this was built for. Changing it
-means changing the formatters in `js/util.js` — they are in one place for
-exactly that reason.
+The interface is English; number and date formats follow the chosen
+**currency** — *Settings → data source*, EUR by default. EUR formats as
+`de-DE` (`450.239,15 €`, `31.08.2026`); USD as `en-US`; GBP as `en-GB`; CHF as
+`de-CH`, with an apostrophe for grouping (`CHF 1'234.56`). Percentages,
+multiples (`1,96×`), the compact axis labels and the import timestamp all
+follow the same locale, and the clock is 24-hour in every one of them.
+Language and locale are two different things: the interface stays English no
+matter which currency is chosen, only the shape of the numbers changes. The
+mapping from currency to locale is the table `CURRENCIES` in `js/util.js`;
+every formatter in that file goes through `setCurrency()`, which is why a
+fifth currency is one row away — see
+[CUSTOMISE.md](CUSTOMISE.md#adding-a-currency).
+
+## 8. Currency
+
+nordstern assumes the **whole workbook is in one currency**. Nothing is
+converted, ever — the currency setting only changes how a figure is written,
+not what it is. Switching it does not touch the parsed model, so it needs no
+re-import, and it does not touch the variable monthly amount either: it stays
+whatever number was typed in, now printed with a different symbol and
+grouping.
+
+On import, the reader looks at the **Excel number format** behind the amount
+cells on both sheets, `Data Input` and `Expenses` — not their content, the
+format string Excel stores alongside each cell. If every format that carries a currency symbol carries
+the *same* one (`€`, `$`, `£`, `CHF`, the codes `EUR`/`USD`/`GBP`/`CHF`, or an
+Excel tag such as `[$CHF-807]`), the currency setting switches to match and
+the import toast names it. If no format carries a symbol, the setting is left
+as it is — an unformatted workbook says nothing about currency, so nordstern
+does not guess. If the formats carry **more than one** currency, that is
+almost always a workbook nordstern's one-currency assumption does not fit;
+the setting is left as it is and a note is added: "Amounts are formatted in
+more than one currency …".

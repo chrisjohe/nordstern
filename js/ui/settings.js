@@ -127,7 +127,8 @@
           'stands here: better a rough figure than eight targets that quietly ignore living.' }),
         U.make('div', { class: 'field' }, [
           U.make('label', { class: 'field-lab', htmlFor: 'setVar', text: 'Variable monthly amount' }),
-          U.make('div', { class: 'field-ctl' }, [refs.varInput, U.make('span', { class: 'field-unit', text: '€' })])
+          U.make('div', { class: 'field-ctl' }, [refs.varInput,
+            (refs.varUnit = U.make('span', { class: 'field-unit', text: '€' }))])
         ]),
         refs.varRange,
         /* Die Summe ist der Hauptdarsteller: die beiden Zeilen darüber führen
@@ -141,6 +142,16 @@
       ]));
 
       /* --- Datenquelle --------------------------------------------------- */
+      /* Die Auswahl steht ganz oben im Abschnitt, noch vor dem Importstatus —
+         sie ist eine Anzeigefrage, keine Angabe über die eingelesene Mappe,
+         und gilt unabhängig davon, ob überhaupt schon etwas gelesen wurde. */
+      refs.currency = U.make('select', { id: 'setCurrency', class: 'field-select',
+        'aria-describedby': 'setCurrencyHint' },
+        Object.keys(U.CURRENCIES).map(function (code) {
+          return U.make('option', { value: code, text: code });
+        }));
+      refs.currencyHint = U.make('p', { class: 'sheet-hint', id: 'setCurrencyHint' });
+
       refs.status = U.make('span', { class: 'meta-import status-dot', text: 'no import' });
       refs.src = U.make('dd', { class: 'src-name', text: '—' });
       refs.when = U.make('dd', { text: '—' });
@@ -156,6 +167,14 @@
       refs.forget = U.make('button', { type: 'button', class: 'btn btn-ghost btn-danger', text: 'Delete local data' });
 
       body.appendChild(pane('source', [
+        /* Anzeige, nicht Umrechnung — die Zahlen selbst ändern sich nicht,
+           nur ihre Schreibweise. Steht vor dem Importstatus, weil sie auch
+           ohne jede Mappe gilt. */
+        U.make('div', { class: 'field' }, [
+          U.make('label', { class: 'field-lab', htmlFor: 'setCurrency', text: 'Currency' }),
+          U.make('div', { class: 'field-ctl' }, [refs.currency])
+        ]),
+        refs.currencyHint,
         /* Der Importstatus steht oben im Paneel: er gilt für alles darunter. */
         U.make('div', { class: 'sheet-status' }, [refs.status]),
         U.make('dl', { class: 'sheet-facts' }, [
@@ -387,6 +406,9 @@
         if (refs.varInput.value === '') setVar(0);
       });
       refs.varRange.addEventListener('input', function () { setVar(Number(refs.varRange.value)); });
+      refs.currency.addEventListener('change', function () {
+        api.patchSettings({ currency: refs.currency.value });
+      });
       refs.anim.addEventListener('change', function () {
         paintSwitches();
         api.patchSettings({ animations: refs.anim.checked });
@@ -495,6 +517,15 @@
       },
       isOpen: function () { return root.classList.contains('is-open'); },
       sync: function (v, model, settings) {
+        /* Gilt auch ohne Modell (v === null) — die Wahl der Währung hängt an
+           den Einstellungen, nicht am Import. */
+        if (refs.currency !== document.activeElement && refs.currency.value !== settings.currency) {
+          refs.currency.value = settings.currency;
+        }
+        refs.varUnit.textContent = U.currencySymbol();
+        refs.currencyHint.textContent =
+          'Display only, nothing is converted. ' +
+          'Importing a workbook whose number formats carry a currency symbol switches this to match.';
         refs.anim.checked = !!settings.animations;
         refs.calm.checked = settings.motionIntensity === 'ruhig';
         paintSwitches();

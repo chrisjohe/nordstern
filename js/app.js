@@ -14,6 +14,12 @@
                 mountainPaused: false, arriving: false };
   var ui = {};
 
+  /* Die Formatierer folgen der gewählten Währung, nicht EUR — vor dem ersten
+     Rendern gesetzt und nach jeder Änderung erneut, sonst zeigt eine Zahl
+     kurz die alte Schreibweise, bevor refresh() nachzieht. */
+  function applyCurrency() { U.setCurrency(state.settings.currency); }
+  applyCurrency();
+
   /* ------------------------------------------------------------- Bewegung */
   var mq = global.matchMedia ? global.matchMedia('(prefers-reduced-motion: reduce)') : null;
   function motionOn() {
@@ -94,7 +100,7 @@
       toast('The file could not be read.', 'error');
     };
     fr.onload = function () {
-      var res = NS.importer.parseArrayBuffer(fr.result, file.name);
+      var res = NS.importer.parseArrayBuffer(fr.result, file.name, { currency: state.settings.currency });
       if (!res.ok) {
         ui.settings.setStatus('error', 'unknown structure');
         showGate('The structure does not match',
@@ -104,15 +110,27 @@
       }
       state.model = res.model;
       var saved = NS.store.saveModel(res.model);
+      /* Die Mappe sagt, in welcher Währung ihre Zellen formatiert sind — wenn
+         das von der bisherigen Einstellung abweicht, übernimmt nordstern es,
+         bevor überhaupt gerendert wird. So zeigt der erste Anblick schon die
+         richtige Schreibweise, statt erst EUR und dann, ruckartig, USD. */
+      var switchedTo = null;
+      if (res.currency && res.currency !== state.settings.currency) {
+        switchedTo = res.currency;
+        state.settings.currency = res.currency;
+        NS.store.saveSettings(state.settings);
+        applyCurrency();
+      }
       hideGate();
       state.arriving = true;
       refresh();
       ui.settings.setStatus(res.warnings.length ? 'warn' : 'ok',
         res.warnings.length ? res.warnings.length + (res.warnings.length === 1 ? ' note' : ' notes') : 'import ok');
-      toast(res.warnings.length
+      var msg = res.warnings.length
         ? 'Read — with ' + res.warnings.length + ' note(s), see settings.'
-        : 'Read: ' + res.model.months.length + ' months up to ' + U.monthLong(res.model.months[res.model.currentIndex].key) + '.',
-        res.warnings.length ? 'warn' : 'ok');
+        : 'Read: ' + res.model.months.length + ' months up to ' + U.monthLong(res.model.months[res.model.currentIndex].key) + '.';
+      if (switchedTo) msg += ' Amounts shown in ' + switchedTo + ' (from the workbook’s number formats).';
+      toast(msg, res.warnings.length ? 'warn' : 'ok');
       if (!saved.ok) toast('Could not be stored locally: ' + saved.reason, 'warn');
     };
     fr.readAsArrayBuffer(file);
@@ -131,6 +149,7 @@
     state.model = null; state.view = null;
     state.settings = NS.store.loadSettings();       // mit den Vorgaben als Grund
     applyMotion();
+    applyCurrency();
     ui.position.clear();
     ui.chart.clear();
     ui.orbit.clear();
@@ -148,6 +167,7 @@
     for (var k in patch) state.settings[k] = patch[k];
     NS.store.saveSettings(state.settings);
     applyMotion();
+    applyCurrency();
     refresh();
   }
 

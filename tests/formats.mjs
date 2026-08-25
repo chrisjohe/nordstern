@@ -87,5 +87,118 @@ ok(/NUMBERS file parsing requires/.test(vendor), 'und hat den Parser dafür an B
 /* Google Sheets hat kein eigenes Format — der Export ist .xlsx oder .ods,
    beides oben nachgewiesen. Es gibt hier nichts eigenes zu prüfen. */
 
+/* ------------------------------------------------------------ Währung */
+console.log('\n== Währung');
+
+/* 1. _parseNumber: Schweizer Schreibweise mit Apostroph (gerade und
+   typografisch), dazu ein Währungscode vor der Zahl und die bestehenden
+   Schreibweisen unverändert. */
+{
+  const P = g.NORDSTERN.importer._parseNumber;
+  ok(P("1'234.56") === 1234.56, "1'234.56 (gerader Apostroph): " + P("1'234.56"));
+  ok(P('1’234.56') === 1234.56, '1’234.56 (typografischer Apostroph): ' + P('1’234.56'));
+  ok(P("CHF 1'234.56") === 1234.56, "CHF 1'234.56 mit vorangestelltem Code: " + P("CHF 1'234.56"));
+  ok(P('1.234,56 €') === 1234.56, 'deutsche Schreibweise bleibt unverändert: ' + P('1.234,56 €'));
+  ok(P("1'23.4") === null, "1'23.4 ist keine gültige Schweizer Gruppierung: " + P("1'23.4"));
+  ok(P("12'345") === 12345, "12'345 ohne Nachkommastellen: " + P("12'345"));
+  ok(P('USD 1,234.56') === 1234.56, 'USD 1,234.56 (englisch, mit vorangestelltem Code): ' + P('USD 1,234.56'));
+}
+
+/* 2. _currencyOfFormat: Zahlenformat-Zeichenkette → Währungscode oder null. */
+{
+  const F = g.NORDSTERN.importer._currencyOfFormat;
+  const cases = [
+    ['[$-409]#,##0.00', null],
+    ['[$€-407] #,##0.00', 'EUR'],
+    ['[$$-409]#,##0.00', 'USD'],
+    ['[$£-809]#,##0.00', 'GBP'],
+    ['[$CHF-807] #,##0.00', 'CHF'],
+    ['[$CHF] #,##0.00', 'CHF'],
+    ['"$"#,##0.00', 'USD'],
+    ['#,##0.00 "€"', 'EUR'],
+    ['#,##0.00" CHF"', 'CHF'],
+    ['General', null],
+    [undefined, null],
+    ['#,##0.00 "kr"', null]
+  ];
+  cases.forEach(([fmt, want]) => {
+    const got = F(fmt);
+    ok(got === want, JSON.stringify(fmt) + ' → ' + want + ', bekommen: ' + got);
+  });
+}
+
+/* 3. Erkennung am ganzen Workbook. Die Formate werden ausschließlich im
+   Speicher verändert, nie auf die Platte geschrieben (AGENTS.md #4) — und
+   je Fall an einer frischen Kopie, sonst liest der nächste Fall die
+   Mutation des vorigen mit. */
+function freshWorkbook() {
+  return XLSX.read(fs.readFileSync(FIXTURE), { type: 'buffer', cellDates: true });
+}
+/* Betragszellen sind alle Zellen mit numerischem .v auf den zwei gelesenen
+   Blättern. Mit cellDates:true stehen die Monatsdaten in der Kopfzeile von
+   "Data Input" als Date-Objekt, nicht als Zahl — sie zählen hier also
+   ohnehin nicht mit, ohne dass die Kopfzeile eigens übersprungen werden muss. */
+function setAmountFormat(wb, sheetNames, fmt) {
+  sheetNames.forEach((name) => {
+    const ws = wb.Sheets[name];
+    Object.keys(ws).forEach((addr) => {
+      if (addr.charAt(0) === '!') return;
+      const c = ws[addr];
+      if (c && typeof c.v === 'number') c.z = fmt;
+    });
+  });
+}
+{
+  const wb = freshWorkbook();
+  setAmountFormat(wb, ['Data Input', 'Expenses'], '"$"#,##0.00');
+  const r = g.NORDSTERN.importer.parseWorkbook(wb, 'x.xlsx', {});
+  ok(r.ok, 'a) liest sich trotz Formatwechsel: ' + r.errors.join(' | '));
+  ok(r.currency === 'USD', 'a) einheitlich als USD erkannt: ' + r.currency);
+  ok(!r.warnings.some((x) => x.includes('more than one')), 'a) keine Mehrfachwarnung: ' + r.warnings.join(' | '));
+}
+{
+  const wb = freshWorkbook();
+  setAmountFormat(wb, ['Data Input', 'Expenses'], '[$CHF-807] #,##0.00');
+  const r = g.NORDSTERN.importer.parseWorkbook(wb, 'x.xlsx', {});
+  ok(r.ok, 'b) liest sich trotz Formatwechsel: ' + r.errors.join(' | '));
+  ok(r.currency === 'CHF', 'b) einheitlich als CHF erkannt: ' + r.currency);
+}
+{
+  /* Die ausgelieferte Beispielmappe trägt in keiner Zelle ein
+     Währungsformat — unverändert bleibt die Erkennung also leer, statt auf
+     EUR zu raten. */
+  const wb = freshWorkbook();
+  const r = g.NORDSTERN.importer.parseWorkbook(wb, 'x.xlsx', {});
+  ok(r.currency === null, 'c) unveränderte Beispielmappe trägt keine Währung im Format: ' + r.currency);
+}
+{
+  const wb = freshWorkbook();
+  setAmountFormat(wb, ['Data Input'], '€#,##0.00');
+  setAmountFormat(wb, ['Expenses'], '"$"#,##0.00');
+  const r = g.NORDSTERN.importer.parseWorkbook(wb, 'x.xlsx', { currency: 'GBP' });
+  ok(r.currency === null, 'd) zwei Währungen auf den Blättern ergeben kein Ergebnis: ' + r.currency);
+  ok(r.warnings.some((x) => /more than one currency .*\(EUR, USD\)\. Shown as GBP/.test(x)),
+     'd) und eine Warnung mit beiden Codes und der Anzeigewährung: ' + r.warnings.join(' | '));
+}
+{
+  const wb = freshWorkbook();
+  setAmountFormat(wb, ['Data Input', 'Expenses'], '[$-409]#,##0.00');
+  const r = g.NORDSTERN.importer.parseWorkbook(wb, 'x.xlsx', {});
+  ok(r.currency === null, 'e) ein reines Gebietsschema ohne Symbol trägt keine Währung: ' + r.currency);
+  ok(!r.warnings.some((x) => x.includes('more than one')), 'e) und keine Mehrfachwarnung: ' + r.warnings.join(' | '));
+}
+
+/* 4. Die Anzeigewährung steckt im Text der Warnung selbst: eine erzwungene
+   Summenabweichung auf "Expenses" muss opts.currency tragen, nicht das fest
+   verdrahtete €. */
+{
+  const wb = freshWorkbook();
+  wb.Sheets['Expenses']['B2'].v += 100;   // ein Monatsposten verschoben — Summe ≠ Gesamtzeile
+  const r = g.NORDSTERN.importer.parseWorkbook(wb, 'x.xlsx', { currency: 'USD' });
+  const w = r.warnings.find((x) => x.includes('line items add up'));
+  ok(!!w, 'die erzwungene Abweichung wird gemeldet: ' + r.warnings.join(' | '));
+  ok(!!w && w.includes(' USD') && !w.includes('€'), 'und trägt USD statt €: ' + w);
+}
+
 console.log('\n' + pass + ' bestanden, ' + fail + ' fehlgeschlagen');
 process.exit(fail ? 1 : 0);

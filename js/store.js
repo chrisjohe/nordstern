@@ -24,8 +24,17 @@
     variableSet: false,        // hat je ein Mensch den Betrag bestätigt?
     animations: true,
     motionIntensity: 'normal', // 'ruhig' | 'normal'
-    mountainQuality: 'auto'
+    mountainQuality: 'auto',
+    currency: 'EUR'
   };
+
+  /* Eigene Liste statt NS.util.CURRENCIES als einziger Quelle — diese Datei
+     wird in Tests auch ohne geladenes util.js benutzt, und Ladereihenfolge
+     ist kein Vertrag, auf den sich store.js verlassen sollte. */
+  var FALLBACK_CURRENCIES = { EUR: 1, USD: 1, GBP: 1, CHF: 1 };
+  function currencyCodes() {
+    return (NS.util && NS.util.CURRENCIES) || FALLBACK_CURRENCIES;
+  }
 
   /* Der Zugriff auf localStorage kann schon beim Lesen der Eigenschaft werfen —
      unter file:// gilt in manchen Browsern ein opakes Origin. Deshalb komplett
@@ -177,6 +186,7 @@
       }
     } catch (e) {}
     s.variableMonthly = Math.max(0, Number(s.variableMonthly) || 0);
+    if (!Object.prototype.hasOwnProperty.call(currencyCodes(), s.currency)) s.currency = 'EUR';
     return s;
   }
 

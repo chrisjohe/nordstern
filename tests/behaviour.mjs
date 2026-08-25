@@ -1,4 +1,4 @@
-import {boot, importFixture, tick} from './harness.mjs';
+import {boot, importFixture, tick, FIXTURE} from './harness.mjs';
 import fs from 'fs';
 let pass=0, fail=0;
 const ok=(c,m)=>{ if(c){pass++;} else {fail++; console.log('  ✗ '+m);} };
@@ -402,6 +402,149 @@ sec('Variabler Anteil verschiebt alle Ziele');
   ok(N(afterTarget)==='351.300 €','Ziel nachher '+afterTarget);
   ok(N(d.querySelector('.sheet-facts .is-total').textContent)==='5.855,00 €','Gesamtausgaben: '+d.querySelector('.sheet-facts .is-total').textContent);
   ok(!d.querySelector('.st-hint'),'Hinweis „variabler Anteil“ verschwindet');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 3b. Währung ---------- */
+/* Die Formatierer selbst — eigenes, kurzlebiges Fenster, das am Ende
+   verworfen wird. Sonst rechnete jede folgende Reihe in Dollar weiter, weil
+   setCurrency() den Zustand an den Formatierern selbst hält, nicht am
+   Fenster. */
+sec('Währung: Formatierer');
+{ const {w,errors}=await boot();
+  const Ut=w.NORDSTERN.util;
+  Ut.setCurrency('USD');
+  ok(Ut.eur(1234.56)==='$1,234.56','USD: eur() '+Ut.eur(1234.56));
+  ok(Ut.eur0(450239)==='$450,239','USD: eur0() '+Ut.eur0(450239));
+  ok(Ut.pct(0.125)==='12.5 %','USD-Locale: pct() bleibt bei Punkt und Leerzeichen vor %: '+Ut.pct(0.125));
+  ok(Ut.eurShort(1250000)==='1.25M','USD: eurShort(1250000) '+Ut.eurShort(1250000));
+  ok(Ut.eurShort(2000000)==='2M','USD: eurShort(2000000) '+Ut.eurShort(2000000));
+  ok(Ut.currencySymbol()==='$','USD-Symbol: '+Ut.currencySymbol());
+  const dt=Ut.dateTime('2026-08-23T16:30:00Z');
+  ok(!/AM|PM/.test(dt),'24-Stunden-Uhr auch bei US-Locale: '+dt);
+
+  Ut.setCurrency('GBP');
+  ok(Ut.eur(1234.56)==='£1,234.56','GBP: eur() '+Ut.eur(1234.56));
+
+  /* Das Gruppierzeichen von de-CH schwankt zwischen ICU-Fassungen (Apostroph
+     oder schmales Leerzeichen) — geprüft wird nur, was sich verlässlich sagen
+     lässt: der Code führt, die Nachkommastellen stimmen. */
+  Ut.setCurrency('CHF');
+  const chf=Ut.eur(1234.56);
+  ok(chf.indexOf('CHF')===0&&chf.indexOf('234.56')>=0,
+     'CHF beginnt mit dem Code und trägt die Nachkommastellen: '+chf);
+
+  ok(Ut.setCurrency('XXX')==='EUR','unbekannter Code fällt beim Setzen auf EUR zurück');
+  ok(N(Ut.eur(1234.56))==='1.234,56 €','und die Schreibweise ist wieder deutsch: '+N(Ut.eur(1234.56)));
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* Oberfläche, Persistenz über einen Neustart und Rückbau durch „Delete local
+   data“ — an einem eigenen Speicherobjekt, das eine Kopie der Mappe aus
+   Abschnitt 2 trägt, damit '.hero-val' von Anfang an etwas zeigt. */
+sec('Währung: Oberfläche, Neustart, Löschen');
+{ const cur={...store};
+  const {w,errors}=await boot({storage:cur});
+  const d=w.document;
+  d.getElementById('btnSettings').dispatchEvent(new w.Event('click'));
+  const sel=d.getElementById('setCurrency');
+  ok(!!sel,'#setCurrency steht im Blatt „data source“');
+  const optVals=[...sel.options].map(o=>o.value);
+  ok(optVals.join(',')==='EUR,USD,GBP,CHF','vier Optionen in dieser Reihenfolge: '+optVals.join(','));
+  ok(sel.value==='EUR','Anfangswert EUR');
+  const unit=d.querySelector('.field-unit');
+  ok(N(unit.textContent)==='€','Einheit neben dem variablen Betrag zu Beginn: '+unit.textContent);
+
+  sel.value='USD';
+  sel.dispatchEvent(new w.Event('change'));
+  await tick(30);
+  const hero=()=>d.querySelector('.hero-val').textContent;
+  ok(hero().startsWith('$'),'Nettovermögen steht jetzt in Dollar: '+hero());
+  ok(hero()==='$450,239','und mit dem erwarteten Betrag der Beispielmappe: '+hero());
+  ok((cur['nordstern.settings.v1']||'').includes('"currency":"USD"'),
+     'die Wahl liegt im Speicher: '+cur['nordstern.settings.v1']);
+  ok(N(unit.textContent)==='$','Einheit folgt der neuen Währung: '+unit.textContent);
+
+  sel.value='EUR';
+  sel.dispatchEvent(new w.Event('change'));
+  await tick(30);
+  ok(N(hero())==='450.239 €','zurück auf EUR steht wieder der ursprüngliche Text: '+hero());
+
+  /* Erneut auf USD — für den Neustart-Vergleich gleich im Anschluss. */
+  sel.value='USD';
+  sel.dispatchEvent(new w.Event('change'));
+  await tick(30);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+
+  /* Neustart auf demselben Speicher: die Wahl übersteht ihn, und die Bühne
+     zeigt von der ersten Zeichnung an Dollar — nicht erst EUR und dann
+     ruckartig um. */
+  const again=await boot({storage:cur});
+  ok(again.w.NORDSTERN.app.state.settings.currency==='USD','die Währung überlebt den Neustart');
+  ok(again.w.document.querySelector('.hero-val').textContent.startsWith('$'),
+     'und die Bühne steht sofort in Dollar: '+again.w.document.querySelector('.hero-val').textContent);
+  ok(again.errors.length===0,'keine Fehler: '+again.errors.join(' | '));
+
+  /* „Delete local data“ setzt die Währung mit zurück auf die Vorgabe —
+     dieselbe Prüfung wie für den variablen Betrag (Abschnitt 14), hier für
+     die Währung. */
+  again.w.confirm=()=>true;
+  const del=[...again.w.document.querySelectorAll('#settingsZone button')]
+    .find(b=>/Delete local data/.test(b.textContent));
+  ok(!!del,'der Knopf ist da');
+  del.dispatchEvent(new again.w.MouseEvent('click',{bubbles:true}));
+  await tick(60);
+  ok(again.w.NORDSTERN.app.state.settings.currency==='EUR','Löschen setzt die Währung zurück auf EUR');
+  again.w.close();
+}
+
+/* Ein Code, den es nicht gibt, im Speicher noch vor dem ersten Start —
+   loadSettings() in js/store.js muss ihn beim Laden abfangen. */
+sec('Währung: unbekannter Code im Speicher');
+{ const {w,errors}=await boot({storage:{'nordstern.settings.v1':JSON.stringify({currency:'XXX'})}});
+  ok(w.NORDSTERN.app.state.settings.currency==='EUR',
+     'ein unbekannter Code fällt beim Laden auf EUR zurück: '+w.NORDSTERN.app.state.settings.currency);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* Import übernimmt die von der Mappe erkannte Währung (js/app.js, readFile). */
+sec('Währung: Import übernimmt die Formatwährung');
+{ /* Die ausgelieferte Beispielmappe trägt selbst kein Währungsformat (siehe
+     tests/formats.mjs), und das vendorte SheetJS verliert Zellformate beim
+     Schreiben — ein Rundgang über XLSX.write/XLSX.read liefert c.z ===
+     undefined, geprüft von Hand beim Bau dieser Reihe. Eine Mappe mit
+     echtem USD-Format lässt sich über parseArrayBuffer also nicht bauen.
+     Geprüft wird deshalb der Übernahmepfad in app.js selbst:
+     parseArrayBuffer wird umhüllt, ruft den echten Importer auf und
+     behauptet danach `currency: 'USD'` — der reguläre Weg über den
+     Dateidialog bekommt damit genau das Ergebnis, das der Importer bei
+     einer wirklich USD-formatierten Mappe liefern würde. */
+  const {w,errors}=await boot();
+  const orig=w.NORDSTERN.importer.parseArrayBuffer;
+  w.NORDSTERN.importer.parseArrayBuffer=function(){
+    var r=orig.apply(null,arguments);
+    if (r.ok) r.currency='USD';
+    return r;
+  };
+  const d=w.document;
+  const buf=fs.readFileSync(FIXTURE);
+  const ab=buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength);
+  const file=new w.File([ab],'nordstern-example.xlsx');
+  const picker=d.getElementById('filePicker');
+  Object.defineProperty(picker,'files',{value:[file],configurable:true});
+  picker.dispatchEvent(new w.Event('change'));
+  await tick(120);
+  ok(w.NORDSTERN.app.state.settings.currency==='USD',
+     'die Einstellung übernimmt die erkannte Währung: '+w.NORDSTERN.app.state.settings.currency);
+  ok(d.querySelector('.hero-val').textContent.startsWith('$'),
+     'die Bühne rendert sofort in Dollar: '+d.querySelector('.hero-val').textContent);
+  ok(d.getElementById('toast').textContent.includes('Amounts shown in USD'),
+     'der Toast nennt den Wechsel: '+d.getElementById('toast').textContent);
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }

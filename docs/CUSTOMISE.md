@@ -122,6 +122,34 @@ per station, from which the card's gradient is built (deep base, mid, and a
 highlight in the top-left corner). Any three colours work. Keep them dark —
 white text sits on top.
 
+## Adding a currency
+
+**`js/util.js`**, the table `CURRENCIES`, keyed by currency code:
+
+```js
+var CURRENCIES = {
+  EUR: { locale: 'de-DE' },
+  USD: { locale: 'en-US' },
+  GBP: { locale: 'en-GB' },
+  CHF: { locale: 'de-CH' }
+};
+```
+
+Add a row and the settings dropdown picks it up — it reads this table, not a
+hard-coded list. The `locale` is what decides grouping, decimal separator and
+symbol placement; pick whichever `Intl`-supported locale writes the currency
+the way you expect (an unknown locale silently falls back to the browser's
+default, an invalid currency code makes `Intl.NumberFormat` throw — so try
+the pair in a console first). Nothing else in the app needs to know a
+currency exists: every formatter goes through `setCurrency()` in the same
+file.
+
+If you also want **auto-detection on import** — the importer switching the
+setting when a workbook's cell formats say which currency it is — add the
+symbol or code to the mapping the importer uses to recognise it. That is
+optional: without it, the new currency still works, it just has to be picked
+by hand in *Settings → data source*.
+
 ## Adding or removing a station
 
 This is the one change with real coupling. Three places must agree, and a

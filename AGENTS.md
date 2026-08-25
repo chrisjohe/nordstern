@@ -68,8 +68,13 @@ It runs from `file://` with no server and no build step.
   You may write new comments in English; do not translate existing ones as a
   side effect of another change.
 * Two-space indent, single quotes, semicolons. Match the file you are in.
-* The interface is English. Numbers and dates are `de-DE`, formatted through
-  `js/util.js` — never with raw `toLocaleString` at the call site.
+* The interface is English. Numbers and dates are currency-aware, not fixed
+  to one locale: `NS.util.setCurrency(code)` in `js/util.js` switches every
+  formatter to the chosen currency's locale (EUR/`de-DE` by default).
+  `app.js` calls it from the settings before the first render and again after
+  every settings change. Anything that formats money must go through the
+  `U.eur*` helpers in `js/util.js` — never a hand-built `Intl.NumberFormat` or
+  raw `toLocaleString` at the call site.
 * Commit messages are English, like the interface and the docs. German lives
   in the comments inside `js/` and `css/`, and stays there.
 * Prose — in the interface, the docs and the comments — is specific rather
