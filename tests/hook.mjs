@@ -114,7 +114,7 @@ ok(r.status === 0, 'und ohne Bild ist wieder Ruhe');
    Y" enthält keinen Kontonamen und keinen Betrag. Der Name kommt aus
    package.json, deshalb liegt die Datei im Wegwerf-Repository. */
 const NAME = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  .author.replace(/\s*[<(][^>)]*[>)]/g, '').trim().split(/\s+/)[0];
+  .author.split(/[<(]/)[0].trim().split(/\s+/)[0];
 fs.writeFileSync(path.join(tmp, 'notes.md'), 'Die Mappe von ' + NAME + ' liegt in excel/.\n');
 git('add', 'notes.md');
 r = commit('person');

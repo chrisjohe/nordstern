@@ -23,7 +23,8 @@ ok(!/<script[^>]*\ssrc=/i.test(html),'kein <script src=> mehr');
 /* Jede Adresse in der Datei muss entweder ein Anker nach draußen sein (die
    Lizenzverweise in „about") oder gar nicht laden. Ein relativer Pfad in
    einem Ladeattribut wäre eine zweite Datei — und damit kein Bau mehr. */
-const markup=html.replace(/<(style|script)\b[\s\S]*?<\/\1>/g,'');
+let markup=html,prev;
+do{prev=markup;markup=markup.replace(/<(style|script)\b[\s\S]*?<\/\1>/g,'');}while(markup!==prev);
 const load=[...markup.matchAll(/\s(?:src|href)="([^"]*)"/g)].map(m=>m[1])
   .filter(v=>!/^https?:/.test(v));
 ok(load.length===0,'keine ladenden Pfade im Markup: '+load.join(', '));

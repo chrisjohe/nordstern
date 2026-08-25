@@ -156,7 +156,7 @@ const waived = (rel, needle) => ALLOW.has(needle) || ALLOW.has(rel + ':' + needl
 const persons = new Map();
 try {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  const author = String(pkg.author || '').replace(/\s*[<(][^>)]*[>)]/g, '').trim();
+  const author = String(pkg.author || '').split(/[<(]/)[0].trim();
   if (author) {
     persons.set(author, 'Name des Autors');
     author.split(/\s+/).forEach((tok) => {
