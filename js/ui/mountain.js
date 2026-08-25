@@ -19,7 +19,7 @@
       v = (global.getComputedStyle(global.document.documentElement)
         .getPropertyValue('--font-display') || '').trim();
     } catch (e) { v = ''; }
-    FONT = v || '"Avenir Next", Avenir, Futura, "Century Gothic", "URW Gothic", "Trebuchet MS", sans-serif';
+    FONT = v || '"Avenir Next", Avenir, Futura, "Segoe UI", "Century Gothic", "URW Gothic", "Trebuchet MS", sans-serif';
     return FONT;
   }
   var NS = global.NORDSTERN || (global.NORDSTERN = {});

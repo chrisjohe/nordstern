@@ -64,8 +64,8 @@
      Verfügbarkeit: macOS, dann Office, dann der freie Nachbau, den die meisten
      Linux-Distributionen mitbringen, dann Windows-Grundausstattung. Ohne
      „URW Gothic" fiele Linux bis auf die Systemschrift durch. */
-  --font-display: "Avenir Next", "Avenir", "Futura", "Century Gothic", "URW Gothic", "Trebuchet MS", sans-serif;
-  --font-text:    "Avenir Next", "Avenir", "Helvetica Neue", sans-serif;
+  --font-display: "Avenir Next", "Avenir", "Futura", "Segoe UI", "Century Gothic", "URW Gothic", "Trebuchet MS", sans-serif;
+  --font-text:    "Avenir Next", "Avenir", "Helvetica Neue", "Segoe UI", sans-serif;
   --font-mono:    ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
 
   --track-label:  0.26em;
