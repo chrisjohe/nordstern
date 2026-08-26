@@ -517,8 +517,8 @@
         /* Die Summe hängt an der Einstellung, nicht an der Mappe — sie steht
            auch ohne Modell da. Nur der Stichmonat braucht eins. */
         var monthly = Math.max(0, Number(settings.monthlyExpenses) || 0);
-        refs.total.textContent = U.eur(monthly);
-        refs.annual.textContent = U.eur(monthly * 12);
+        refs.total.textContent = U.eur0(monthly);
+        refs.annual.textContent = U.eur0(monthly * 12);
         if (v) {
           refs.snap.textContent = U.monthLong(v.monthKey);
         } else {

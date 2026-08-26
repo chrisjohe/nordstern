@@ -42,7 +42,7 @@ sec('Leerzustand ohne gespeicherte Daten');
   ok(d.querySelector('.overlay').classList.contains('is-open'),'Zahnrad öffnet sie auch ohne Daten');
   /* Die Ausgaben kommen aus den Einstellungen, nicht aus der Mappe — die
      Vorgabe steht deshalb schon vor jedem Import da, nicht als Strich. */
-  ok(N(d.querySelector('.sheet-facts .num').textContent)===N(w.NORDSTERN.util.eur(w.NORDSTERN.store.DEFAULT_EXPENSES)),
+  ok(N(d.querySelector('.sheet-facts .num').textContent)===N(w.NORDSTERN.util.eur0(w.NORDSTERN.store.DEFAULT_EXPENSES)),
      'die Ausgaben-Vorgabe steht schon ohne Import: '+d.querySelector('.sheet-facts .num').textContent);
   /* Eine Ebene: sechs Namen links, genau ein Abschnitt rechts. */
   const tabs=[...d.querySelectorAll('.sheet-nav-item')];
@@ -410,7 +410,7 @@ sec('Monatliche Ausgaben verschieben alle Ziele');
      oben ist trotzdem da, weil sie niemand bestätigt hat. */
   ok(N(beforeTarget)==='150.000 €','Ziel vorher '+beforeTarget);
   ok(N(afterTarget)==='360.000 €','Ziel nachher '+afterTarget);
-  ok(N(d.querySelector('.sheet-facts .is-total').textContent)==='6.000,00 €','Gesamtausgaben: '+d.querySelector('.sheet-facts .is-total').textContent);
+  ok(N(d.querySelector('.sheet-facts .is-total').textContent)==='6.000 €','Gesamtausgaben: '+d.querySelector('.sheet-facts .is-total').textContent);
   ok(!d.querySelector('.st-hint'),'Hinweis „expenses are an estimate“ verschwindet');
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
@@ -1901,7 +1901,7 @@ sec('Delete local data lässt nichts stehen');
   const DEF=w.NORDSTERN.store.DEFAULT_EXPENSES;
   ok(DEF>0,'die Vorgabe für die Ausgaben ist keine Null: '+DEF);
   ok(expIn.value===String(DEF),'der Ausgabenbetrag steht wieder auf der Vorgabe: '+expIn.value);
-  ok(N(d.querySelector('#settingsZone .num').textContent)===N(w.NORDSTERN.util.eur(DEF)),
+  ok(N(d.querySelector('#settingsZone .num').textContent)===N(w.NORDSTERN.util.eur0(DEF)),
      'und die Summe im Blatt zeigt wieder die Vorgabe, keinen Strich: '+d.querySelector('#settingsZone .num').textContent);
   /* Der Hinweis unter dem Berg steht hier nicht — es gibt keinen Berg mehr,
      über den er etwas sagen könnte. Dass er mit der Vorgabe wiederkommt,
