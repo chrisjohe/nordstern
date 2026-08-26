@@ -65,6 +65,14 @@ Exactly one spelling per anchor, the same one the interface shows. Two valid
 names for the same row would only help for as long as somebody remembers the
 second one.
 
+Each anchor must occur exactly once: a repeated `Liquid` or `Total assets`
+stops the import rather than silently keeping the first one. Within a
+section, the head row must come before its total row, and no two of the six
+sections (the five above, plus `Liabilities` … `Total liabilities`) may
+overlap (a total row moved into another section could otherwise turn that
+section's own anchors into "accounts", without a word about it). Each of
+the three stops the import and names the rows involved.
+
 ### Month columns
 
 Every column to the right of A whose header cell contains a date is a month.
@@ -151,8 +159,9 @@ For **every** month:
 * `Total assets − Total liabilities` = `Total net worth`
 
 Differences are collected and shown in the settings as warnings — they do not
-stop the import. A missing **anchor** does; then the error state appears with
-the list of rows that could not be found.
+stop the import. A missing, duplicated or misplaced **anchor** does; then the
+error state appears with the list of rows that could not be found, that
+occur more than once, or that come in the wrong order.
 
 The example workbook produces zero warnings, which is the point of it: if your
 own file warns, the difference is in your file, not in the reader.

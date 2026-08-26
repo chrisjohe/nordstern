@@ -1264,6 +1264,125 @@ sec('Robustheit: Fehlerwerte, kaputte Daten, leere Mappe');
   w.close();
 }
 
+/* ---------- 6a2. Anker: Doppel, Reihenfolge, Überlappung; Schnappschuss-Diagnose ---------- */
+/* Vier Wege, wie eine Mappe die Ankerprüfung bisher unbemerkt umging: ein
+   Anker mehrfach, Kopf und Summe vertauscht, eine Sektion, die in eine
+   andere hineinragt — und eine Sammelmeldung „No snapshot found", die vier
+   verschiedene Befunde hinter einem Satz versteckte. */
+sec('Anker: Doppel, Reihenfolge, Überlappung; Schnappschuss-Diagnose');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const D=(y,m)=>new w.Date(y,m-1,1);
+  const EC=(r,c)=>XLSX.utils.encode_cell({r,c});
+  /* Zeilen von `full` unten, 0-basiert — dieselbe kleine, vollständige Mappe
+     wie im Robustheits-Abschnitt oben. */
+  const ROW={MONTH:0, LIQUID:1, CASH:2, TOTALLIQUID:3, CLAIMS:4, TOTALCLAIMS:5,
+    INVEST:6, DEPOT:7, TOTALINVEST:8, PROPERTY:9, TOTALPROPERTY:10,
+    RETIREMENT:11, TOTALRETIREMENT:12, TOTALASSETS:13, LIABILITIES:14,
+    LOAN:15, LIABTOTAL:16, NETWORTH:17};
+  const full=(months)=>XLSX.utils.aoa_to_sheet([
+    ['Month',        ...months.map(([y,m])=>D(y,m))],
+    ['Liquid'],
+    ['  Cash',       ...months.map((_,i)=>100+i)],
+    ['Total liquid', ...months.map((_,i)=>100+i)],
+    ['Claims'],
+    ['Total claims', ...months.map(()=>0)],
+    ['Investments'],
+    ['  Depot',      ...months.map((_,i)=>1000+100*i)],
+    ['Total investments', ...months.map((_,i)=>1000+100*i)],
+    ['Property'],
+    ['Total property', ...months.map(()=>0)],
+    ['Retirement'],
+    ['Total retirement', ...months.map(()=>0)],
+    ['Total assets', ...months.map((_,i)=>1100+100*i+i)],
+    ['Liabilities'],
+    ['  Loan',       ...months.map(()=>0)],
+    ['Total liabilities', ...months.map(()=>0)],
+    ['Total net worth', ...months.map((_,i)=>1100+100*i+i)]
+  ],{cellDates:true});
+  const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Data Input'); return b; };
+  const parse=(ws)=>w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'x.xlsx');
+  const months=[[2026,1],[2026,2]];
+
+  /* Ein zweites „Liquid" — erstes Vorkommen still zu bevorzugen verschluckte
+     das bisher ohne ein Wort. */
+  const wsDup=full(months);
+  wsDup[EC(ROW.CASH,0)]={t:'s', v:'Liquid'};
+  const dup=parse(wsDup);
+  ok(!dup.ok&&dup.errors.some(t=>/appears 2 times/.test(t)&&/rows 2, 3/.test(t)),
+     'ein zweites „Liquid" wird als Doppel gemeldet, mit beiden Zeilen: '+dup.errors.join(' | '));
+
+  /* Kopf und Summe vertauscht — die Sektion sähe leer aus, ohne dass irgendwo
+     stünde, warum. */
+  const wsSwap=full(months);
+  wsSwap[EC(ROW.LIQUID,0)]={t:'s', v:'Total liquid'};
+  wsSwap[EC(ROW.TOTALLIQUID,0)]={t:'s', v:'Liquid'};
+  const swap=parse(wsSwap);
+  ok(!swap.ok&&swap.errors.some(t=>/must come before/.test(t)),
+     'vertauschte Anker melden die falsche Reihenfolge: '+swap.errors.join(' | '));
+
+  /* „Total liquid" auf eine Zeile mitten in Investments verschoben — die
+     Sektion reicht damit über Claims hinweg. */
+  const wsOverlap=full(months);
+  wsOverlap[EC(ROW.TOTALLIQUID,0)]={t:'s', v:''};
+  wsOverlap[EC(ROW.DEPOT,0)]={t:'s', v:'Total liquid'};
+  const overlap=parse(wsOverlap);
+  ok(!overlap.ok&&overlap.errors.some(t=>/Sections overlap|lies inside/.test(t)),
+     'eine Sektion, die eine andere überlappt, wird abgelehnt: '+overlap.errors.join(' | '));
+
+  /* „Total assets" mitten in eine Sektion verschoben statt eine Sektion in
+     eine andere — derselbe Befund aus der anderen Richtung. */
+  const wsTA=full(months);
+  wsTA[EC(ROW.TOTALASSETS,0)]={t:'s', v:''};
+  wsTA[EC(ROW.DEPOT,0)]={t:'s', v:'Total assets'};
+  const taInside=parse(wsTA);
+  ok(!taInside.ok&&taInside.errors.some(t=>/lies inside/.test(t)),
+     '„Total assets" mitten in einer Sektion wird ebenso abgelehnt: '+taInside.errors.join(' | '));
+
+  /* Keine einzige beschriftete Kontozeile in der ganzen Mappe — weder eine
+     leere Mappe noch ein fehlender Schnappschuss, sondern ein eigener Befund. */
+  const wsNoAccounts=full(months);
+  wsNoAccounts[EC(ROW.CASH,0)]={t:'s', v:''};
+  wsNoAccounts[EC(ROW.DEPOT,0)]={t:'s', v:''};
+  wsNoAccounts[EC(ROW.LOAN,0)]={t:'s', v:''};
+  const noAccounts=parse(wsNoAccounts);
+  ok(!noAccounts.ok&&noAccounts.errors.some(t=>/No account rows found/.test(t)),
+     'keine einzige Kontozeile wird eigens gemeldet: '+noAccounts.errors.join(' | '));
+
+  /* Nur Monate in der Zukunft — die alte Sammelmeldung sagte nicht, dass es
+     daran lag. */
+  const wsFuture=full([[2099,1]]);
+  const future=parse(wsFuture);
+  ok(!future.ok&&future.errors.some(t=>/dated in the future/.test(t)&&/2099-01/.test(t)),
+     'lauter zukünftige Spalten werden benannt: '+future.errors.join(' | '));
+
+  /* Eine vergangene Spalte, deren Kontozeilen alle leer sind. */
+  const wsPastEmpty=full([[2020,1]]);
+  delete wsPastEmpty[EC(ROW.CASH,1)];
+  delete wsPastEmpty[EC(ROW.DEPOT,1)];
+  delete wsPastEmpty[EC(ROW.LOAN,1)];
+  const pastEmpty=parse(wsPastEmpty);
+  ok(!pastEmpty.ok&&pastEmpty.errors.some(t=>/No snapshot found/.test(t)&&/are empty in every account row/.test(t)),
+     'eine leere vergangene Spalte wird von einer zukünftigen unterschieden: '+pastEmpty.errors.join(' | '));
+
+  /* Dieselbe Spalte, aber mit Text statt Zahlen — ein anderer Befund als
+     „leer", auch wenn beide bisher „No snapshot found" hiessen. */
+  const wsPastText=full([[2020,1]]);
+  wsPastText[EC(ROW.CASH,1)]={t:'s', v:'N/A'};
+  wsPastText[EC(ROW.DEPOT,1)]={t:'s', v:'N/A'};
+  wsPastText[EC(ROW.LOAN,1)]={t:'s', v:'N/A'};
+  const pastText=parse(wsPastText);
+  ok(!pastText.ok&&pastText.errors.some(t=>/No snapshot found/.test(t)&&/only text or error values/.test(t)&&/3 cells, first: B3/.test(t)),
+     'Text statt Zahlen wird als solches benannt, mit Anzahl und erster Adresse: '+pastText.errors.join(' | '));
+
+  /* Und zur Gegenprobe: die unveränderte Mappe bleibt sauber. */
+  const clean=parse(full(months));
+  ok(clean.ok&&clean.warnings.length===0,'die unveränderte Mappe bleibt ohne jeden Hinweis: '+clean.warnings.join(' | '));
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 6b. Löchrige Zeitreihe ---------- */
 /* Eine Monatsspalte fehlt, eine steht doppelt. Beides sieht in der Mappe
    harmlos aus und macht aus „im Vormonat" und „vor einem Jahr" stillschweigend

@@ -285,15 +285,20 @@
   var ANCHOR_LIABILITIES = 'liabilities';          // exakt — "liabilities *(-1)" ist eine Hilfszeile
   var ANCHOR_LIAB_TOTAL  = 'total liabilities';
 
+  /* map trägt je Beschriftung die erste Zeile — für Kontonamen reicht das,
+     eine wiederholte Kontobezeichnung ist kein Fehler. Für Anker gilt das
+     nicht mehr: need() unten sieht in `rows` jedes Vorkommen und lehnt ab,
+     wenn ein Anker mehrfach auftaucht, statt eines davon still zu übergehen. */
   function labelRows(ws, range) {
-    var map = {}, order = [];
+    var map = {}, rows = {}, order = [];
     for (var r = range.r0; r <= range.r1; r++) {
       var l = norm(str(ws, r, 0));
       if (!l) continue;
-      if (!(l in map)) map[l] = r;      // erstes Vorkommen gewinnt
+      if (!(l in map)) map[l] = r;
+      (rows[l] || (rows[l] = [])).push(r);
       order.push({ row: r, label: l, raw: str(ws, r, 0).replace(/ /g, ' ').trim() });
     }
-    return { map: map, order: order };
+    return { map: map, rows: rows, order: order };
   }
 
   function parseDataInput(ws, errors, warnings) {
@@ -309,6 +314,12 @@
 
     function need(anchor) {
       if (!(anchor in L.map)) { errors.push('Row "' + anchor + '" not found.'); return -1; }
+      var occ = L.rows[anchor];
+      if (occ.length > 1) {
+        errors.push('Row "' + anchor + '" appears ' + occ.length + ' times (rows ' +
+          occ.map(function (r) { return r + 1; }).join(', ') + '); keep one.');
+        return -1;
+      }
       return L.map[anchor];
     }
 
@@ -318,6 +329,43 @@
     var rowLiab   = need(ANCHOR_LIABILITIES);
     var rowLiabTot = need(ANCHOR_LIAB_TOTAL);
     SECTIONS.forEach(function (s) { s._head = need(s.head); s._total = need(s.total); });
+    if (errors.length) return null;
+
+    /* Kopf vor Summe, und die sechs Bereiche (fünf Sektionen plus
+       Verbindlichkeiten) ohne Überlappung — sonst kann eine Sektion, die in
+       eine andere hineinragt, deren Ankerzeilen als "Konten" einlesen, ohne
+       dass irgendeine Gegenprobe das je bemerkt. */
+    var spans = SECTIONS.map(function (s) { return { head: s.head, total: s.total, h: s._head, t: s._total }; });
+    spans.push({ head: ANCHOR_LIABILITIES, total: ANCHOR_LIAB_TOTAL, h: rowLiab, t: rowLiabTot });
+    spans.forEach(function (sp) {
+      if (sp.h >= sp.t) {
+        errors.push('Row "' + sp.head + '" must come before row "' + sp.total + '" (rows ' +
+          (sp.h + 1) + ', ' + (sp.t + 1) + ').');
+      }
+    });
+    if (errors.length) return null;
+
+    var sorted = spans.slice().sort(function (a, b) { return a.h - b.h; });
+    for (var sv = 1; sv < sorted.length; sv++) {
+      if (sorted[sv].h <= sorted[sv - 1].t) {
+        errors.push('Sections overlap: "' + sorted[sv].head + '" (row ' + (sorted[sv].h + 1) +
+          ') lies inside "' + sorted[sv - 1].head + '" … "' + sorted[sv - 1].total + '" (rows ' +
+          (sorted[sv - 1].h + 1) + ', ' + (sorted[sv - 1].t + 1) + ').');
+      }
+    }
+    var singles = [
+      { name: ANCHOR_DATES, row: rowDates },
+      { name: ANCHOR_TOTALASSETS, row: rowTA },
+      { name: ANCHOR_NETWORTH, row: rowNW }
+    ];
+    singles.forEach(function (a) {
+      spans.forEach(function (sp) {
+        if (a.row > sp.h && a.row < sp.t) {
+          errors.push('Row "' + a.name + '" (row ' + (a.row + 1) + ') lies inside "' + sp.head +
+            '" … "' + sp.total + '" (rows ' + (sp.h + 1) + ', ' + (sp.t + 1) + ').');
+        }
+      });
+    });
     if (errors.length) return null;
 
     /* Monatsspalten aus der Kopfzeile. Eine Zelle, die etwas trägt, aber
@@ -383,6 +431,10 @@
     var accountRows = [];
     SECTIONS.forEach(function (s) { s._rows.forEach(function (a) { accountRows.push(a.row); }); });
     liabRows.forEach(function (a) { accountRows.push(a.row); });
+    if (!accountRows.length) {
+      errors.push('No account rows found: every section is empty between its header row and its total row.');
+      return null;
+    }
 
     function hasData(col) {
       for (var k = 0; k < accountRows.length; k++) {
@@ -398,7 +450,38 @@
       if (hasData(cols[i].col)) lastIdx = i;
     }
     if (lastIdx < 0) {
-      errors.push('No snapshot found: every month column is either empty or dated in the future.');
+      /* "No snapshot found" hat drei verschiedene Ursachen, die sich sonst
+         hinter einer Meldung verstecken: alle Spalten liegen in der Zukunft,
+         oder die vergangenen sind leer, oder sie tragen nur Text- und
+         Fehlerwerte statt Zahlen. Jede zeigt woanders hin. */
+      var pastCols = [];
+      for (var pi = 0; pi < cols.length; pi++) {
+        if (cols[pi].key <= nowKey) pastCols.push(cols[pi]);
+      }
+      var pastN = pastCols.length;
+      if (pastN === 0) {
+        errors.push('No snapshot found: all ' + cols.length + ' month column' +
+          (cols.length === 1 ? '' : 's') + ' are dated in the future (first: ' + cols[0].key + ').');
+        return null;
+      }
+      var filledN = 0, filledAt = null;
+      for (var pc = 0; pc < pastCols.length; pc++) {
+        for (var ar = 0; ar < accountRows.length; ar++) {
+          var pcell = cell(ws, accountRows[ar], pastCols[pc].col);
+          if (pcell && pcell.v != null && pcell.v !== '') {
+            filledN++;
+            if (!filledAt) filledAt = addr(accountRows[ar], pastCols[pc].col);
+          }
+        }
+      }
+      if (filledN === 0) {
+        errors.push('No snapshot found: the ' + pastN + ' past month column' +
+          (pastN === 1 ? '' : 's') + ' are empty in every account row.');
+      } else {
+        errors.push('No snapshot found: the ' + pastN + ' past month column' +
+          (pastN === 1 ? '' : 's') + ' hold no numbers in any account row, only text or error values (' +
+          filledN + ' cells, first: ' + filledAt + ').');
+      }
       return null;
     }
 
