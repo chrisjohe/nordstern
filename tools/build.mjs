@@ -1,14 +1,16 @@
 /* NORDSTERN — Build.
-   Faltet index.html, die drei Stylesheets und die vierzehn Skripte zu einer
-   einzigen Datei unter export/. Kein Bundler, kein Minifier, keine Umschrift:
-   der Quelltext wandert Zeichen für Zeichen in <style> und <script>, nur die
-   Reihenfolge aus index.html hält ihn zusammen. Wer die gebaute Datei liest,
-   liest dieselben Zeilen wie im Ordner nebenan — samt Kommentaren.
+   Faltet index.html, die drei Stylesheets, die vierzehn Skripte und die
+   beiden Kachel-Dateien zu einer einzigen Datei unter export/. Kein Bundler,
+   kein Minifier, keine Umschrift: der Quelltext wandert Zeichen für Zeichen
+   in <style> und <script>, nur die Reihenfolge aus index.html hält ihn
+   zusammen. Wer die gebaute Datei liest, liest dieselben Zeilen wie im
+   Ordner nebenan — samt Kommentaren.
 
    Die Regel, die alles andere bestimmt: es werden ausschliesslich Dateien
-   eingefaltet, die index.html selbst verlinkt, und nur aus css/ und js/.
+   eingefaltet, die index.html selbst verlinkt — aus css/ und js/, dazu als
+   einzige Ausnahme die zwei benannten Kachel-Dateien im Wurzelverzeichnis.
    Damit kann durch einen Tippfehler nichts aus excel/ oder img/ in die
-   Ausgabe geraten. Ein Bau, der eine Datei ausserhalb dieser beiden Ordner
+   Ausgabe geraten. Ein Bau, der eine Datei ausserhalb dieser Liste
    anfassen müsste, bricht ab statt sie mitzunehmen. */
 import { readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -41,6 +43,17 @@ function note(rel, src) {
   return src;
 }
 
+/* Die zwei Kachel-Dateien liegen im Wurzelverzeichnis, nicht unter css/ oder
+   js/ — die Positivliste oben gilt nur für Stil und Skript. Hier reicht eine
+   feste Liste von Namen: nichts sonst wird aus dem Wurzelverzeichnis gelesen. */
+const ICON_FILES = ['favicon.svg', 'favicon.png'];
+function readIcon(rel) {
+  if (!ICON_FILES.includes(rel)) {
+    throw new Error('Bau abgebrochen: "' + rel + '" ist keine der beiden Kachel-Dateien.');
+  }
+  return readFileSync(resolve(ROOT, rel));
+}
+
 /* Ein </script> im Skript oder ein </style> im Stylesheet würde den Block
    vorzeitig schliessen. Beides kommt heute nicht vor; die Maskierung steht
    trotzdem hier, damit ein künftiger Kommentar die Datei nicht zerlegt. */
@@ -69,6 +82,25 @@ html = html.replace(
       : '';
     return lic + '<script data-src="' + src + '">\n' +
       guard(note(src, read(src)), 'script').trimEnd() + '\n</script>';
+  }
+);
+
+/* Wie oben bei Stylesheets und Skripten: dieselben zwei Formate, dieselbe
+   Idee — ein <link> mit relativem Pfad wird zu einem <link> mit data:-Adresse,
+   die übrigen Attribute (rel, type, sizes) bleiben stehen. SVG ist Text und
+   wird URL-kodiert; PNG ist binär und wird base64-kodiert. Jede Datei wird
+   nur einmal gelesen und im Bericht gezählt, auch wenn mehrere <link>-Tags
+   sie nennen. */
+const iconBufs = {};
+html = html.replace(
+  /[ \t]*<link\b[^>]*\shref="(favicon\.svg|favicon\.png)"[^>]*>/g,
+  (m, href) => {
+    if (!iconBufs[href]) iconBufs[href] = note(href, readIcon(href));
+    const buf = iconBufs[href];
+    const uri = href === 'favicon.svg'
+      ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(buf.toString('utf8'))
+      : 'data:image/png;base64,' + buf.toString('base64');
+    return m.replace('href="' + href + '"', 'href="' + uri + '"');
   }
 );
 

@@ -10,3 +10,4 @@
 # dass jemand hingesehen hat, und wer das nachvollziehen will, weiss wie.
 
 0fd1833d89bb6414fbb0016f24ff1e6fa97621d1d47e38387d3694e8deb6f328  docs/screenshot.png  # Geprüft 25.08.2026 (Fassung 1.0.4): zeigt ausschliesslich examples/nordstern-example.xlsx als USD (450.239 / 883.024 / 432.785 / 345.198 — die erfundenen Zahlen der Beispielmappe). Nach Augenschein: keine Titelleiste, kein Dateiname, kein zweites Fenster. EXIF und XMP entfernt, verblieben sind Bildmasse und Farbprofil.
+22686fc55d8f0fbc3a0c3b1bc46d6a703279c9ae492e21faa1845d2db6825843  favicon.png  # Geprüft 26.08.2026 (Fassung 1.0.9): aus favicon.svg gerendert (180 px, NSImage). Zeigt nur die nachtschwarze Kachel mit dem Stern, keine Zahl, kein Text.

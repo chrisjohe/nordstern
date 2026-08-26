@@ -187,6 +187,7 @@ js/ui/cards.js          the eight milestone cards
 js/ui/settings.js       the settings sheet
 js/app.js               wiring and states
 js/vendor/              SheetJS 0.20.3, vendored — the only dependency
+favicon.svg/.png        tab and home-screen icon; the single-file build inlines both
 examples/               the example workbook (generated, invented figures)
 tools/build.mjs         folds everything into one file
 tools/make-example.mjs  writes examples/nordstern-example.xlsx
@@ -260,7 +261,8 @@ npm run build   # → export/nordstern.html
 ```
 
 One file: the three stylesheets and the fourteen scripts as `<style>` and
-`<script>`, in the order `index.html` loads them. No bundler, no minifier —
+`<script>`, in the order `index.html` loads them, plus the two icon files as
+`data:` addresses on their `<link>` tags. No bundler, no minifier —
 the source is copied character for character, each block carrying its origin
 path in `data-src`.
 
