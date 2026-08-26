@@ -24,13 +24,20 @@ write path in the code — `XLSX.write` is never called by the application,
 only by the developer tools that generate the example workbook. Your file is
 not moved, renamed, re-saved or "helpfully" repaired.
 
-Only one sheet is read: **Data Input**. The parser is handed that one name,
-so in `.xlsx`, `.xlsm` and `.xlsb` no other sheet is decoded at all. SheetJS
-ignores that filter for `.ods` and `.numbers`; there every sheet is decoded
-into memory, and everything but that sheet is dropped the moment the workbook
-is open, before a single cell is read out of it. Either way, no other sheet
-and no sheet name reaches the model or your `localStorage` — the example
-workbook ships with a second sheet purely to demonstrate this.
+Only one sheet is read: **`Data Input`**, or one of a short list of aliases
+(`Data`, `Input`, `Snapshots`, `Net Worth`, `Nordstern`, `Daten`,
+`Dateneingabe`, `Vermögen`, `Bilanz`), matched in that order; a workbook with
+exactly one sheet needs no matching name at all. The parser is handed the one
+matching name, so in `.xlsx`, `.xlsm` and `.xlsb` no other sheet is decoded
+at all. SheetJS ignores that filter for `.ods` and `.numbers`; there every
+sheet is decoded into memory, and everything but the matching sheet is
+dropped the moment the workbook is open, before a single cell is read out of
+it. Either way, no other sheet and no sheet name reaches the model or your
+`localStorage` — the example workbook ships with a second sheet purely to
+demonstrate this. If none of the names match and the workbook holds more
+than one sheet, the import stops with an error that names the sheets it
+found — on screen only, never stored, since an error leaves no model to
+store anything in.
 
 ## Where your data actually sits
 

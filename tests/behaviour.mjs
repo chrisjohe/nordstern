@@ -808,10 +808,17 @@ sec('Unbrauchbare Mappenstruktur');
   ok(!res.ok,'Import wird abgelehnt');
   ok(res.errors.length>=3,'nennt die fehlenden Zeilen ('+res.errors.length+')');
   console.log('    →', res.errors.slice(0,3).join(' / '));
+  /* Ein einzelnes Blatt wird über den Einzelblatt-Fallback trotzdem genommen
+     (siehe unten, „Blattname") — erst zwei oder mehr Blätter ohne Treffer
+     sind ein Fehler. Dafür muss der echte Zwei-Durchgänge-Weg laufen, nicht
+     parseWorkbook direkt: das vertraut inzwischen darauf, dass SheetNames[0]
+     bereits das gewählte Blatt ist. */
   const wb2=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb2,XLSX.utils.aoa_to_sheet([['x']]),'Tabelle1');
-  const res2=w.NORDSTERN.importer.parseWorkbook(wb2,'leer.xlsx');
-  ok(!res2.ok && res2.errors.length===1,'das fehlende Blatt wird benannt: '+res2.errors.join(' / '));
+  XLSX.utils.book_append_sheet(wb2,XLSX.utils.aoa_to_sheet([['y']]),'Tabelle2');
+  const opened2=w.NORDSTERN.importer._openWorkbook(XLSX,XLSX.write(wb2,{type:'array',bookType:'xlsx'}));
+  const res2=w.NORDSTERN.importer.parseWorkbook(opened2,'leer.xlsx');
+  ok(!res2.ok && res2.errors.length===1,'kein Blattname trifft, kein Raten: '+res2.errors.join(' / '));
 
   /* Und derselbe Weg einmal ganz: Datei einlesen, Vorhang mit Begründung,
      und daneben der kürzeste Weg zu dem, was gesucht wird. */
@@ -831,6 +838,63 @@ sec('Unbrauchbare Mappenstruktur');
      'er führt direkt nach workbook: '+d.querySelector('.sheet-nav-item[aria-selected="true"]').textContent);
   ok(d.querySelector('.sheet-sec[data-sec="workbook"]').hidden===false,'und das Paneel steht offen');
   ok(errors.length===0,'keine Fehler');
+  w.close();
+}
+
+/* ---------- 6a. Blattname: Aliase und Einzelblatt-Fallback ---------- */
+/* „Data Input" ist der erste Name der Liste, nicht der einzige — und eine
+   Mappe mit nur einem Blatt braucht überhaupt keinen Treffer. Erst zwei
+   oder mehr unbekannte Blätter sind ein Fehler, der beide Namen und die
+   Aliase nennt. */
+sec('Blattname: Aliase und Einzelblatt-Fallback');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const D=(y,m)=>new w.Date(y,m-1,1);
+  /* Dieselbe kleine, aber vollständige Mappe wie im Lücken-Abschnitt unten:
+     alle Anker, drei Sektionen leer. */
+  const full=(months)=>XLSX.utils.aoa_to_sheet([
+    ['Month',        ...months.map(([y,m])=>D(y,m))],
+    ['Liquid'],
+    ['  Cash',       ...months.map((_,i)=>100+i)],
+    ['Total liquid', ...months.map((_,i)=>100+i)],
+    ['Claims'],
+    ['Total claims', ...months.map(()=>0)],
+    ['Investments'],
+    ['  Depot',      ...months.map((_,i)=>1000+100*i)],
+    ['Total investments', ...months.map((_,i)=>1000+100*i)],
+    ['Property'],
+    ['Total property', ...months.map(()=>0)],
+    ['Retirement'],
+    ['Total retirement', ...months.map(()=>0)],
+    ['Total assets', ...months.map((_,i)=>1100+100*i+i)],
+    ['Liabilities'],
+    ['  Loan',       ...months.map(()=>0)],
+    ['Total liabilities', ...months.map(()=>0)],
+    ['Total net worth', ...months.map((_,i)=>1100+100*i+i)]
+  ],{cellDates:true});
+  const months=[[2026,1],[2026,2]];
+  const open=(wb)=>w.NORDSTERN.importer._openWorkbook(XLSX,XLSX.write(wb,{type:'array',bookType:'xlsx'}));
+
+  const wbOne=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wbOne,full(months),'Mappe1');
+  const rOne=w.NORDSTERN.importer.parseWorkbook(open(wbOne),'a.xlsx');
+  ok(rOne.ok,'ein einzelnes Blatt „Mappe1" wird gelesen, wie auch immer es heißt: '+rOne.errors.join(' / '));
+
+  const wbAlias=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wbAlias,XLSX.utils.aoa_to_sheet([['Hinweise'],['bitte lesen']]),'Read me');
+  XLSX.utils.book_append_sheet(wbAlias,full(months),'daten');
+  const rAlias=w.NORDSTERN.importer.parseWorkbook(open(wbAlias),'b.xlsx');
+  ok(rAlias.ok,'unter zwei Blättern gewinnt der Alias „daten" (Groß/Klein egal): '+rAlias.errors.join(' / '));
+
+  const wbNone=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wbNone,full(months),'Mappe1');
+  XLSX.utils.book_append_sheet(wbNone,full(months),'Tabelle2');
+  const rNone=w.NORDSTERN.importer.parseWorkbook(open(wbNone),'c.xlsx');
+  ok(!rNone.ok,'zwei Blätter, keins bekannt: kein Raten');
+  const msg=rNone.errors.join(' | ');
+  ok(msg.includes('"Mappe1"')&&msg.includes('"Tabelle2"'),'die Meldung nennt beide vorhandenen Namen: '+msg);
+  ok(msg.includes('also accepted:')&&msg.includes('Dateneingabe'),'und listet die Aliase: '+msg);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }
 
@@ -896,21 +960,133 @@ sec('Lücken und Doppel in der Monatsreihe');
      'und die Meldung nennt die Spalte: '+back.errors.join(' | '));
   ok(back.model===null,'nichts davon wird zum Modell');
 
-  /* Und die Zahl daneben: über die Lücke hinweg wird nicht verglichen. */
+  /* Und die Zahl daneben: über die Lücke hinweg wird verglichen, aber mit
+     dem echten Abstand — „vor zwei Monaten", nicht „im Vormonat". */
   const set=w.NORDSTERN.store.loadSettings();
-  ok(w.NORDSTERN.calc.derive(clean.model,set).mom!==null,'ohne Lücke steht der Vormonatsvergleich');
-  ok(w.NORDSTERN.calc.derive(gap.model,set).mom===null,'über die Lücke hinweg nicht');
+  const dClean=w.NORDSTERN.calc.derive(clean.model,set);
+  const dGap=w.NORDSTERN.calc.derive(gap.model,set);
+  ok(dClean.mom!==null&&dClean.mom.span===1,'ohne Lücke steht der Vormonatsvergleich, Abstand 1');
+  ok(dGap.mom!==null,'über die Lücke hinweg wird trotzdem verglichen');
+  ok(dGap.mom.span===2,'und der Abstand steht dabei: '+dGap.mom.span);
+  /* Wird die Position gerendert, steht der Abstand auch in der Beschriftung —
+     geprüft weiter unten, in der Quartalsreihe, wo derselbe Mechanismus über
+     den vollen Weg (App, nicht nur calc.derive) läuft. */
 
-  /* Dasselbe eine Ebene höher: März fehlt, also gibt es zwölf Monate später
-     keinen Vorjahreswert und kein Tempo. */
+  /* Dasselbe eine Ebene höher: Januar 2025 fehlt, das Vorjahr liegt also elf
+     statt zwölf Monate zurück — noch innerhalb der Toleranz, mit dem
+     tatsächlichen Abstand in yoy.span und im Tempo. */
   const year=[]; for(let m=1;m<=13;m++) year.push(m<=12?[2025,m]:[2026,1]);
   const full=read(year);
   const holed=read(year.filter(([y,m])=>!(y===2025&&m===1)));
   const dFull=w.NORDSTERN.calc.derive(full.model,set);
   const dHoled=w.NORDSTERN.calc.derive(holed.model,set);
-  ok(dFull.yoy!==null&&dFull.pace!==null,'zwölf volle Monate ergeben Vorjahr und Tempo');
-  ok(dHoled.yoy===null&&dHoled.pace===null&&dHoled.etaMonths===null,
-     'mit Loch in der Reihe steht dort nichts: yoy='+dHoled.yoy+' pace='+dHoled.pace);
+  ok(dFull.yoy!==null&&dFull.yoy.span===12&&dFull.pace!==null&&dFull.paceSpan===12,
+     'zwölf volle Monate ergeben Vorjahr und Tempo über 12 Monate');
+  ok(dHoled.yoy!==null&&dHoled.yoy.span===11,
+     'mit dem Loch bei Januar bleibt der elf Monate entfernte Snapshot der Vorjahresvergleich: span='+
+     (dHoled.yoy&&dHoled.yoy.span));
+  ok(dHoled.pace!==null&&dHoled.paceSpan===11,
+     'und das Tempo teilt durch diese elf Monate, nicht durch zwölf: paceSpan='+dHoled.paceSpan);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6b1. Quartalsreihe ---------- */
+/* Wer nur zum Quartalsende einträgt, hat nie einen echten Vormonat — der
+   Abstand ist immer drei. Das Vorjahr trifft trotzdem genau, weil vier
+   Quartale wieder zwölf Monate sind. Hier läuft der volle Weg über die App,
+   damit auch die Beschriftung und der Chart mitgeprüft werden, nicht nur
+   calc.derive. */
+sec('Quartalsreihe: Abstand 3, Vorjahr trotzdem exakt');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const D=(y,m)=>new w.Date(y,m-1,1);
+  const sheet=(months)=>XLSX.utils.aoa_to_sheet([
+    ['Month',        ...months.map(([y,m])=>D(y,m))],
+    ['Liquid'],
+    ['  Cash',       ...months.map((_,i)=>100+i)],
+    ['Total liquid', ...months.map((_,i)=>100+i)],
+    ['Claims'],
+    ['Total claims', ...months.map(()=>0)],
+    ['Investments'],
+    ['  Depot',      ...months.map((_,i)=>1000+100*i)],
+    ['Total investments', ...months.map((_,i)=>1000+100*i)],
+    ['Property'],
+    ['Total property', ...months.map(()=>0)],
+    ['Retirement'],
+    ['Total retirement', ...months.map(()=>0)],
+    ['Total assets', ...months.map((_,i)=>1100+100*i+i)],
+    ['Liabilities'],
+    ['  Loan',       ...months.map(()=>0)],
+    ['Total liabilities', ...months.map(()=>0)],
+    ['Total net worth', ...months.map((_,i)=>1100+100*i+i)]
+  ],{cellDates:true});
+  const quarters=[]; for(const y of [2024,2025]) for(const m of [1,4,7,10]) quarters.push([y,m]);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,sheet(quarters),'Data Input');
+  const res=w.NORDSTERN.importer.parseWorkbook(wb,'quartale.xlsx');
+  ok(res.ok,'die Quartalsreihe wird gelesen: '+res.errors.join(' | '));
+  ok(res.model.months.length===8,'acht Quartalsspalten: '+res.model.months.length);
+
+  const set=w.NORDSTERN.store.loadSettings();
+  const dv=w.NORDSTERN.calc.derive(res.model,set);
+  ok(dv.mom!==null&&dv.mom.span===3,'Vormonatsvergleich hat Abstand 3: '+(dv.mom&&dv.mom.span));
+  ok(dv.yoy!==null&&dv.yoy.span===12,'Vorjahresvergleich trifft trotzdem exakt zwölf Monate: '+(dv.yoy&&dv.yoy.span));
+  const expectedPace=(res.model.months[7].investment-res.model.months[3].investment)/12;
+  ok(dv.paceSpan===12&&Math.abs(dv.pace-expectedPace)<1e-9,
+     'Tempo ist die Investmentdifferenz geteilt durch 12: '+dv.pace+' vs '+expectedPace);
+
+  /* Und in der Oberfläche stehen die Abstände in der Beschriftung. */
+  w.NORDSTERN.app.state.model=res.model;
+  w.NORDSTERN.app.refresh();
+  const d=w.document;
+  const heroLabs=[...d.querySelectorAll('.hero-deltas .delta-lab')].map(n=>n.textContent);
+  ok(heroLabs.join(' · ')==='vs. 3 months ago · vs. last year',
+     'Hero nennt den Abstand beim Vormonat, aber „vs. last year" beim Vorjahr: '+heroLabs.join(' · '));
+  const paceSub=[...d.querySelectorAll('.kpi')].find(k=>k.querySelector('.kpi-lab').textContent==='Portfolio pace')
+    .querySelector('.kpi-sub').textContent;
+  ok(paceSub==='avg. per month, 12 months','Tempo-Unterzeile nennt die 12 Monate: '+paceSub);
+
+  /* Und der Chart schneidet nach Zeit: „1 year" zeigt fünf Quartalsspalten
+     (Abstand 0, 3, 6, 9, 12 zum letzten Punkt), nicht zwölf oder eine. */
+  const rangeBtn=[...d.querySelectorAll('.range .range-btn')].find(b=>b.textContent==='1 year');
+  rangeBtn.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await tick(30);
+  const pts=[...d.querySelector('.chart-line').getAttribute('d').matchAll(/[ML]([\d.]+) [\d.]+/g)];
+  ok(pts.length===5,'„1 year" zeigt fünf Punkte über vier Quartale: '+pts.length);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6b2. Lückenlose Monatsreihe: Abstände und Bereichsgrößen ---------- */
+/* Die Messlatte aus der Aufgabe: eine gapless Reihe verhält sich exakt wie
+   vor dem Umbau. Geprüft an der Beispielmappe, die 84 Monate trägt — für
+   „1 year" und „5 years" reicht das für die volle Punktzahl (13 / 61), für
+   „10 years" und „All" ist die Mappe kürzer als 121 Punkte, also müssen
+   beide auf dieselbe, volle Monatszahl kommen. */
+sec('Lückenlose Monatsreihe: Abstände und Bereichsgrößen');
+{ const {w,errors}=await boot();
+  importFixture(w);
+  const set=w.NORDSTERN.store.loadSettings();
+  const model=w.NORDSTERN.store.loadModel();
+  const dv=w.NORDSTERN.calc.derive(model,set);
+  ok(dv.mom!==null&&dv.mom.span===1,'Vormonat: Abstand 1, wie vor dem Umbau');
+  ok(dv.yoy!==null&&dv.yoy.span===12,'Vorjahr: Abstand 12, wie vor dem Umbau');
+
+  const d=w.document;
+  const total=model.months.length;
+  ok(total===84,'die Beispielmappe trägt 84 Monate: '+total);
+  const rangeBtn=lab=>[...d.querySelectorAll('.range .range-btn')].find(b=>b.textContent===lab);
+  const countFor=lab=>{
+    rangeBtn(lab).dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+    return [...d.querySelector('.chart-line').getAttribute('d').matchAll(/[ML]([\d.]+) [\d.]+/g)].length;
+  };
+  ok(countFor('1 year')===13,'„1 year" bei lückenloser Reihe: 13 Punkte');
+  ok(countFor('5 years')===61,'„5 years" bei lückenloser Reihe: 61 Punkte');
+  /* Die Mappe reicht nicht bis 121 Punkte — „10 years" und „All" fallen
+     deshalb beide auf die volle Monatszahl zurück. */
+  ok(countFor('10 years')===total,'„10 years" zeigt alles, was da ist: '+countFor('10 years'));
+  ok(countFor('All')===total,'„All" ebenso: '+countFor('All'));
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }

@@ -36,9 +36,10 @@ It runs from `file://` with no server and no build step.
    `examples/nordstern-example.xlsx` or extend `tools/make-example.mjs`.
    `npm run privacy` scans everything a commit would carry against a real
    workbook when one is present.
-6. **Do not read the user's workbook** beyond the sheet `Data Input`, and do
-   not print its contents. If you must inspect it, print labels from column
-   A, never amounts.
+6. **Do not read the user's workbook** beyond the one sheet the importer
+   chooses (see `SHEET_NAMES` in `js/importer.js`), and do not print its
+   contents. If you must inspect it, print labels from column A, never
+   amounts.
 
 ## Where things live
 

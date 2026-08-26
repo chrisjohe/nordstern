@@ -1,9 +1,9 @@
 /* NORDSTERN — Importer.
    SÄMTLICHES Wissen über den Aufbau der Arbeitsmappe lebt in dieser Datei.
-   Ausgewertet, behalten und gespeichert wird ausschließlich das Blatt
-   "Data Input"; für xlsx, xlsm und xlsb wird kein anderes überhaupt
-   dekodiert (siehe openWorkbook, wo auch steht, warum ods und numbers das
-   nicht können).
+   Ausgewertet, behalten und gespeichert wird ausschließlich das eine Blatt,
+   das chooseSheet auswählt (SHEET_NAMES unten); für xlsx, xlsm und xlsb wird
+   kein anderes überhaupt dekodiert (siehe openWorkbook, wo auch steht,
+   warum ods und numbers das nicht können).
    Die Datei wird nur gelesen — nie geschrieben, nie ergänzt. */
 (function (global) {
   'use strict';
@@ -391,12 +391,12 @@
     }
     if (dups.length) {
       warnings.push('The same month stands in more than one column: ' + dups.join(', ') +
-        '. Only comparisons that fall on an actual month are shown.');
+        '. Comparisons skip the duplicate.');
     }
     if (missing) {
       warnings.push('The series skips ' + missing + ' month' + (missing === 1 ? '' : 's') +
         ', the first gap after ' + firstGap +
-        '. Comparisons across a gap are left blank rather than counted as a month.');
+        '. Comparisons across a gap say how far back they reach.');
     }
 
     /* Monatsreihe */
@@ -464,25 +464,34 @@
 
   /* ------------------------------------------------------------------- API */
 
-  /* Das eine Blatt, das gelesen werden darf — und sonst keines. */
-  var WANTED = ['Data Input'];
+  /* Erlaubte Blattnamen, in Vorrangreihenfolge: der erste Name dieser Liste,
+     der in der Mappe vorkommt, gewinnt — unabhängig davon, an welcher
+     Stelle er in der Mappe steht oder wie viele andere Blätter es noch
+     gibt. Fehlt jeder Name, aber die Mappe hat genau ein Blatt, wird dieses
+     genommen, wie auch immer es heißt (siehe chooseSheet). */
+  var SHEET_NAMES = ['Data Input', 'Data', 'Input', 'Snapshots', 'Net Worth',
+    'Nordstern', 'Daten', 'Dateneingabe', 'Vermögen', 'Bilanz'];
 
-  /** Unter welchem Namen das Blatt in dieser Mappe wirklich steht.
-      Groß-/Kleinschreibung und Leerraum dürfen abweichen (norm()), deshalb
-      lässt sich der Filter unten nicht einfach mit WANTED füttern. */
-  function resolveNames(sheetNames) {
-    var found = [];
-    WANTED.forEach(function (w) {
-      var n = norm(w);
-      for (var i = 0; i < sheetNames.length; i++) {
-        if (norm(sheetNames[i]) === n) { found.push(sheetNames[i]); return; }
+  /** Welches Blatt aus `sheetNames` gelesen wird: der erste Name aus
+      SHEET_NAMES, der vorkommt — Groß-/Kleinschreibung und Leerraum egal
+      (norm()). Kommt keiner vor, die Mappe hat aber nur ein Blatt, ist das
+      der Fallback: ein Einzelblatt braucht keinen passenden Namen. Sonst
+      null — bei zwei oder mehr unbekannten Blättern wird nicht geraten und
+      auch nicht in den Inhalt geschaut, das würde jedes Blatt dekodieren
+      und das Privacy-Versprechen brechen. */
+  function chooseSheet(sheetNames) {
+    for (var i = 0; i < SHEET_NAMES.length; i++) {
+      var n = norm(SHEET_NAMES[i]);
+      for (var j = 0; j < sheetNames.length; j++) {
+        if (norm(sheetNames[j]) === n) return sheetNames[j];
       }
-    });
-    return found;
+    }
+    if (sheetNames.length === 1) return sheetNames[0];
+    return null;
   }
 
   /** Öffnet die Mappe in zwei Durchgängen: erst das Inhaltsverzeichnis, dann
-      ausschließlich das eine erlaubte Blatt.
+      ausschließlich das eine Blatt, das chooseSheet auswählt.
 
       Der Umweg ist der Preis dafür, dass SheetJS ohne `sheets` jedes Blatt
       parst — auch das, auf dem jemand seine Gehaltsverhandlung notiert hat.
@@ -492,33 +501,35 @@
       alles. Deshalb wird danach hart auf das eine Blatt reduziert: was
       nicht dazugehört, kommt nicht über diese Funktion hinaus. Mit derselben
       Bewegung fallen die Mappen-Eigenschaften weg — dort steht sonst der
-      Name dessen, der die Datei angelegt hat. */
+      Name dessen, der die Datei angelegt hat.
+
+      `available` trägt alle Blattnamen aus dem ersten Durchgang, damit eine
+      Fehlermeldung sie nennen kann, ohne sie zu dekodieren; SheetNames und
+      Sheets enthalten weiterhin nie mehr als das eine gewählte Blatt. */
   function openWorkbook(X, bytes) {
     var toc = X.read(bytes, { type: 'array', bookSheets: true });
-    var names = resolveNames(toc.SheetNames || []);
-    if (!names.length) return { SheetNames: [], Sheets: {} };
+    var available = (toc.SheetNames || []).slice();
+    var chosen = chooseSheet(available);
+    if (!chosen) return { SheetNames: [], Sheets: {}, available: available };
     var wb = X.read(bytes, {
-      type: 'array', cellDates: true, cellFormula: false, cellStyles: false, sheets: names
+      type: 'array', cellDates: true, cellFormula: false, cellStyles: false, sheets: [chosen]
     });
     var kept = {};
-    names.forEach(function (n) { if (wb.Sheets[n]) kept[n] = wb.Sheets[n]; });
-    return { SheetNames: names.slice(), Sheets: kept };
-  }
-
-  function findSheet(wb, wanted) {
-    var w = norm(wanted);
-    for (var i = 0; i < wb.SheetNames.length; i++) {
-      if (norm(wb.SheetNames[i]) === w) return wb.Sheets[wb.SheetNames[i]];
-    }
-    return null;
+    if (wb.Sheets[chosen]) kept[chosen] = wb.Sheets[chosen];
+    return { SheetNames: [chosen], Sheets: kept, available: available };
   }
 
   function parseWorkbook(wb, fileName, opts) {
     dispCode = (opts && opts.currency) || 'EUR';
     currencyTallyReset();
     var errors = [], warnings = [];
-    var wsData = findSheet(wb, 'Data Input');
-    if (!wsData) errors.push('Sheet "Data Input" is missing.');
+    var wsData = wb.Sheets[wb.SheetNames[0]];
+    if (!wsData) {
+      var have = (wb.available || []).map(function (n) { return '"' + n + '"'; }).join(', ');
+      errors.push('No sheet named "Data Input" found (also accepted: ' +
+        SHEET_NAMES.slice(1).join(', ') + '). This workbook has: ' + have +
+        '. Rename the sheet, or keep a single sheet in the file.');
+    }
     if (errors.length) return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
 
     var data = parseDataInput(wsData, errors, warnings);

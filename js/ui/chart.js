@@ -6,10 +6,15 @@
   var NS = global.NORDSTERN || (global.NORDSTERN = {});
   var U = NS.util;
 
+  /* `months` ist ein Zeitabstand zum letzten Punkt, keine Punktzahl — bei
+     einer lückenlosen Monatsreihe kommt dasselbe heraus (13 / 61 / 121
+     Punkte), bei einer Quartals- oder Jahresreihe ein Fenster von der
+     richtigen Länge statt einer Handvoll Punkte zu wenig oder zu viel.
+     `months: 0` bleibt „alles". */
   var RANGES = [
-    { id: '1y', label: '1 year', months: 13 },
-    { id: '5y', label: '5 years', months: 61 },
-    { id: '10y', label: '10 years', months: 121 },
+    { id: '1y', label: '1 year', months: 12 },
+    { id: '5y', label: '5 years', months: 60 },
+    { id: '10y', label: '10 years', months: 120 },
     { id: 'all', label: 'All', months: 0 }
   ];
 
@@ -103,8 +108,9 @@
     function slice() {
       var s = state.view.series;
       var r = RANGES.filter(function (x) { return x.id === state.range; })[0];
-      if (!r.months || s.length <= r.months) return s;
-      return s.slice(s.length - r.months);
+      if (!r.months) return s;
+      var end = U.monthNo(s[s.length - 1].key);
+      return s.filter(function (p) { return end - U.monthNo(p.key) <= r.months; });
     }
 
     function render() {

@@ -12,12 +12,29 @@ leaves the machine.
 
 ## 1. Sheets that are read
 
-Only **`Data Input`**. Every other sheet in your file is dropped as the
-workbook is opened, whatever it is called, and never reaches the model. The
-example workbook ships with a second sheet purely to demonstrate that.
+**One**, chosen by name: `Data Input`, or one of the aliases `Data`, `Input`,
+`Snapshots`, `Net Worth`, `Nordstern`, `Daten`, `Dateneingabe`, `Vermögen`,
+`Bilanz` — in that order, the first name from the list that occurs in the
+workbook wins. The comparison is case-insensitive and whitespace-normalised.
+A workbook with exactly one sheet needs no matching name at all: that sheet
+is used whatever it is called. Every other sheet is dropped as the workbook
+is opened, whatever it is called, and never reaches the model. The example
+workbook ships with a second sheet purely to demonstrate that.
 
-The sheet name is matched case-insensitively and with whitespace normalised.
-If it is missing, the import stops with a named error.
+If the workbook holds two or more sheets and none of them matches, the
+import stops rather than guess: nordstern does not search sheet contents for
+something that looks right, because that would mean decoding every sheet and
+breaking the promise that only one is ever read. The error names the sheets
+the workbook actually has, alongside the accepted names, so you can see why
+none of them matched:
+
+`No sheet named "Data Input" found (also accepted: Data, Input, Snapshots,
+Net Worth, Nordstern, Daten, Dateneingabe, Vermögen, Bilanz). This workbook
+has: "Mappe1", "Tabelle2". Rename the sheet, or keep a single sheet in the
+file.`
+
+Those sheet names appear only in that message, on screen — an error leaves
+no model, so nothing about the workbook is stored.
 
 ## 2. `Data Input`
 
@@ -60,9 +77,28 @@ reading January, March, February would take February as the current state, and
 every figure on the page follows from that. Sorting the columns would mean
 repairing a broken file by guessing which order was meant.
 
-A **gap** and a **repeated month** are different: both are carried. Comparisons
-work from the distance in months and stay blank where none fits, the chart
-draws a gap as a gap, and *Settings → notes while reading* names both.
+The date in the header names the **month**; the day is not read. A series
+dated the 15th behaves exactly like one dated the last day of the month — the
+15th and the 31st of the same month are the same column. This has a
+consequence for anyone entering data on a fixed schedule: a column headed 1
+April holds *April's* snapshot, not March's. Whoever means the state of the
+books at the close of March writes 31 March in the header, not the first of
+the following month. The same date decides whether a column counts as the
+future, below: a column headed 1 September, entered on 26 August, is not the
+current state until September arrives.
+
+A **gap** and a **repeated month** are different: both are carried. Every
+comparison looks for the nearest snapshot at the distance it wants, rather
+than counting cells: "vs. last month" is the previous distinct snapshot,
+however far back that is; "vs. last year" is whichever snapshot sits 11 to 13
+months back, the one closest to 12; if both 11 and 13 exist, the nearer one. Each comparison carries its
+actual distance, and the label says so once that distance stops being 1 or
+12 — "vs. 3 months ago" rather than a silently wrong "vs. last month". A
+quarterly or half-yearly series compares cleanly this way; a yearly series
+produces one point per year, and a month with no snapshot 11 to 13 months
+behind it shows no year-ago comparison rather than a wrong one. The chart
+draws a gap as a gap, and *Settings → notes while reading* names both a gap
+and a repeated month.
 
 ### Numbers stored as text
 
@@ -135,7 +171,7 @@ own file warns, the difference is in your file, not in the reader.
 4. **The seven investment stations count against `Total investments`.**
    Property does not contribute to financial independence, and neither does
    money somebody still owes you.
-5. **A month with no year-ago value** (fewer than 13 months of history) shows
+5. **A month with no year-ago value** (no snapshot 11 to 13 months back) shows
    "no year-ago value" rather than a 0.
 6. **Empty cells count as 0**, not as missing — which is how a spreadsheet
    adds them up too. A cell that is *present* and zero is what marks a column
@@ -176,9 +212,11 @@ surrounding stations and mapped onto the path by **height**, so the markers
 spread evenly across the flank and the route never descends between two
 milestones.
 
-**Portfolio pace** is the change in invested assets over the last twelve
-months divided by twelve. If it is zero or negative, no time-to-next-milestone
-is estimated — an honest blank rather than an infinity.
+**Portfolio pace** is the change in invested assets since the year-ago
+snapshot — the one 11 to 13 months back, closest to 12 — divided by that
+snapshot's actual distance in months, not always twelve. If it is zero or
+negative, no time-to-next-milestone is estimated — an honest blank rather
+than an infinity.
 
 **Leverage** is `Total assets / Net worth`, the equity multiplier: 1,00× is
 debt-free, 2,00× means half the balance sheet is borrowed. Its subline carries
@@ -231,13 +269,13 @@ whatever number was typed in, now printed with a different symbol and
 grouping.
 
 On import, the reader looks at the **Excel number format** behind the amount
-cells on `Data Input` — not their content, the format string Excel stores
-alongside each cell. If every format that carries a currency symbol carries
-the *same* one (`€`, `$`, `£`, `CHF`, the codes `EUR`/`USD`/`GBP`/`CHF`, or an
-Excel tag such as `[$CHF-807]`), the currency setting switches to match and
-the import toast names it. If no format carries a symbol, the setting is left
-as it is — an unformatted workbook says nothing about currency, so nordstern
-does not guess. If the formats carry **more than one** currency, that is
+cells on the sheet that was read — not their content, the format string
+Excel stores alongside each cell. If every format that carries a currency
+symbol carries the *same* one (`€`, `$`, `£`, `CHF`, the codes
+`EUR`/`USD`/`GBP`/`CHF`, or an Excel tag such as `[$CHF-807]`), the currency
+setting switches to match and the import toast names it. If no format
+carries a symbol, the setting is left as it is — an unformatted workbook
+says nothing about currency, so nordstern does not guess. If the formats carry **more than one** currency, that is
 almost always a workbook nordstern's one-currency assumption does not fit;
 the setting is left as it is and a note is added: "Amounts are formatted in
 more than one currency …".

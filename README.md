@@ -73,7 +73,10 @@ See [SECURITY.md](SECURITY.md) for the longer version.
 
 ## Your workbook
 
-nordstern reads **one sheet** and ignores everything else in the file:
+nordstern reads **one sheet** and ignores everything else in the file. It
+looks for a sheet named `Data Input`, or one of a handful of aliases such as
+`Data` or `Daten`; a workbook with only one sheet needs no matching name at
+all — that sheet is used whatever it is called.
 
 **`Data Input`** — one column per month, one row per account. Rows are found
 by their **label in column A**, never by row number, so you can insert
@@ -104,6 +107,12 @@ accounts wherever you like.
 Rows in *italics* are your own — name them anything. The others are the
 anchors and must read exactly as shown. `Liabilities` is matched exactly, so a
 helper row such as `Liabilities *(-1)` is left alone.
+
+The date in the **Month** row names the month; the day is not read, so the
+15th works as well as the last day. Snapshots do not need to be monthly —
+quarterly or half-yearly works too, a yearly series gives one point per year,
+and a comparison like "vs. last year" finds the nearest snapshot at that
+distance instead of assuming one exists.
 
 The same table is inside the app under *Settings → workbook*, so you can
 compare it against your own file without leaving the page. The full contract

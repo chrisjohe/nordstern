@@ -29,9 +29,11 @@ const read = (buf, name) =>
 const base = read(fs.readFileSync(FIXTURE), 'nordstern-example.xlsx');
 ok(base.ok && base.warnings.length === 0, 'die Beispielmappe selbst liest sich sauber');
 {
-  const kept = g.NORDSTERN.importer._openWorkbook(XLSX, new Uint8Array(fs.readFileSync(FIXTURE))).SheetNames;
-  ok(kept.join(' · ') === 'Data Input',
-     'und gibt nur das eine Blatt weiter, obwohl sie zwei hat: ' + kept.join(' · '));
+  const opened = g.NORDSTERN.importer._openWorkbook(XLSX, new Uint8Array(fs.readFileSync(FIXTURE)));
+  ok(opened.SheetNames.join(' · ') === 'Data Input',
+     'und gibt nur das eine Blatt weiter, obwohl sie zwei hat: ' + opened.SheetNames.join(' · '));
+  ok(opened.available.join(' · ') === 'Read me · Data Input',
+     'available nennt beide Blätter der Beispielmappe, in Dateireihenfolge: ' + opened.available.join(' · '));
 }
 const ref = base.model.months[base.model.months.length - 1];
 
@@ -69,9 +71,11 @@ for (const bt of accept.filter((f) => f !== 'numbers')) {
       return wbx;
     }
   });
-  const kept = g.NORDSTERN.importer._openWorkbook(spy, new Uint8Array(buf)).SheetNames;
-  ok(kept.join(' · ') === 'Data Input',
-     bt + ' reicht nur das eine Blatt weiter: ' + kept.join(' · '));
+  const openedBt = g.NORDSTERN.importer._openWorkbook(spy, new Uint8Array(buf));
+  ok(openedBt.SheetNames.join(' · ') === 'Data Input',
+     bt + ' reicht nur das eine Blatt weiter: ' + openedBt.SheetNames.join(' · '));
+  ok(openedBt.available.join(' · ') === 'Read me · Data Input',
+     bt + ' nennt available beide Blätter, in Dateireihenfolge: ' + openedBt.available.join(' · '));
   const expected = bt === 'ods' ? 2 : 1;
   ok(decoded.length === 1 && decoded[0] === expected,
      bt + ': ' + decoded[0] + ' von 2 Blättern dekodiert' +
@@ -131,8 +135,16 @@ console.log('\n== Währung');
    Speicher verändert, nie auf die Platte geschrieben (AGENTS.md #4) — und
    je Fall an einer frischen Kopie, sonst liest der nächste Fall die
    Mutation des vorigen mit. */
+/* Ein roher XLSX.read trägt SheetNames in Dateireihenfolge — hier „Read me"
+   vor „Data Input". parseWorkbook vertraut inzwischen darauf, dass an
+   Index 0 bereits das gewählte Blatt steht (das leistet sonst chooseSheet
+   in openWorkbook); hier wird das von Hand nachgebildet, ohne den Weg über
+   Bytes und zwei Lesedurchgänge zu nehmen, den die Formatmutation unten
+   ohnehin unterläuft. */
 function freshWorkbook() {
-  return XLSX.read(fs.readFileSync(FIXTURE), { type: 'buffer', cellDates: true });
+  const wb = XLSX.read(fs.readFileSync(FIXTURE), { type: 'buffer', cellDates: true });
+  wb.SheetNames = ['Data Input'];
+  return wb;
 }
 /* Betragszellen sind alle Zellen mit numerischem .v auf dem einen gelesenen
    Blatt. Mit cellDates:true stehen die Monatsdaten in der Kopfzeile von

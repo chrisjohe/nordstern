@@ -66,20 +66,41 @@
     return (now - before) / Math.abs(before);
   }
 
-  /* Der Monat, der `n` Monate vor `i` liegt — und zwar nur, wenn er es
-     wirklich ist.
+  /* Der Snapshot vor `i`, dessen Abstand `target` Monaten am nächsten kommt
+     — nicht der `target`-te Index davor.
 
-     Die Reihe kommt aus einer Tabelle. Dort kann eine Monatsspalte fehlen,
-     doppelt stehen oder in falscher Reihenfolge eingefügt sein; `i - 12`
-     heisst dann nicht „vor einem Jahr", und `i - 1` nicht „im Vormonat".
-     Geprüft wird deshalb der Schlüssel. Kein Vergleich ist besser als ein
-     falscher: die Oberfläche zeigt dafür einen Strich. */
-  function back(months, i, n) {
-    var j = i - n;
-    if (j < 0) return null;
-    var m = months[j], here = U.monthNo(months[i] && months[i].key), there = U.monthNo(m && m.key);
-    if (here == null || there == null) return null;
-    return here - there === n ? m : null;
+     Die Reihe kommt aus einer Tabelle. Dort können Monate fehlen (wer
+     quartalsweise einträgt, hat nie einen echten Vormonat), doppelt stehen
+     (zwei Spalten für denselben Monat) oder in falscher Reihenfolge liegen;
+     `i - n` heisst dann weder „vor einem Jahr" noch „im Vormonat". Gesucht
+     wird deshalb rückwärts über den Schlüsselabstand, nicht über den Index.
+     Ohne Toleranz (`tol == null`, „Vormonat") zählt der erste eigenständige
+     Snapshot davor, so weit zurück er auch liegt — Doppelungen (Abstand 0)
+     werden übersprungen, es gibt keine Geschichte zu erzählen. Mit Toleranz
+     (`tol`, „Vorjahr") gewinnt der Treffer mit dem kleinsten Abstand zu
+     `target`; bei Gleichstand bleibt der zuerst gefundene, also der zeitlich
+     nähere. Kein Treffer ist besser als ein falscher: die Oberfläche zeigt
+     dafür einen Strich. */
+  function nearest(months, i, target, tol) {
+    var here = U.monthNo(months[i] && months[i].key);
+    if (here == null) return null;
+    var best = null, bestSpan = null, bestDiff = null;
+    for (var j = i - 1; j >= 0; j--) {
+      var there = U.monthNo(months[j] && months[j].key);
+      if (there == null) continue;
+      var d = here - there;
+      if (d === 0) continue;                  // Doppelspalte, kein eigener Monat
+      if (tol == null) {
+        if (d >= 1) return { m: months[j], span: d };
+      } else {
+        if (d > target + tol) break;           // ab hier wird der Abstand nur noch größer
+        var diff = Math.abs(d - target);
+        if (diff <= tol && (best === null || diff < bestDiff)) {
+          best = months[j]; bestSpan = d; bestDiff = diff;
+        }
+      }
+    }
+    return tol == null ? null : (best ? { m: best, span: bestSpan } : null);
   }
 
   /** Fortschritt entlang der Bergroute aus dem investierten Vermögen. */
@@ -110,8 +131,8 @@
     var months = model.months;
     var i = model.currentIndex;
     var current = months[i];
-    var prev = back(months, i, 1);
-    var yearAgo = back(months, i, 12);
+    var prev = nearest(months, i, 1, null);
+    var yearAgo = nearest(months, i, 12, 1);
 
     /* --- Ausgaben ------------------------------------------------------- */
     var totalMonthly = Math.max(0, Number(settings.monthlyExpenses) || 0);
@@ -196,9 +217,10 @@
     var nextStation = stations[reachedCount] || null;
     var routeT = routePosition(stations, current.investment);
 
-    /* --- Tempo: 12-Monats-Mittel der Depotveränderung --------------------- */
+    /* --- Tempo: Depotveränderung pro Monat, über den tatsächlichen Abstand
+       zum Vorjahresvergleich — bei einer Lücke ist das nicht immer 12. ----- */
     var pace = null;
-    if (yearAgo) pace = (current.investment - yearAgo.investment) / 12;
+    if (yearAgo) pace = (current.investment - yearAgo.m.investment) / yearAgo.span;
     var etaMonths = null;
     if (nextStation && pace && pace > 0) {
       etaMonths = Math.ceil(nextStation.remaining / pace);
@@ -207,27 +229,27 @@
 
     /* --- Serie für den Verlaufs-Chart ------------------------------------ */
     var series = months.map(function (m, idx) {
-      var ya = back(months, idx, 12);
+      var ya = nearest(months, idx, 12, 1);
       return {
         key: m.key, iso: m.iso, value: m.netWorth,
         assets: m.totalAssets, liabilities: m.liabilities,
         investment: m.investment, liquid: m.liquid,
-        yearAgo: ya ? ya.netWorth : null,
+        yearAgo: ya ? ya.m.netWorth : null,
         /* Eigener Vorjahreswert je Reihe — die gestrichelte Spur muss dem
            folgen, was gerade gezeichnet wird, sonst vergleicht sie Äpfel. */
-        assetsYearAgo: ya ? ya.totalAssets : null,
-        investmentYearAgo: ya ? ya.investment : null,
+        assetsYearAgo: ya ? ya.m.totalAssets : null,
+        investmentYearAgo: ya ? ya.m.investment : null,
         index: idx
       };
     });
 
     return {
-      current: current, prev: prev, yearAgo: yearAgo,
+      current: current, prev: prev ? prev.m : null, yearAgo: yearAgo ? yearAgo.m : null,
       monthKey: current.key,
-      mom: prev ? { abs: current.netWorth - prev.netWorth, rel: rel(current.netWorth, prev.netWorth) } : null,
-      yoy: yearAgo ? { abs: current.netWorth - yearAgo.netWorth, rel: rel(current.netWorth, yearAgo.netWorth) } : null,
-      assetsMom: prev ? { abs: current.totalAssets - prev.totalAssets, rel: rel(current.totalAssets, prev.totalAssets) } : null,
-      liabMom: prev ? { abs: current.liabilities - prev.liabilities, rel: rel(current.liabilities, prev.liabilities) } : null,
+      mom: prev ? { abs: current.netWorth - prev.m.netWorth, rel: rel(current.netWorth, prev.m.netWorth), span: prev.span } : null,
+      yoy: yearAgo ? { abs: current.netWorth - yearAgo.m.netWorth, rel: rel(current.netWorth, yearAgo.m.netWorth), span: yearAgo.span } : null,
+      assetsMom: prev ? { abs: current.totalAssets - prev.m.totalAssets, rel: rel(current.totalAssets, prev.m.totalAssets), span: prev.span } : null,
+      liabMom: prev ? { abs: current.liabilities - prev.m.liabilities, rel: rel(current.liabilities, prev.m.liabilities), span: prev.span } : null,
       shares: shares,
       leverage: leverage,
       sections: sections,
@@ -248,6 +270,7 @@
       nextStation: nextStation,
       routeT: routeT,
       pace: pace,
+      paceSpan: yearAgo ? yearAgo.span : null,
       etaMonths: etaMonths,
       series: series,
       firstKey: months[0].key,

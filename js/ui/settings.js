@@ -217,10 +217,11 @@
 
       body.appendChild(pane('workbook', [
         U.make('p', { class: 'sheet-copy', text:
-          'One sheet is read, by name: "Data Input" — everything else in ' +
-          'the file is ignored. Rows are found by their label in column A, never by row ' +
-          'number, so you can insert, move and rename accounts freely. Case and extra ' +
-          'spaces do not matter.' }),
+          'One sheet is read, by name: "Data Input" — or one of a few aliases, and a ' +
+          'workbook with a single sheet needs no name at all. Everything else in the file ' +
+          'is ignored. Rows are found by their label in column A, never by row number, so ' +
+          'you can insert, move and rename accounts freely. Case and extra spaces do not ' +
+          'matter.' }),
 
         U.make('h3', { class: 'pane-sub', text: 'Sheet "Data Input"' }),
         wbTable('Column B, C, D …', [
@@ -287,7 +288,7 @@
         return [U.make('dt', { text: term }), U.make('dd', { text: detail })];
       }
       var facts = [];
-      [['Read', 'The sheet "Data Input" — nothing else is kept, evaluated or stored, not even a sheet name. In .xlsx, .xlsm and .xlsb the parser is handed that one name and decodes no other sheet. For .ods and .numbers SheetJS offers no such filter: there the whole workbook is decoded, and everything but that sheet is dropped the moment it is open.'],
+      [['Read', 'The sheet "Data Input" — nothing else is kept, evaluated or stored, not even a sheet name. In .xlsx, .xlsm and .xlsb the parser is handed the one matching name and decodes no other sheet. For .ods and .numbers SheetJS offers no such filter: there the whole workbook is decoded, and everything but that sheet is dropped the moment it is open.'],
        ['Written', 'Nothing. There is no write path — the app never calls XLSX.write, and your file is closed again unchanged.'],
        ['Sent', 'Nothing, anywhere. There is no fetch, no XMLHttpRequest, no WebSocket, no image request, no web font, no analytics, no error reporting.'],
        ['Stored', 'Two keys in this browser\u2019s localStorage: the parsed model and your settings. Nothing else, nowhere else.'],
