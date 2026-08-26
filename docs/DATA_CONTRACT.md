@@ -111,6 +111,9 @@ carrying a leading currency code (`CHF 1'234.56`). Anything else is **not
 read at all** rather than read in part; the cell then counts as empty. Where
 more than one notation fits — `1.234` — the German reading applies.
 
+A cell holding an Excel error value (`#N/A`, `#REF!` and the like) counts as
+empty the same way, whether it turned up by a formula or by a paste.
+
 Both cases are named in *Settings → notes while reading*, with the count and
 the first cell address.
 
@@ -121,9 +124,10 @@ snapshot: a car depreciating on schedule, a loan amortising into next year.
 Those are not snapshots and must not be read as the current state.
 
 The rule is the calendar: **"now" is the last column whose month is not in the
-future and which has a value in at least one account row.** The date settles
-the projections; the "has any value" part settles the empty columns people
-create in advance for the rest of the year.
+future and which has a number in at least one account row.** The date settles
+the projections; the "has any number" part settles the empty columns people
+create in advance for the rest of the year; a column of unreadable text or
+error values does not count either.
 
 Anything to the right is ignored, and *Settings → data source* says how much:
 "Ignored — 10 columns from September 2026". Nothing is dropped silently.

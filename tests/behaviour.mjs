@@ -1134,6 +1134,136 @@ sec('Blattname: Aliase und Einzelblatt-Fallback');
   w.close();
 }
 
+/* ---------- 6a1. Robustheit: Fehlerwerte, kaputte Daten, leere Mappe ---------- */
+/* Fünf Löcher, die eine Mappe unbemerkt durchreichen konnte, statt sie zu
+   melden oder abzulehnen: ein Fehlerwert (#N/A & Co.) wie eine Zahl gelesen,
+   ein ungültiges Datum als Monatsspalte, eine Spalte aus lauter Text als
+   Schnappschuss, eine Summe, die über den darstellbaren Bereich läuft, und
+   eine kaputte oder leere Datei ohne verständliche Meldung. */
+sec('Robustheit: Fehlerwerte, kaputte Daten, leere Mappe');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const D=(y,m)=>new w.Date(y,m-1,1);
+  const EC=(r,c)=>XLSX.utils.encode_cell({r,c});
+  /* Zeilen von `full` unten, 0-basiert — dieselbe Mappe wie im Alias-
+     Abschnitt oben, hier gebraucht, um gezielt einzelne Zellen zu überschreiben. */
+  const ROW={MONTH:0, CASH:2, DEPOT:7, LOAN:15, TOTALASSETS:13, LIABTOTAL:16, NETWORTH:17};
+  const full=(months)=>XLSX.utils.aoa_to_sheet([
+    ['Month',        ...months.map(([y,m])=>D(y,m))],
+    ['Liquid'],
+    ['  Cash',       ...months.map((_,i)=>100+i)],
+    ['Total liquid', ...months.map((_,i)=>100+i)],
+    ['Claims'],
+    ['Total claims', ...months.map(()=>0)],
+    ['Investments'],
+    ['  Depot',      ...months.map((_,i)=>1000+100*i)],
+    ['Total investments', ...months.map((_,i)=>1000+100*i)],
+    ['Property'],
+    ['Total property', ...months.map(()=>0)],
+    ['Retirement'],
+    ['Total retirement', ...months.map(()=>0)],
+    ['Total assets', ...months.map((_,i)=>1100+100*i+i)],
+    ['Liabilities'],
+    ['  Loan',       ...months.map(()=>0)],
+    ['Total liabilities', ...months.map(()=>0)],
+    ['Total net worth', ...months.map((_,i)=>1100+100*i+i)]
+  ],{cellDates:true});
+  const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Data Input'); return b; };
+  const parse=(ws)=>w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'x.xlsx');
+
+  /* aoa_to_sheet legt nie eine Fehlerzelle an — sie wird direkt in der
+     Zellentabelle gesetzt, wie es die SheetJS-eigene API sonst auch tut.
+     Kein Umweg über Schreiben und Lesen nötig: parseWorkbook nimmt eine
+     Arbeitsmappe entgegen, wie XLSX.utils.book_new() sie liefert, auch ohne
+     Rundreise durch XLSX.write/read (siehe „Zahlen als Text" oben). */
+  const wsErrInAccount=full([[2026,1],[2026,2]]);
+  wsErrInAccount[EC(ROW.CASH,1)]={t:'e', v:42, w:'#N/A'};      // Monat 1, nicht der aktuelle
+  const errAccount=parse(wsErrInAccount);
+  ok(errAccount.ok,'ein Fehlerwert in einer Kontozeile lehnt den Import nicht ab: '+errAccount.errors.join(' | '));
+  ok(errAccount.warnings.some(t=>/Excel error values/.test(t)),
+     'er wird benannt: '+errAccount.warnings.join(' | '));
+  ok(errAccount.model.accounts.liquid[0].values[0]===0,
+     'und zählt als leer, nicht als 42: '+errAccount.model.accounts.liquid[0].values[0]);
+
+  const wsErrInTotal=full([[2026,1],[2026,2]]);
+  wsErrInTotal[EC(ROW.NETWORTH,2)]={t:'e', v:42, w:'#N/A'};    // Monat 2 = die aktuelle Spalte
+  const errTotal=parse(wsErrInTotal);
+  ok(!errTotal.ok,'ein Fehlerwert in „Total net worth" der aktuellen Spalte bricht ab');
+  ok(errTotal.errors.some(t=>/Total net worth/.test(t)&&/Excel error value/.test(t)),
+     'die Meldung nennt Zeile und Grund: '+errTotal.errors.join(' | '));
+
+  const wsBadDate=full([[2026,1]]);
+  wsBadDate[EC(ROW.MONTH,1)]={t:'d', v:new w.Date('x')};       // new Date('x') ist ungültig
+  const badDate=parse(wsBadDate);
+  ok(!badDate.ok&&badDate.errors.some(t=>/No month columns found in the header row \(1 non-empty cell was not a date, first: B1\)\.$/.test(t)),
+     'ein ungültiges Datum zählt nicht als Monatsspalte: '+badDate.errors.join(' | '));
+
+  const wsTextDate=full([[2026,1]]);
+  wsTextDate[EC(ROW.MONTH,1)]={t:'s', v:'2026-08-01'};         // Text statt Datum
+  const textDate=parse(wsTextDate);
+  ok(!textDate.ok&&textDate.errors.some(t=>/1 non-empty cell was not a date, first: B1/.test(t)),
+     'ein Datum als Text ebenso wenig: '+textDate.errors.join(' | '));
+
+  /* Eine Spalte, deren Kontozeilen ausschließlich unlesbaren Text tragen, ist
+     kein Schnappschuss — hasData() darf sich nicht am rohen Zellinhalt
+     orientieren, sondern muss dieselbe Zahl sehen, die auch num() sähe. */
+  const wsAllNA=full([[2020,1]]);
+  wsAllNA[EC(ROW.CASH,1)]={t:'s', v:'N/A'};
+  wsAllNA[EC(ROW.DEPOT,1)]={t:'s', v:'N/A'};
+  wsAllNA[EC(ROW.LOAN,1)]={t:'s', v:'N/A'};
+  const allNA=parse(wsAllNA);
+  ok(!allNA.ok&&allNA.errors.some(t=>/No snapshot found/.test(t)),
+     'eine Spalte aus lauter „N/A" ist kein Schnappschuss: '+allNA.errors.join(' | '));
+
+  /* Fünf Sektionssummen an der Grenze des Zahlenbereichs, „Total assets" und
+     „Total net worth" leer — die Addition der Sektionen läuft über, bevor
+     eine der Gegenproben das je sehen könnte. */
+  const wsOverflow=XLSX.utils.aoa_to_sheet([
+    ['Month', D(2026,1)],
+    ['Liquid'],['  Cash', 0],['Total liquid', 1e308],
+    ['Claims'],['Total claims', 1e308],
+    ['Investments'],['  Depot', 0],['Total investments', 1e308],
+    ['Property'],['Total property', 1e308],
+    ['Retirement'],['Total retirement', 1e308],
+    ['Total assets', ''],
+    ['Liabilities'],['  Loan', 0],['Total liabilities', 0],
+    ['Total net worth', '']
+  ],{cellDates:true});
+  const overflow=parse(wsOverflow);
+  ok(!overflow.ok&&overflow.errors.some(t=>/overflow the representable range/.test(t)),
+     'fünf mal 1e308 läuft über, statt eine falsche Zahl zu zeigen: '+overflow.errors.join(' | '));
+
+  /* Weder ein fehlendes noch ein leeres Arbeitsmappen-Objekt darf durchfallen —
+     beide sind derselbe Befund wie ein Blatt, das nicht gefunden wurde. */
+  let threw=false, rNull=null, rEmpty=null;
+  try { rNull=w.NORDSTERN.importer.parseWorkbook(null,'x.xlsx'); } catch(e) { threw=true; }
+  try { rEmpty=w.NORDSTERN.importer.parseWorkbook({},'x.xlsx'); } catch(e) { threw=true; }
+  ok(!threw,'parseWorkbook(null) und parseWorkbook({}) werfen nicht');
+  ok(rNull&&!rNull.ok&&rEmpty&&!rEmpty.ok,'beide werden sauber abgelehnt');
+
+  /* Eine zur Hälfte gekappte Datei ist kein Programmfehler, sondern eine
+     beschädigte Datei — die Meldung soll das auch so nennen. */
+  const written=XLSX.write(wbOf(full([[2026,1],[2026,2]])),{type:'array',bookType:'xlsx'});
+  const half=written.slice(0, Math.floor(written.byteLength/2));
+  const truncated=w.NORDSTERN.importer.parseArrayBuffer(half,'trunc.xlsx');
+  ok(!truncated.ok&&truncated.errors[0].indexOf('The file is damaged or incomplete')===0,
+     'die gekappte Datei bekommt die verständliche Meldung: '+truncated.errors.join(' | '));
+
+  /* Ein leeres Blatt verfehlt sonst jeden der fünfzehn Anker einzeln. */
+  const wsEmpty=XLSX.utils.aoa_to_sheet([[]]);
+  const empty=parse(wsEmpty);
+  ok(!empty.ok&&empty.errors.length===1&&/is empty/.test(empty.errors[0]),
+     'ein leeres Blatt meldet sich einmal, nicht fünfzehnmal: '+empty.errors.join(' | '));
+
+  /* Und zur Gegenprobe: die unveränderte, vollständige Mappe kommt weiterhin
+     ohne jeden Hinweis durch — keiner der Befunde oben ist ein Fehlalarm. */
+  const clean=parse(full([[2026,1],[2026,2]]));
+  ok(clean.ok&&clean.warnings.length===0,'die unveränderte Mappe bleibt sauber: '+clean.warnings.join(' | '));
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 6b. Löchrige Zeitreihe ---------- */
 /* Eine Monatsspalte fehlt, eine steht doppelt. Beides sieht in der Mappe
    harmlos aus und macht aus „im Vormonat" und „vor einem Jahr" stillschweigend

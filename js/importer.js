@@ -155,7 +155,7 @@
      Anzahl und die erste Adresse genügen, um nachzusehen. */
   var noted = null;
   function noteInit(sheet) {
-    noted = { sheet: sheet, textN: 0, textAt: null, badN: 0, badAt: null };
+    noted = { sheet: sheet, textN: 0, textAt: null, badN: 0, badAt: null, errN: 0, errAt: null };
     currencySeenReset();       // Dedup gilt je Blatt, die Zählung selbst je Lauf
   }
   function noteFlush(warnings) {
@@ -172,21 +172,35 @@
         ' text that is not a number on "' + n.sheet + '" (first: ' + n.badAt +
         '). They count as empty.');
     }
+    if (n.errN) {
+      warnings.push(n.errN + (n.errN === 1 ? ' cell holds' : ' cells hold') +
+        ' Excel error values on "' + n.sheet + '" (first: ' + n.errAt +
+        '). They count as empty.');
+    }
+  }
+
+  /* Reine Auswertung einer Zelle zu einer Zahl, ohne die Zähltabelle `noted`
+     zu berühren. hasData() unten braucht genau das: wissen, ob eine Zelle
+     eine Zahl trägt, ohne dass das Nachsehen selbst als Fund gezählt wird —
+     jede Kontozelle einer Spalte würde sonst doppelt in die Warnungen
+     einfliessen, einmal von hier und einmal von der echten Auswertung. */
+  function numRaw(c) {
+    if (!c || c.v == null || c.v === '') return null;
+    if (c.t === 'e') return null;               // #N/A, #REF! & co. — kein Betrag
+    if (typeof c.v === 'number') return isFinite(c.v) ? c.v : null;
+    return parseNumber(c.v);
   }
 
   function num(ws, row, col) {
     var c = cell(ws, row, col);
-    if (!c || c.v == null || c.v === '') return null;
-    var result;
-    if (typeof c.v === 'number') {
-      result = isFinite(c.v) ? c.v : null;
-    } else {
-      var n = parseNumber(c.v);
-      if (noted) {
-        if (n == null) { noted.badN++; if (!noted.badAt) noted.badAt = addr(row, col); }
+    var result = numRaw(c);
+    if (c && c.v != null && c.v !== '' && noted) {
+      if (c.t === 'e') {
+        noted.errN++; if (!noted.errAt) noted.errAt = addr(row, col);
+      } else if (typeof c.v !== 'number') {
+        if (result == null) { noted.badN++; if (!noted.badAt) noted.badAt = addr(row, col); }
         else { noted.textN++; if (!noted.textAt) noted.textAt = addr(row, col); }
       }
-      result = n;
     }
     if (result != null) currencyNote(addr(row, col), c.z);
     return result;
@@ -236,7 +250,7 @@
   function readDate(ws, row, col) {
     var c = cell(ws, row, col);
     if (!c || c.v == null || c.v === '') return null;
-    if (isDate(v_(c))) return c.v;
+    if (isDate(v_(c))) return isFinite(c.v.getTime()) ? c.v : null;   // new Date('x') & Co.
     if (typeof c.v === 'number' && c.v > 20000 && c.v < 80000) return serialToDate(c.v);
     return null;
   }
@@ -286,6 +300,12 @@
     noteInit('Data Input');
     var range = decodeRange(ws);
     var L = labelRows(ws, range);
+    /* Eine leere Mappe verfehlt sonst jeden der fünfzehn Anker einzeln —
+       fünfzehn Meldungen für denselben Befund. Eine genügt. */
+    if (!ws['!ref'] || !L.order.length) {
+      errors.push('The sheet "Data Input" is empty.');
+      return null;
+    }
 
     function need(anchor) {
       if (!(anchor in L.map)) { errors.push('Row "' + anchor + '" not found.'); return -1; }
@@ -300,13 +320,29 @@
     SECTIONS.forEach(function (s) { s._head = need(s.head); s._total = need(s.total); });
     if (errors.length) return null;
 
-    /* Monatsspalten aus der Kopfzeile */
-    var cols = [];
+    /* Monatsspalten aus der Kopfzeile. Eine Zelle, die etwas trägt, aber
+       weder Datum noch Seriennummer ist ("2026-08-01" als Text, ein
+       ungültiges Datum), wird mitgezählt — das unterscheidet eine leere
+       Kopfzeile von einer, die etwas Falsches enthält. */
+    var cols = [], badDateN = 0, badDateAt = null;
     for (var c = range.c0 + 1; c <= range.c1; c++) {
       var d = readDate(ws, rowDates, c);
-      if (d) cols.push({ col: c, date: d, key: monthKey(d), iso: isoDay(d) });
+      if (d) { cols.push({ col: c, date: d, key: monthKey(d), iso: isoDay(d) }); continue; }
+      var dc = cell(ws, rowDates, c);
+      if (dc && dc.v != null && dc.v !== '') {
+        badDateN++; if (!badDateAt) badDateAt = addr(rowDates, c);
+      }
     }
-    if (!cols.length) { errors.push('No month columns found in the header row.'); return null; }
+    if (!cols.length) {
+      if (badDateN) {
+        errors.push('No month columns found in the header row (' + badDateN +
+          (badDateN === 1 ? ' non-empty cell was not a date, first: ' : ' non-empty cells were not dates, first: ') +
+          badDateAt + ').');
+      } else {
+        errors.push('No month columns found in the header row.');
+      }
+      return null;
+    }
 
     /* Konten je Sektion: alle beschrifteten Zeilen zwischen Kopf- und Summenzeile */
     SECTIONS.forEach(function (s) {
@@ -350,8 +386,7 @@
 
     function hasData(col) {
       for (var k = 0; k < accountRows.length; k++) {
-        var c = cell(ws, accountRows[k], col);
-        if (c && c.v != null && c.v !== '') return true;
+        if (numRaw(cell(ws, accountRows[k], col)) != null) return true;
       }
       return false;
     }
@@ -365,6 +400,25 @@
     if (lastIdx < 0) {
       errors.push('No snapshot found: every month column is either empty or dated in the future.');
       return null;
+    }
+
+    /* Ein Fehlerwert (#N/A & Co.) in einer der drei Summenzeilen der aktuellen
+       Spalte zählt anders als anderswo: dort fällt er sonst still auf 0, und
+       genau diese Zahl trägt den ganzen Kopfbereich des Dashboards. Kein
+       „zählt als leer" also, sondern ein Abbruch. */
+    var curCol = cols[lastIdx].col;
+    var curTotals = [
+      { row: rowTA, label: 'Total assets' },
+      { row: rowLiabTot, label: 'Total liabilities' },
+      { row: rowNW, label: 'Total net worth' }
+    ];
+    for (var ct = 0; ct < curTotals.length; ct++) {
+      var ec = cell(ws, curTotals[ct].row, curCol);
+      if (ec && ec.t === 'e') {
+        errors.push('"' + curTotals[ct].label + '" holds an Excel error value in the current month column (' +
+          addr(curTotals[ct].row, curCol) + ').');
+        return null;
+      }
     }
 
     /* `used` nimmt nur Spalten mit Daten bis lastIdx — eine leere Spalte
@@ -453,6 +507,22 @@
     accounts.liabilities = liabRows.map(function (a) {
       return { name: a.name, values: used.map(function (mc) { return num(ws, a.row, mc.col) || 0; }) };
     });
+
+    /* Einzelne Zellen sind endlich (num() wirft Infinity/NaN schon heraus),
+       aber ihre Summe muss es nicht bleiben — eine Sektion aus lauter
+       1e308-Beträgen läuft in der Addition über. Danach vergleicht keine der
+       Gegenproben mehr sinnvoll (NaN ist mit nichts gleich, auch nicht mit
+       sich selbst), also wird hier geprüft, bevor sie laufen. Die Konten
+       brauchen das nicht: ihre Werte sind Einzelzellen, nie Summen. */
+    for (var mo = 0; mo < months.length; mo++) {
+      for (var mk in months[mo]) {
+        if (mk === 'key' || mk === 'iso') continue;
+        if (typeof months[mo][mk] === 'number' && !isFinite(months[mo][mk])) {
+          errors.push('Amounts overflow the representable range (first: ' + months[mo].key + ', ' + mk + ').');
+          return null;
+        }
+      }
+    }
 
     /* Gegenprobe: Kontensummen gegen die Summenzeilen der Mappe */
     var EPS = 0.02;
@@ -556,9 +626,13 @@
     dispCode = (opts && opts.currency) || 'EUR';
     currencyTallyReset();
     var errors = [], warnings = [];
-    var wsData = wb.Sheets[wb.SheetNames[0]];
+    /* wb kann hier auch fehlerhaft ankommen — direkt aufgerufen aus einem
+       Test, oder aus einem künftigen Aufrufer, der die Rückgabe von
+       openWorkbook nicht kennt. Ein fehlendes Sheets/SheetNames ist derselbe
+       Befund wie ein Blatt, das nicht gefunden wurde, nicht ein Absturz. */
+    var wsData = (wb && wb.Sheets && wb.SheetNames) ? wb.Sheets[wb.SheetNames[0]] : null;
     if (!wsData) {
-      var have = (wb.available || []).map(function (n) { return '"' + n + '"'; }).join(', ');
+      var have = ((wb && wb.available) || []).map(function (n) { return '"' + n + '"'; }).join(', ');
       errors.push('No sheet named "Data Input" found (also accepted: ' +
         SHEET_NAMES.slice(1).join(', ') + '). This workbook has: ' + have +
         '. Rename the sheet, or keep a single sheet in the file.');
@@ -586,16 +660,27 @@
     };
   }
 
+  /* Meldungen, an denen SheetJS und die ZIP-Schicht darunter eine
+     beschädigte oder abgeschnittene Datei erkennen lassen — eine gekappte
+     .xlsx wirft "Unsupported ZIP file", eine mit falschen Größenangaben
+     "Bad compressed size: …". Trifft keine zu, bleibt die ursprüngliche
+     Meldung stehen; eine falsche Zuordnung wäre schlimmer als gar keine
+     Übersetzung. */
+  var CORRUPT_RE = /bad compressed size|corrupt|unexpected end|cannot find end of central directory|invalid zip|zip/i;
+
   function parseArrayBuffer(buf, fileName, opts) {
     var X = global.XLSX;
     if (!X) return { ok: false, errors: ['SheetJS (js/vendor/xlsx.full.min.js) was not loaded.'], warnings: [], model: null, currency: null };
-    var wb;
     try {
-      wb = openWorkbook(X, new Uint8Array(buf));
+      var wb = openWorkbook(X, new Uint8Array(buf));
+      return parseWorkbook(wb, fileName, opts);
     } catch (e) {
-      return { ok: false, errors: ['The file could not be read: ' + (e && e.message ? e.message : e)], warnings: [], model: null, currency: null };
+      var msg = e && e.message ? e.message : String(e);
+      if (CORRUPT_RE.test(msg)) {
+        return { ok: false, errors: ['The file is damaged or incomplete and could not be read (' + msg + ').'], warnings: [], model: null, currency: null };
+      }
+      return { ok: false, errors: ['The file could not be read: ' + msg], warnings: [], model: null, currency: null };
     }
-    return parseWorkbook(wb, fileName, opts);
   }
 
   NS.importer = {
