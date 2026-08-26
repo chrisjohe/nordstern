@@ -61,7 +61,6 @@
     var starBox = U.make('div', { class: 'starbox' });
     starBox.appendChild(star(58, 'head'));
     starRoot.appendChild(starBox);
-    return {};
   }
 
   /* Der Leerzustand bekommt denselben Stern, nur groß — er ist dort das

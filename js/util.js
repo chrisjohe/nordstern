@@ -198,7 +198,6 @@
       if (v == null || v === false) continue;
       if (k === 'class') node.className = v;
       else if (k === 'text') node.textContent = v;
-      else if (k === 'html') node.innerHTML = v;
       else if (k.indexOf('data-') === 0 || k.indexOf('aria-') === 0) node.setAttribute(k, v);
       else if (k in node) node[k] = v;
       else node.setAttribute(k, v);
@@ -247,7 +246,7 @@
   /* Eine Fassung, an einer Stelle. Ohne Bauschritt kann nichts sie aus
      package.json holen, also steht sie hier — und tests/behaviour.mjs hält
      beide gegeneinander, damit sie nicht auseinanderlaufen. */
-  NS.VERSION = '1.1.4';
+  NS.VERSION = '1.1.5';
 
   /* Formatierer müssen existieren, bevor irgendetwas eur()/pct()/dateTime()
      aufruft — auch in Tests, die util.js allein ohne app.js laden. EUR ist

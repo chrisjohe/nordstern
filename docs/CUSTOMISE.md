@@ -141,9 +141,12 @@ hard-coded list. The `locale` is what decides grouping, decimal separator and
 symbol placement; pick whichever `Intl`-supported locale writes the currency
 the way you expect (an unknown locale silently falls back to the browser's
 default, an invalid currency code makes `Intl.NumberFormat` throw — so try
-the pair in a console first). Nothing else in the app needs to know a
+the pair in a console first). Nothing else in the running app needs to know a
 currency exists: every formatter goes through `setCurrency()` in the same
-file.
+file. One exception: `js/store.js` carries its own `FALLBACK_CURRENCIES`,
+used only when `js/util.js` is not loaded (standalone use outside the
+browser). In the app that path is never taken; edit the list only if you
+rely on it.
 
 If you also want **auto-detection on import** — the importer switching the
 setting when a workbook's cell formats say which currency it is — add the
@@ -245,7 +248,8 @@ Worth knowing, so you do not go looking:
   first station not yet reached.
 * **The reserve ring.** It is driven by whichever station has
   `basis: 'liquid'`. If you give a second station `basis: 'liquid'`, the ring
-  follows the first one.
+  follows the last one in the table — `derive()` in `js/calc.js` overwrites
+  the assignment for every match instead of keeping the first.
 * **The history chart.** On *Invested*, it draws a threshold line for every
   station with `basis: 'investment'` whose target falls inside the currently
   visible range. Add a station and it shows up there too, with no wiring of

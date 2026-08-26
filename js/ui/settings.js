@@ -303,8 +303,10 @@
         U.make('dl', { class: 'sheet-facts is-wide' }, facts),
         U.make('h3', { class: 'about-title', text: 'How to check it yourself' }),
         U.make('p', { class: 'about-body', text:
-          'Open your browser\u2019s network tab and use the app: nothing appears, not even once. ' +
-          'Pull the plug and it keeps working — it never needed the network to begin with. ' +
+          'Open your browser\u2019s network tab and use the app: nothing is requested by ' +
+          'the page itself, not even once — the only outbound links live in “about”, ' +
+          'and those open only when you click them. Pull the plug and it keeps working — ' +
+          'it never needed the network to begin with. ' +
           'The single-file build additionally carries a Content-Security-Policy of ' +
           'default-src \u2018none\u2019, so the browser itself refuses every outbound request ' +
           'rather than asking you to take anyone\u2019s word for it.' }),
@@ -471,7 +473,6 @@
          Bühne ab, aus der heraus geöffnet worden sein kann. */
       if (lastFocus && lastFocus.isConnected && lastFocus.focus) lastFocus.focus();
       lastFocus = null;
-      bus.emit('settings:close');
     }
 
     /* Tab läuft im Blatt im Kreis. Ohne das führt die Tabulatortaste hinter

@@ -616,7 +616,7 @@
     }
     var CARDINALS = [['N', 0], ['W', Math.PI / 2], ['S', Math.PI], ['E', -Math.PI / 2]];
 
-    function drawPlate(now) {
+    function drawPlate() {
       var i, p;
       /* Der Grundschein liegt als CSS-Schein hinter der ganzen Hälfte, nicht in
          der Leinwand — siehe publishGlow(). In der Leinwand bräche er an deren
@@ -843,7 +843,7 @@
     function drawRoute() {
       var v = state.view;
       var t = v ? v.routeT : 0;
-      var i, p;
+      var p;
       computeRouteVis();
 
       /* offener Teil — zurückhaltend gestrichelt */
@@ -987,7 +987,7 @@
       updateCam();
       publishGlow();
       ctx.clearRect(0, 0, state.w, state.h);
-      drawPlate(now);
+      drawPlate();
       drawRing(now);
       drawTerrain();
       drawRoute();

@@ -207,10 +207,14 @@ Status per station: **reached** when the balance covers the target;
 **current** is exactly the first station not reached; everything beyond it is
 **ahead**.
 
-The position on the mountain route is interpolated linearly between the two
-surrounding stations and mapped onto the path by **height**, so the markers
-spread evenly across the flank and the route never descends between two
-milestones.
+The position on the mountain route is a fraction of the invested-asset gap
+between the two surrounding stations (`routePosition` in `js/calc.js`),
+applied to each station's fixed path parameter `t`. That `t` is baked in
+when the route geometry is built: `js/ui/mountain.js` places each station's
+control point by searching for the radius at which the height field reaches
+its target elevation (`radiusFor`), which is why the route never descends
+between two milestones — but the live interpolation between milestones is by
+invested value, not recomputed from height at render time.
 
 **Portfolio pace** is the change in invested assets since the year-ago
 snapshot — the one 11 to 13 months back, closest to 12 — divided by that

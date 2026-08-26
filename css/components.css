@@ -105,7 +105,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 @supports not ((background-clip: text) or (-webkit-background-clip: text)) {
   .panel-title.is-hero { color: var(--aurora); -webkit-text-fill-color: currentColor; }
 }
-.panel-note { font-size: 11px; color: var(--ink-4); }
 .block { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 
 /* ================================================================== Hero == */

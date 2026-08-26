@@ -44,8 +44,16 @@ function stubs(w,opts){
 }
 
 export async function boot(opts={}){
+  /* jsdom lädt kein <link rel="stylesheet"> ohne resources:"usable" — das
+     wollen wir hier nicht (es zöge auch die <script src>-Tags durch den
+     Resource-Loader). Also stehen die Blätter, wie im Bau unter export/,
+     direkt im Dokument; sonst bleibt getComputedStyle blind für die eigenen
+     Regeln, seit jsdom für unbekannte SVG-Eigenschaften nicht mehr die leere
+     Zeichenkette, sondern den echten Anfangswert liefert. */
+  const inlineCss=name=>`<style>${fs.readFileSync(path.join(ROOT,'css',name),'utf8')}</style>`;
   const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8')
-    .replace(/<script src="js\/vendor\/xlsx\.full\.min\.js"><\/script>/,'');
+    .replace(/<script src="js\/vendor\/xlsx\.full\.min\.js"><\/script>/,'')
+    .replace(/<link rel="stylesheet" href="css\/([\w-]+\.css)">/g,(m,name)=>inlineCss(name));
   const errors=[];
   const dom=new JSDOM(html,{runScripts:'outside-only',pretendToBeVisual:true,url:'file://'+ROOT+'/index.html'});
   const w=dom.window;

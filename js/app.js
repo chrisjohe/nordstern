@@ -11,7 +11,7 @@
      ersten Mal auf der Bühne landen. Alles Weitere — Schieberegler, Schalter,
      Fenstergrösse — rendert, aber baut sich nicht neu auf. */
   var state = { model: null, view: null, settings: NS.store.loadSettings(),
-                mountainPaused: false, arriving: false };
+                arriving: false };
   var ui = {};
 
   /* Zwei Dateidialoge kurz nacheinander: die zuerst gewählte, grössere Mappe
@@ -268,7 +268,7 @@
   function boot() {
     var railZone = U.el('#railZone');
 
-    ui.header = NS.header.create(U.el('#starZone'));
+    NS.header.create(U.el('#starZone'));
     NS.header.mount(U.el('#gateStar'), 84, 'gate');
     ui.position = NS.position.create(U.el('#posZone'));
     ui.chart = NS.chart.create(U.el('#chartZone'), bus);

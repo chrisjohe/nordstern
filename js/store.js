@@ -134,8 +134,6 @@
     }
   }
 
-  function clearModel() { if (ok) try { LS.removeItem(KEY_MODEL); } catch (e) {} }
-
   /* „Delete local data" heisst alles, nicht das Modell allein. In den
      Einstellungen steht der monatliche Ausgabenbetrag — eine von Hand
      eingetippte Zahl, also genauso persönlich wie jeder Kontostand.
@@ -190,7 +188,7 @@
 
   NS.store = {
     DEFAULT_SETTINGS: DEFAULT_SETTINGS, DEFAULT_EXPENSES: DEFAULT_EXPENSES,
-    loadModel: loadModel, saveModel: saveModel, clearModel: clearModel, clearAll: clearAll,
+    loadModel: loadModel, saveModel: saveModel, clearAll: clearAll,
     _usable: usable,
     loadSettings: loadSettings, saveSettings: saveSettings
   };

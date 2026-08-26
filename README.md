@@ -37,8 +37,8 @@ compares both models figure by figure.
 
 Five things, on one screen, without scrolling:
 
-* **Net worth** — the current figure, what changed this month, this year, and
-  since you started keeping records.
+* **Net worth** — the current figure, what changed this month and this year,
+  and the number of monthly snapshots it rests on, since records began.
 * **History** — one line, read three ways: *Net* (what is left), *Total* (what
   is there), *Invested* (what is working), against a dashed year-ago trace. On
   *Invested*, the stations that fall within the visible range appear as pale
@@ -182,7 +182,7 @@ js/importer.js          ALL knowledge about workbook layout lives here
 js/calc.js              derived figures and the FIRE ladder
 js/store.js             localStorage, defensive about opaque origins
 js/ui/icons.js          milestone glyphs (Material Symbols, swappable)
-js/ui/header.js         wordmark, the star, data age
+js/ui/header.js         the star (the wordmark is static markup in index.html)
 js/ui/position.js       net worth, changes, secondary figures
 js/ui/chart.js          history chart with crosshair and year-ago trace
 js/ui/orbit.js          the radial structure instrument
@@ -217,7 +217,7 @@ interface and the documentation are English. (See
 
 ## Settings
 
-Gear icon, top right. The sheet has one level of navigation: five names on the
+Gear icon, top right. The sheet has one level of navigation: six names on the
 left, exactly one panel on the right.
 
 ```
@@ -305,7 +305,7 @@ npm test
 | `tests/smoke.mjs` | the whole page against a DOM, with a real import |
 | `tests/behaviour.mjs` | empty state, import, persistence, monthly expenses, series switch, card ↔ mountain, motion, the arrival animation and what must *not* retrigger it, a broken workbook and the way back, edge cases, the contrast ramp, and that deleting local data leaves nothing behind |
 | `tests/geometry.mjs` | height field, contours, route, mountain proportion, framing across 576 views, marker spacing across 360 |
-| `tests/formats.mjs` | every format the file dialog offers parses to identical figures |
+| `tests/formats.mjs` | every format the file dialog offers except `.numbers` parses to identical figures; `.numbers` is checked by hand |
 | `tests/example.mjs` | the shipped example workbook still says exactly what `tools/make-example.mjs` says, and the generator will not overwrite its hand formatting |
 | `tests/build.mjs` | the single-file build: self-contained, byte-identical to its sources, boots, and reads the same workbook to the same numbers |
 | `tests/hook.mjs` | the pre-commit hook actually blocks a stray spreadsheet, a leaked figure and an unchecked image, and lets a clean commit through |

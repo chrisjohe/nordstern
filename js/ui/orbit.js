@@ -57,8 +57,7 @@
 
   function create(root, bus) {
     root.appendChild(U.make('div', { class: 'panel-head' }, [
-      U.make('h2', { class: 'panel-title', text: 'Structure' }),
-      U.make('div', { class: 'panel-note', id: 'orbitNote' })
+      U.make('h2', { class: 'panel-title', text: 'Structure' })
     ]));
     var wrap = U.make('div', { class: 'orbit-wrap' });
     var dial = U.make('div', { class: 'orbit-dial' });

@@ -1,7 +1,7 @@
 {
   "name": "nordstern",
   "private": false,
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "A local, offline, no-build dashboard for personal net worth, spending and FIRE progress. Reads your spreadsheet in the browser and sends nothing anywhere.",
   "scripts": {
     "build": "node tools/build.mjs",
@@ -10,7 +10,7 @@
     "test": "node tests/smoke.mjs && node tests/behaviour.mjs && node tests/geometry.mjs && node tests/formats.mjs && node tests/example.mjs && node tests/build.mjs && node tests/hook.mjs"
   },
   "devDependencies": {
-    "jsdom": "^26.0.0"
+    "jsdom": "^30.0.1"
   },
   "keywords": [
     "fire",
@@ -36,6 +36,6 @@
   "author": "Christian J. Heinze",
   "type": "commonjs",
   "engines": {
-    "node": ">=20"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   }
 }
