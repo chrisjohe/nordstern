@@ -52,16 +52,24 @@
      Eine dritte Schreibweise kommt aus der Schweiz: Gruppen durch Apostroph
      getrennt, der Punkt bleibt Dezimaltrennzeichen — „1'234.56". Ein
      Apostroph steht in keiner der beiden anderen Schreibweisen, die Lesart
-     ist also nie mehrdeutig. */
+     ist also nie mehrdeutig.
+
+     Ein Währungszeichen zählt nur am Rand — einmal, vor oder direkt nach
+     dem Vorzeichen oder ganz am Ende. Mitten in den Ziffern („12€34") ist
+     es keine Schreibweise, sondern eine kaputte Zelle; wer es dort entfernt,
+     macht aus einem Betrag leise einen anderen, und die Summenzeile merkt
+     es nicht, wenn sie genauso kaputt ist. */
   var DE_NUM = /^\d{1,3}(\.\d{3})+(,\d+)?$|^\d+(,\d+)?$/;
   var EN_NUM = /^\d{1,3}(,\d{3})+(\.\d+)?$|^\d+(\.\d+)?$/;
   var CH_NUM = /^\d{1,3}(['’]\d{3})+(\.\d+)?$/;
+  var CUR = '(€|\\$|£|¥|EUR|USD|GBP|CHF)?';
+  var EDGE = new RegExp('^([+\\-−]?)' + CUR + '([+\\-−]?)(.+?)' + CUR + '$', 'i');
 
   function parseNumber(v) {
-    var s = String(v).replace(/\s/g, '').replace(/[€$£¥]/g, '').replace(/EUR|USD|GBP|CHF/gi, '');
-    var sign = 1, first = s.charAt(0);
-    if (first === '+') s = s.slice(1);
-    else if (first === '-' || first === '−') { sign = -1; s = s.slice(1); }
+    var m = EDGE.exec(String(v).replace(/\s/g, ''));
+    if (!m || (m[1] && m[3]) || (m[2] && m[5])) return null;   // zwei Vorzeichen, zwei Währungen
+    var sg = m[1] || m[3], sign = sg === '-' || sg === '−' ? -1 : 1;
+    var s = m[4];
     var n = null;
     if (DE_NUM.test(s)) n = Number(s.replace(/\./g, '').replace(',', '.'));
     else if (EN_NUM.test(s)) n = Number(s.replace(/,/g, ''));

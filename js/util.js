@@ -247,7 +247,7 @@
   /* Eine Fassung, an einer Stelle. Ohne Bauschritt kann nichts sie aus
      package.json holen, also steht sie hier — und tests/behaviour.mjs hält
      beide gegeneinander, damit sie nicht auseinanderlaufen. */
-  NS.VERSION = '1.1.2';
+  NS.VERSION = '1.1.3';
 
   /* Formatierer müssen existieren, bevor irgendetwas eur()/pct()/dateTime()
      aufruft — auch in Tests, die util.js allein ohne app.js laden. EUR ist

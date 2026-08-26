@@ -382,7 +382,9 @@
         setExpenses(Number(refs.expInput.value), true);
       });
       refs.expInput.addEventListener('blur', function () {
-        if (refs.expInput.value === '') setExpenses(0);
+        // Beim Verlassen zeigt das Feld, was tatsächlich angewendet wurde
+        // (geklemmt auf 0..10000) — nicht mehr, was zuletzt getippt wurde.
+        setExpenses(refs.expInput.value);
       });
       refs.expRange.addEventListener('input', function () { setExpenses(Number(refs.expRange.value)); });
       refs.currency.addEventListener('change', function () {

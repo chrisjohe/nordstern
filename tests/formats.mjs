@@ -106,6 +106,26 @@ console.log('\n== Währung');
   ok(P("1'23.4") === null, "1'23.4 ist keine gültige Schweizer Gruppierung: " + P("1'23.4"));
   ok(P("12'345") === 12345, "12'345 ohne Nachkommastellen: " + P("12'345"));
   ok(P('USD 1,234.56') === 1234.56, 'USD 1,234.56 (englisch, mit vorangestelltem Code): ' + P('USD 1,234.56'));
+
+  /* Ein Währungszeichen darf nur einmal und nur am Rand stehen — vor oder
+     nach dem Vorzeichen, oder ganz am Ende. Mittendrin, doppelt oder ohne
+     Ziffern macht es die Zelle ungültig statt einen anderen Betrag zu
+     ergeben. */
+  ok(P('€12') === 12, '€12: ' + P('€12'));
+  ok(P('-€12') === -12, '-€12: ' + P('-€12'));
+  ok(P('€-12') === -12, '€-12: ' + P('€-12'));
+  ok(P('12 EUR') === 12, '12 EUR: ' + P('12 EUR'));
+  ok(P('EUR 1.234,56') === 1234.56, 'EUR 1.234,56: ' + P('EUR 1.234,56'));
+  ok(P('1.234,56 €') === 1234.56, '1.234,56 €: ' + P('1.234,56 €'));
+  ok(P('$1,234.56') === 1234.56, '$1,234.56: ' + P('$1,234.56'));
+  ok(P('12€') === 12, '12€: ' + P('12€'));
+  ok(P('12€34') === null, '12€34 ist keine Zahl, gelesen: ' + P('12€34'));
+  ok(P('1USD2') === null, '1USD2 ist keine Zahl, gelesen: ' + P('1USD2'));
+  ok(P('1.2€34,5') === null, '1.2€34,5 ist keine Zahl, gelesen: ' + P('1.2€34,5'));
+  ok(P('€12€') === null, '€12€ ist keine Zahl, gelesen: ' + P('€12€'));
+  ok(P('EUR12USD') === null, 'EUR12USD ist keine Zahl, gelesen: ' + P('EUR12USD'));
+  ok(P('-€-5') === null, '-€-5 ist keine Zahl, gelesen: ' + P('-€-5'));
+  ok(P('€') === null, '€ allein ist keine Zahl, gelesen: ' + P('€'));
 }
 
 /* 2. _currencyOfFormat: Zahlenformat-Zeichenkette → Währungscode oder null. */

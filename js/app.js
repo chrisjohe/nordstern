@@ -14,6 +14,11 @@
                 mountainPaused: false, arriving: false };
   var ui = {};
 
+  /* Zwei Dateidialoge kurz nacheinander: die zuerst gewählte, grössere Mappe
+     kann nach der zweiten fertig werden und sie überschreiben. Jede Auswahl
+     bekommt eine Marke; anwenden darf nur, wessen Marke noch die jüngste ist. */
+  var importSeq = 0;
+
   /* Die Formatierer folgen der gewählten Währung, nicht EUR — vor dem ersten
      Rendern gesetzt und nach jeder Änderung erneut, sonst zeigt eine Zahl
      kurz die alte Schreibweise, bevor refresh() nachzieht. */
@@ -94,12 +99,15 @@
       return;
     }
     ui.settings.setStatus('busy', 'reading …');
+    var token = ++importSeq;
     var fr = new FileReader();
     fr.onerror = function () {
+      if (token !== importSeq) return;
       ui.settings.setStatus('error', 'read error');
       toast('The file could not be read.', 'error');
     };
     fr.onload = function () {
+      if (token !== importSeq) return;
       var res = NS.importer.parseArrayBuffer(fr.result, file.name, { currency: state.settings.currency });
       if (!res.ok) {
         ui.settings.setStatus('error', 'unknown structure');

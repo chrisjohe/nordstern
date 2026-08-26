@@ -410,6 +410,42 @@ sec('Monatliche Ausgaben verschieben alle Ziele');
   w.close();
 }
 
+/* ---------- 2b. Ausgabenfeld: Klammern beim Verlassen, nicht beim Tippen ---------- */
+/* Während des Tippens bleibt das Zahlenfeld unangetastet, damit "10001" nicht
+   unter der Hand zu "10000" wird. Beim Verlassen (blur) zeigt es dagegen, was
+   wirklich angewendet wurde — geklemmt auf 0..10000, wie der Regler und die
+   gespeicherte Einstellung. */
+sec('Ausgabenfeld klemmt beim Verlassen auf die Vorgabe');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  d.querySelector('.st-hint').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  const inp=d.getElementById('setExp');
+  const range=d.querySelector('.field-range');
+
+  /* Fokus wie bei echter Eingabe — sonst schreibt der Re-Render aus dem
+     Zustand das Feld sofort zurück (settings.js gleicht nur ab, während es
+     nicht das aktive Element ist). */
+  inp.focus();
+  inp.value='10001'; inp.dispatchEvent(new w.Event('input'));
+  ok(inp.value==='10001','während des Tippens bleibt das Feld unangetastet: '+inp.value);
+  inp.dispatchEvent(new w.Event('blur'));
+  ok(inp.value==='10000','beim Verlassen klemmt das Feld auf die Vorgabe: '+inp.value);
+  ok(range.value==='10000','der Regler steht ebenfalls auf der Vorgabe: '+range.value);
+  ok(w.NORDSTERN.app.state.settings.monthlyExpenses===10000,
+     'und die gespeicherte Einstellung stimmt überein: '+w.NORDSTERN.app.state.settings.monthlyExpenses);
+
+  /* Das leere Feld ist der Sonderfall von vorher — er muss weiter gelten. */
+  inp.value=''; inp.dispatchEvent(new w.Event('input'));
+  inp.dispatchEvent(new w.Event('blur'));
+  ok(inp.value==='0','ein leergeräumtes Feld landet auf 0: '+inp.value);
+  ok(range.value==='0','der Regler folgt auf 0: '+range.value);
+  ok(w.NORDSTERN.app.state.settings.monthlyExpenses===0,
+     'und die Einstellung ebenfalls: '+w.NORDSTERN.app.state.settings.monthlyExpenses);
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 3b. Währung ---------- */
 /* Die Formatierer selbst — eigenes, kurzlebiges Fenster, das am Ende
    verworfen wird. Sonst rechnete jede folgende Reihe in Dollar weiter, weil
@@ -549,6 +585,54 @@ sec('Währung: Import übernimmt die Formatwährung');
      'die Bühne rendert sofort in Dollar: '+d.querySelector('.hero-val').textContent);
   ok(d.getElementById('toast').textContent.includes('Amounts shown in USD'),
      'der Toast nennt den Wechsel: '+d.getElementById('toast').textContent);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* Zwei Dateidialoge kurz hintereinander: wenn die zuerst gewählte Mappe
+   grösser ist, kann ihr FileReader nach dem zweiten fertig werden. Ohne
+   Gegenmassnahme gewinnt dann der langsamere, veraltete Import (js/app.js,
+   readFile/importSeq). */
+sec('Import: eine spät eintreffende erste Auswahl überschreibt die zweite nicht');
+{ const {w,errors}=await boot();
+  const d=w.document;
+  const orig=w.NORDSTERN.importer.parseArrayBuffer;
+  w.NORDSTERN.importer.parseArrayBuffer=function(){
+    const r=orig.apply(null,arguments);
+    if (r.ok) r.model._src=arguments[1];   // Marke, um die zwei Importe auseinanderzuhalten
+    return r;
+  };
+  /* Ein FileReader, der nichts von selbst tut: `finish` löst `onload` erst auf
+     Zuruf aus, damit die Reihenfolge der Antworten in der Hand des Tests
+     liegt, nicht in der Länge der Datei. */
+  const pending=[];
+  w.FileReader=function () { pending.push(this); };
+  w.FileReader.prototype.readAsArrayBuffer=function (file) { this.file=file; };
+  const buf=fs.readFileSync(FIXTURE);
+  const ab=buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength);
+  function finish(reader) { reader.result=ab; reader.onload(); }
+
+  const picker=d.getElementById('filePicker');
+  const first=new w.File([ab],'first.xlsx');
+  const second=new w.File([ab],'second.xlsx');
+  Object.defineProperty(picker,'files',{value:[first],configurable:true});
+  picker.dispatchEvent(new w.Event('change'));
+  Object.defineProperty(picker,'files',{value:[second],configurable:true});
+  picker.dispatchEvent(new w.Event('change'));
+  ok(pending.length===2,'beide Auswahlen haben einen Reader angelegt: '+pending.length);
+
+  finish(pending[1]);            // die zweite, jüngere Auswahl kommt zuerst an
+  await tick(20);
+  finish(pending[0]);            // die erste, ältere Auswahl trudelt verspätet ein
+  await tick(20);
+
+  ok(w.NORDSTERN.app.state.model && w.NORDSTERN.app.state.model._src==='second.xlsx',
+     'im Zustand steht das Ergebnis der zweiten Auswahl: '+(w.NORDSTERN.app.state.model&&w.NORDSTERN.app.state.model._src));
+  const stored=w.NORDSTERN.store.loadModel();
+  ok(stored && stored._src==='second.xlsx',
+     'auch im Speicher steht die zweite Auswahl: '+(stored&&stored._src));
+  ok(d.querySelector('.meta-import').textContent!=='read error',
+     'der Status zeigt keinen Fehler aus dem verspäteten ersten Import: '+d.querySelector('.meta-import').textContent);
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }
@@ -1221,7 +1305,7 @@ sec('Zahlen als Text');
               ['1.2345',1.2345],    // als deutsche Gruppierung unmöglich
               ['1.234.567,89',1234567.89],['12,345',12.345]];
   good.forEach(([t,v])=>ok(P(t)===v,'„'+t+'" ist '+v+', gelesen: '+P(t)));
-  const bad=['1.234.56','abc','12,34,56','1.23.456','','12 %','1.2.3','--5','1,2345.6'];
+  const bad=['1.234.56','abc','12,34,56','1.23.456','','12 %','1.2.3','--5','1,2345.6','12€34','1USD2'];
   bad.forEach(t=>ok(P(t)===null,'„'+t+'" ist keine Zahl, gelesen: '+P(t)));
 
   /* Und dasselbe in einer Mappe, in der Posten und Summenzeile beide Text
@@ -1317,6 +1401,41 @@ sec('Zeitlücken im Verlauf');
      'und am zweiten Punkt der zweite: '+hover(Math.round(b[1])));
   /* Im Loch steht kein Punkt — gezeigt wird der nähere Rand. */
   ok(hover(Math.round(b[1]+(b[2]-b[1])*0.75))==='August 2026','in der Lücke der nähere Rand');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6b. Chart-Geometrie folgt der eigenen Zeichnung ---------- */
+sec('Chart-Geometrie nach leerer Zeichnung');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  const body=d.querySelector('.chart-body');
+  const tip=()=>d.querySelector('.chart-tip');
+  const hover=x=>{ const e=new w.Event('pointermove'); e.clientX=x; e.clientY=300; body.dispatchEvent(e); };
+
+  hover(200);
+  ok(tip().classList.contains('is-on'),'Tooltip zeigt nach Hover');
+  ok(!!d.querySelector('.chart-tip .tip-key'),'und trägt einen Monat: '+(d.querySelector('.chart-tip .tip-key')||{}).textContent);
+
+  /* Wechsel auf eine Serie mit nur einem Punkt: render() bricht ab (slice() < 2
+     Punkte), die alte Geometrie darf dabei nicht überleben — sonst zeigt der
+     Zeiger auf der leeren Fläche noch Werte des vorigen Workbooks. */
+  const view1=JSON.parse(JSON.stringify(w.NORDSTERN.app.state.view));
+  view1.series=view1.series.slice(-1);
+  w.NORDSTERN.app.ui.chart.setData(view1,false);
+  ok(d.querySelectorAll('.chart-body svg').length===0,'keine Zeichnung bei nur einem Punkt');
+  hover(200);
+  ok(!tip().classList.contains('is-on'),
+     'Tooltip bleibt aus, statt den Wert des vorigen Workbooks zu zeigen: '+tip().className);
+
+  /* clear() räumt dieselbe Geometrie mit auf. */
+  w.NORDSTERN.app.ui.chart.setData(w.NORDSTERN.app.state.view,false);
+  hover(200);
+  ok(tip().classList.contains('is-on'),'Tooltip wieder an nach normalem Modell (Testaufbau)');
+  w.NORDSTERN.app.ui.chart.clear();
+  hover(200);
+  ok(!tip().classList.contains('is-on'),'clear() löscht die Geometrie mit: '+tip().className);
+
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }

@@ -116,6 +116,10 @@
     function render() {
       if (!state.view) return;
       body.querySelectorAll('svg').forEach(function (n) { n.remove(); });
+      /* Die Geometrie gehört zur Zeichnung; verschwindet die Zeichnung, muss
+         die Geometrie mit — sonst liest der Zeiger noch das alte Workbook. */
+      state.geom = null;
+      tip.classList.remove('is-on');
       var rect = body.getBoundingClientRect();
       var w = Math.max(260, rect.width), h = Math.max(120, rect.height);
       state.w = Math.round(rect.width); state.h = Math.round(rect.height);
@@ -485,6 +489,9 @@
       clear: function () {
         state.view = null; state.arrive = false;
         body.querySelectorAll('svg').forEach(function (n) { n.remove(); });
+        /* Dieselbe Regel wie in render(): keine Zeichnung, keine Geometrie. */
+        state.geom = null;
+        tip.classList.remove('is-on');
       },
       setData: function (view, arrive) { state.view = view; if (arrive) state.arrive = true; render(); }
     };
