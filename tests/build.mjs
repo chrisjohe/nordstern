@@ -76,7 +76,7 @@ ok(typeof B.w.XLSX==='object','SheetJS ist da');
 ok(!B.w.document.getElementById('gate').hidden,'ohne Daten steht der Vorhang');
 ok(B.w.document.querySelectorAll('.card').length===8,'acht Karten gebaut');
 ok(B.w.document.querySelectorAll('.sheet-nav-item').length===6,'sechs Einstellungs-Abschnitte');
-ok(B.w.document.querySelectorAll('.wbt').length===2,'beide Mappen-Tabellen stehen');
+ok(B.w.document.querySelectorAll('.wbt').length===1,'die Mappen-Tabelle steht');
 
 sec('Dieselbe Mappe ergibt dasselbe Bild');
 const A=await boot();

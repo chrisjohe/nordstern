@@ -140,10 +140,10 @@
 
   /* Vergessen ist mehr als den Vorhang zuziehen: die Module haben ihr Bild
      schon gezeichnet und rendern bei `null` gar nicht erst neu, blieben also
-     dahinter sichtbar. Und der variable Betrag ist die einzige Zahl, die von
-     Hand eingegeben wird — er muss genauso aus dem Speicher wie das Modell.
-     Was hier passiert, ist deshalb dasselbe wie ein Neustart ohne Mappe:
-     Speicher leer, Zustand zurück auf Werk, jedes Modul leergeräumt. */
+     dahinter sichtbar. Und der monatliche Ausgabenbetrag ist die einzige
+     Zahl, die von Hand eingegeben wird — er muss genauso aus dem Speicher wie
+     das Modell. Was hier passiert, ist deshalb dasselbe wie ein Neustart ohne
+     Mappe: Speicher leer, Zustand zurück auf Werk, jedes Modul leergeräumt. */
   function forget() {
     NS.store.clearAll();
     state.model = null; state.view = null;
@@ -158,7 +158,7 @@
     U.el('#mountStatus').innerHTML = '';
     ui.settings.sync(null, null, state.settings);
     showGate('No data yet',
-      'Drop the workbook with your snapshots here — or pick it. Only the sheets "Data Input" and "Expenses" are read.');
+      'Drop the workbook with your snapshots here — or pick it. Only the sheet "Data Input" is read.');
     ui.settings.setStatus('none', 'no import');
     ui.settings.close();
   }
@@ -218,12 +218,12 @@
     lg.className = 'lg lg-ring ' + (c.reached ? 'is-ok' : 'is-warn');
     lg.textContent = 'Reserve ring';
 
-    if (!v.expenses.variableSet) {
+    if (!v.expenses.set) {
       box.appendChild(U.make('button', {
         type: 'button', class: 'st-hint',
-        text: 'variable amount is an estimate',
-        title: 'Food, leisure and holidays are not in the workbook, so a default stands in for them. ' +
-               'Every target moves with it — set your own in Settings → expenses.'
+        text: 'expenses are an estimate',
+        title: 'The monthly amount is a default, not your figure. Every target moves with it — ' +
+               'set your own in Settings → expenses.'
       })).addEventListener('click', function () { ui.settings.open('expenses'); });
     }
   }
@@ -325,7 +325,7 @@
     }
     if (!standing) {
       showGate('No data yet',
-        'Drop the workbook with your snapshots here — or pick it. Excel, Numbers, LibreOffice, or a spreadsheet exported from Google Sheets. Only the sheets "Data Input" and "Expenses" are read. The file stays unchanged, and nothing leaves this machine.');
+        'Drop the workbook with your snapshots here — or pick it. Excel, Numbers, LibreOffice, or a spreadsheet exported from Google Sheets. Only the sheet "Data Input" is read. The file stays unchanged, and nothing leaves this machine.');
       ui.settings.setStatus('none', 'no import');
       refresh();
     }

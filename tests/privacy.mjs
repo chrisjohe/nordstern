@@ -253,13 +253,11 @@ const add = (v, what) => { if (v && String(v).length >= 5) needles.set(String(v)
 
 Object.entries(M.accounts).forEach(([sec, rows]) =>
   rows.forEach((a) => add(a.name, 'Kontoname (' + sec + ')')));
-M.expenses.monthlyItems.concat(M.expenses.annualItems)
-  .forEach((i) => add(i.name, 'Ausgabenposten'));
 /* Die Namen der übrigen Blätter stehen nicht mehr im Modell — genau das ist
    der Punkt. Sie kommen deshalb aus der Datei selbst; taucht einer davon
    irgendwo auf, ist etwas durchgesickert. */
 XLSX.read(new Uint8Array(buf), { type: 'array', bookSheets: true }).SheetNames
-  .filter((n) => !/^(data input|expenses)$/i.test(n))
+  .filter((n) => !/^(data input)$/i.test(n))
   .forEach((n) => add(n, 'Blattname'));
 add(path.basename(WORKBOOK).replace(/\.[^.]+$/, ''), 'Dateiname der Mappe');
 
@@ -271,8 +269,6 @@ const de0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
 const amounts = [];
 M.months.slice(-24).forEach((m) => amounts.push(m.netWorth, m.totalAssets, m.investment, m.liquid, m.liabilities));
 amounts.push(Math.max(...M.months.map((m) => m.netWorth)), Math.min(...M.months.map((m) => m.netWorth)));
-amounts.push(M.expenses.monthlyFixed, M.expenses.annualFixed, M.expenses.fixedMonthly);
-M.expenses.monthlyItems.concat(M.expenses.annualItems).forEach((i) => amounts.push(i.amount));
 amounts.filter((n) => typeof n === 'number' && Math.abs(n) >= 100).forEach((n) => {
   add(de2.format(n), 'Betrag'); add(de0.format(n), 'Betrag'); add(String(Math.round(n * 100) / 100), 'Betrag');
 });

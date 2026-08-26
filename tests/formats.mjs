@@ -30,8 +30,8 @@ const base = read(fs.readFileSync(FIXTURE), 'nordstern-example.xlsx');
 ok(base.ok && base.warnings.length === 0, 'die Beispielmappe selbst liest sich sauber');
 {
   const kept = g.NORDSTERN.importer._openWorkbook(XLSX, new Uint8Array(fs.readFileSync(FIXTURE))).SheetNames;
-  ok(kept.join(' · ') === 'Data Input · Expenses',
-     'und gibt nur die zwei Blätter weiter, obwohl sie drei hat: ' + kept.join(' · '));
+  ok(kept.join(' · ') === 'Data Input',
+     'und gibt nur das eine Blatt weiter, obwohl sie zwei hat: ' + kept.join(' · '));
 }
 const ref = base.model.months[base.model.months.length - 1];
 
@@ -70,12 +70,12 @@ for (const bt of accept.filter((f) => f !== 'numbers')) {
     }
   });
   const kept = g.NORDSTERN.importer._openWorkbook(spy, new Uint8Array(buf)).SheetNames;
-  ok(kept.join(' · ') === 'Data Input · Expenses',
-     bt + ' reicht nur die zwei Blätter weiter: ' + kept.join(' · '));
-  const expected = bt === 'ods' ? 3 : 2;
+  ok(kept.join(' · ') === 'Data Input',
+     bt + ' reicht nur das eine Blatt weiter: ' + kept.join(' · '));
+  const expected = bt === 'ods' ? 2 : 1;
   ok(decoded.length === 1 && decoded[0] === expected,
-     bt + ': ' + decoded[0] + ' von 3 Blättern dekodiert' +
-     (expected === 3 ? ' — SheetJS kennt für dieses Format keinen Filter' : ''));
+     bt + ': ' + decoded[0] + ' von 2 Blättern dekodiert' +
+     (expected === 2 ? ' — SheetJS kennt für dieses Format keinen Filter' : ''));
 }
 
 /* Und der Leser für Numbers ist wirklich im Bundle — geprüft am Code, weil
@@ -134,8 +134,8 @@ console.log('\n== Währung');
 function freshWorkbook() {
   return XLSX.read(fs.readFileSync(FIXTURE), { type: 'buffer', cellDates: true });
 }
-/* Betragszellen sind alle Zellen mit numerischem .v auf den zwei gelesenen
-   Blättern. Mit cellDates:true stehen die Monatsdaten in der Kopfzeile von
+/* Betragszellen sind alle Zellen mit numerischem .v auf dem einen gelesenen
+   Blatt. Mit cellDates:true stehen die Monatsdaten in der Kopfzeile von
    "Data Input" als Date-Objekt, nicht als Zahl — sie zählen hier also
    ohnehin nicht mit, ohne dass die Kopfzeile eigens übersprungen werden muss. */
 function setAmountFormat(wb, sheetNames, fmt) {
@@ -150,7 +150,7 @@ function setAmountFormat(wb, sheetNames, fmt) {
 }
 {
   const wb = freshWorkbook();
-  setAmountFormat(wb, ['Data Input', 'Expenses'], '"$"#,##0.00');
+  setAmountFormat(wb, ['Data Input'], '"$"#,##0.00');
   const r = g.NORDSTERN.importer.parseWorkbook(wb, 'x.xlsx', {});
   ok(r.ok, 'a) liest sich trotz Formatwechsel: ' + r.errors.join(' | '));
   ok(r.currency === 'USD', 'a) einheitlich als USD erkannt: ' + r.currency);
@@ -158,7 +158,7 @@ function setAmountFormat(wb, sheetNames, fmt) {
 }
 {
   const wb = freshWorkbook();
-  setAmountFormat(wb, ['Data Input', 'Expenses'], '[$CHF-807] #,##0.00');
+  setAmountFormat(wb, ['Data Input'], '[$CHF-807] #,##0.00');
   const r = g.NORDSTERN.importer.parseWorkbook(wb, 'x.xlsx', {});
   ok(r.ok, 'b) liest sich trotz Formatwechsel: ' + r.errors.join(' | '));
   ok(r.currency === 'CHF', 'b) einheitlich als CHF erkannt: ' + r.currency);
@@ -172,32 +172,25 @@ function setAmountFormat(wb, sheetNames, fmt) {
   ok(r.currency === null, 'c) unveränderte Beispielmappe trägt keine Währung im Format: ' + r.currency);
 }
 {
+  /* Zwei Währungen auf demselben, einzigen gelesenen Blatt — die meisten
+     Betragszellen tragen Euro, ein Rest Dollar. Die Mehrheit entscheidet
+     nichts: mehr als eine Währung ergibt kein Ergebnis, sondern eine Warnung
+     mit beiden Codes, dem häufigeren zuerst. */
   const wb = freshWorkbook();
-  setAmountFormat(wb, ['Data Input'], '€#,##0.00');
-  setAmountFormat(wb, ['Expenses'], '"$"#,##0.00');
+  const ws = wb.Sheets['Data Input'];
+  const addrs = Object.keys(ws).filter((a) => a.charAt(0) !== '!' && typeof ws[a].v === 'number');
+  addrs.forEach((a, i) => { ws[a].z = i < Math.ceil(addrs.length * 0.8) ? '€#,##0.00' : '"$"#,##0.00'; });
   const r = g.NORDSTERN.importer.parseWorkbook(wb, 'x.xlsx', { currency: 'GBP' });
-  ok(r.currency === null, 'd) zwei Währungen auf den Blättern ergeben kein Ergebnis: ' + r.currency);
+  ok(r.currency === null, 'd) zwei Währungen auf demselben Blatt ergeben kein Ergebnis: ' + r.currency);
   ok(r.warnings.some((x) => /more than one currency .*\(EUR, USD\)\. Shown as GBP/.test(x)),
      'd) und eine Warnung mit beiden Codes und der Anzeigewährung: ' + r.warnings.join(' | '));
 }
 {
   const wb = freshWorkbook();
-  setAmountFormat(wb, ['Data Input', 'Expenses'], '[$-409]#,##0.00');
+  setAmountFormat(wb, ['Data Input'], '[$-409]#,##0.00');
   const r = g.NORDSTERN.importer.parseWorkbook(wb, 'x.xlsx', {});
   ok(r.currency === null, 'e) ein reines Gebietsschema ohne Symbol trägt keine Währung: ' + r.currency);
   ok(!r.warnings.some((x) => x.includes('more than one')), 'e) und keine Mehrfachwarnung: ' + r.warnings.join(' | '));
-}
-
-/* 4. Die Anzeigewährung steckt im Text der Warnung selbst: eine erzwungene
-   Summenabweichung auf "Expenses" muss opts.currency tragen, nicht das fest
-   verdrahtete €. */
-{
-  const wb = freshWorkbook();
-  wb.Sheets['Expenses']['B2'].v += 100;   // ein Monatsposten verschoben — Summe ≠ Gesamtzeile
-  const r = g.NORDSTERN.importer.parseWorkbook(wb, 'x.xlsx', { currency: 'USD' });
-  const w = r.warnings.find((x) => x.includes('line items add up'));
-  ok(!!w, 'die erzwungene Abweichung wird gemeldet: ' + r.warnings.join(' | '));
-  ok(!!w && w.includes(' USD') && !w.includes('€'), 'und trägt USD statt €: ' + w);
 }
 
 console.log('\n' + pass + ' bestanden, ' + fail + ' fehlgeschlagen');

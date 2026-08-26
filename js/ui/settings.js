@@ -105,37 +105,32 @@
       /* --- Ausgaben ------------------------------------------------------ */
       /* Vorbelegt mit Gedankenstrichen: ohne Import steht hier nichts, und ein
          leeres Feld sähe nach Fehler aus statt nach „noch nichts gelesen". */
-      refs.fixed = U.make('b', { class: 'num', text: '—' });
-      refs.variable = U.make('b', { class: 'num', text: '—' });
       refs.total = U.make('b', { class: 'num is-total', text: '—' });
       refs.annual = U.make('span', { class: 'sheet-hint', text: '—' });
 
-      refs.varInput = U.make('input', {
-        type: 'number', min: '0', max: '10000', step: '10', class: 'field-num',
-        id: 'setVar', 'aria-describedby': 'setVarHint'
+      refs.expInput = U.make('input', {
+        type: 'number', min: '0', max: '10000', step: '50', class: 'field-num',
+        id: 'setExp', 'aria-describedby': 'setExpHint'
       });
-      refs.varRange = U.make('input', {
-        type: 'range', min: '0', max: '3000', step: '10', class: 'field-range',
-        'aria-label': 'Variable monthly amount'
+      refs.expRange = U.make('input', {
+        type: 'range', min: '0', max: '10000', step: '50', class: 'field-range',
+        'aria-label': 'Monthly expenses'
       });
 
       body.appendChild(pane('expenses', [
-        U.make('p', { class: 'sheet-copy', id: 'setVarHint', text:
-          'Fixed costs come from the "Expenses" sheet of the workbook and cover no food, ' +
-          'no leisure, no hobbies and no holidays. The variable amount adds exactly that — ' +
-          'together they set all eight target amounts. Until you set it, a default estimate ' +
-          'stands here: better a rough figure than eight targets that quietly ignore living.' }),
+        U.make('p', { class: 'sheet-copy', id: 'setExpHint', text:
+          'All eight targets are multiples of this one amount: what your household costs in ' +
+          'a month, fixed costs and living included. Until you set it, a default stands here ' +
+          '— better a rough figure than eight targets that quietly sit at zero.' }),
         U.make('div', { class: 'field' }, [
-          U.make('label', { class: 'field-lab', htmlFor: 'setVar', text: 'Variable monthly amount' }),
-          U.make('div', { class: 'field-ctl' }, [refs.varInput,
-            (refs.varUnit = U.make('span', { class: 'field-unit', text: '€' }))])
+          U.make('label', { class: 'field-lab', htmlFor: 'setExp', text: 'Monthly expenses' }),
+          U.make('div', { class: 'field-ctl' }, [refs.expInput,
+            (refs.expUnit = U.make('span', { class: 'field-unit', text: '€' }))])
         ]),
-        refs.varRange,
-        /* Die Summe ist der Hauptdarsteller: die beiden Zeilen darüber führen
-           sie her, der Jahreswert steht als stille Fußnote darunter. */
+        refs.expRange,
+        /* Die Summe ist der Hauptdarsteller: die Zeile darunter führt den
+           Jahreswert als stille Fußnote mit. */
         U.make('dl', { class: 'sheet-facts' }, [
-          U.make('dt', { text: 'Fixed costs from the workbook' }), U.make('dd', {}, [refs.fixed]),
-          U.make('dt', { text: 'Variable amount' }), U.make('dd', {}, [refs.variable]),
           U.make('dt', { class: 'is-sum', text: 'Per month' }), U.make('dd', { class: 'is-sum' }, [refs.total]),
           U.make('dt', { class: 'is-foot', text: 'Per year' }), U.make('dd', { class: 'is-foot' }, [refs.annual])
         ])
@@ -186,7 +181,7 @@
         refs.warn,
         U.make('div', { class: 'sheet-actions' }, [refs.reimport, refs.forget]),
         U.make('p', { class: 'sheet-copy', text:
-          'Only the sheets "Data Input" and "Expenses" are read. The workbook is never ' +
+          'Only the sheet "Data Input" is read. The workbook is never ' +
           'modified, and nothing leaves this machine.' })
       ]));
 
@@ -200,10 +195,8 @@
          erfunden und gehen glatt auf (7.500 + 60.000 + 12.000 + 8.500 =
          88.000 − 20.000 = 68.000): im Code steht kein echter Betrag.
 
-         Optionales fehlt vollständig — die Fälligkeitsspalte wird gelesen,
-         wenn es sie gibt, aber wer die Mappe neu baut, soll die kürzeste
-         Fassung sehen. Ändert sich js/importer.js, ändert sich diese Tabelle
-         mit; tests/behaviour.mjs prüft jede Beschriftung gegen den Importer. */
+         Ändert sich js/importer.js, ändert sich diese Tabelle mit;
+         tests/behaviour.mjs prüft jede Beschriftung gegen den Importer. */
       function wbRow(r) {
         return U.make('tr', { class: r[2] || '' }, [
           U.make('td', { text: r[0] }),
@@ -211,7 +204,7 @@
         ]);
       }
       /* Die zweite Überschrift benennt, welche Spalten das Beispiel meint —
-         in „Data Input" alle Monatsspalten, in „Expenses" nur eine einzige. */
+         in „Data Input" alle Monatsspalten. */
       function wbTable(right, rows) {
         return U.make('table', { class: 'wbt' }, [
           U.make('thead', {}, [U.make('tr', {}, [
@@ -224,7 +217,7 @@
 
       body.appendChild(pane('workbook', [
         U.make('p', { class: 'sheet-copy', text:
-          'Two sheets are read, by name: "Data Input" and "Expenses" — everything else in ' +
+          'One sheet is read, by name: "Data Input" — everything else in ' +
           'the file is ignored. Rows are found by their label in column A, never by row ' +
           'number, so you can insert, move and rename accounts freely. Case and extra ' +
           'spaces do not matter.' }),
@@ -255,22 +248,7 @@
           'One column per month, each carrying a date in the row "Month". Between a ' +
           'section and its total row you may keep as many account rows as you like, named ' +
           'however you want — the rows in italics are only examples. Every section needs ' +
-          'both its head and its total row, even when it stays at zero.' }),
-        U.make('h3', { class: 'pane-sub', text: 'Sheet "Expenses"' }),
-        wbTable('Column B', [
-          ['Rent', '780,00', 'is-item'],
-          ['Electricity', '95,00', 'is-item'],
-          ['Monthly fixed costs', '875,00', 'is-total'],
-          ['Car insurance', '620,00', 'is-item'],
-          ['Liability insurance', '84,00', 'is-item'],
-          ['Annual fixed costs', '704,00', 'is-total']
-        ]),
-        U.make('p', { class: 'sheet-copy', text:
-          'Column A the name, column B the amount. Monthly items stand above their total ' +
-          'row, annual items between the two total rows. Both total rows are needed — they ' +
-          'are what tells the two kinds apart. Their amounts may be left blank; then the ' +
-          'items above them are added up. Monthly fixed costs = monthly total + annual ' +
-          'total ÷ 12.' })
+          'both its head and its total row, even when it stays at zero.' })
       ]));
 
       /* --- Bewegung --------------------------------------------------------
@@ -309,7 +287,7 @@
         return [U.make('dt', { text: term }), U.make('dd', { text: detail })];
       }
       var facts = [];
-      [['Read', 'The two sheets "Data Input" and "Expenses" — nothing else is kept, evaluated or stored, not even a sheet name. In .xlsx, .xlsm and .xlsb the parser is handed those two names and decodes no other sheet. For .ods and .numbers SheetJS offers no such filter: there the whole workbook is decoded, and everything but the two is dropped the moment it is open.'],
+      [['Read', 'The sheet "Data Input" — nothing else is kept, evaluated or stored, not even a sheet name. In .xlsx, .xlsm and .xlsb the parser is handed that one name and decodes no other sheet. For .ods and .numbers SheetJS offers no such filter: there the whole workbook is decoded, and everything but that sheet is dropped the moment it is open.'],
        ['Written', 'Nothing. There is no write path — the app never calls XLSX.write, and your file is closed again unchanged.'],
        ['Sent', 'Nothing, anywhere. There is no fetch, no XMLHttpRequest, no WebSocket, no image request, no web font, no analytics, no error reporting.'],
        ['Stored', 'Two keys in this browser\u2019s localStorage: the parsed model and your settings. Nothing else, nowhere else.'],
@@ -398,14 +376,14 @@
 
       refs.close.addEventListener('click', close);
       scrim.addEventListener('click', close);
-      refs.varInput.addEventListener('input', function () {
-        if (refs.varInput.value === '') return;          // Feld gerade leergeräumt
-        setVar(Number(refs.varInput.value), true);
+      refs.expInput.addEventListener('input', function () {
+        if (refs.expInput.value === '') return;          // Feld gerade leergeräumt
+        setExpenses(Number(refs.expInput.value), true);
       });
-      refs.varInput.addEventListener('blur', function () {
-        if (refs.varInput.value === '') setVar(0);
+      refs.expInput.addEventListener('blur', function () {
+        if (refs.expInput.value === '') setExpenses(0);
       });
-      refs.varRange.addEventListener('input', function () { setVar(Number(refs.varRange.value)); });
+      refs.expRange.addEventListener('input', function () { setExpenses(Number(refs.expRange.value)); });
       refs.currency.addEventListener('change', function () {
         api.patchSettings({ currency: refs.currency.value });
       });
@@ -432,11 +410,11 @@
       refs.calmState.textContent = refs.calm.checked ? 'on' : 'off';
     }
 
-    function setVar(n, fromField) {
+    function setExpenses(n, fromField) {
       n = U.clamp(Math.round(Number(n) || 0), 0, 10000);
-      if (!fromField && refs.varInput.value !== String(n)) refs.varInput.value = String(n);
-      refs.varRange.value = String(Math.min(n, 3000));
-      api.patchSettings({ variableMonthly: n, variableSet: true });
+      if (!fromField && refs.expInput.value !== String(n)) refs.expInput.value = String(n);
+      refs.expRange.value = String(n);
+      api.patchSettings({ monthlyExpenses: n, expensesSet: true });
     }
 
     /* Was hinter dem Blatt liegt, während es offen ist. Die Bühne steckt in
@@ -521,30 +499,24 @@
         if (refs.currency !== document.activeElement && refs.currency.value !== settings.currency) {
           refs.currency.value = settings.currency;
         }
-        refs.varUnit.textContent = U.currencySymbol();
+        refs.expUnit.textContent = U.currencySymbol();
         refs.currencyHint.textContent =
           'Display only, nothing is converted. ' +
           'Importing a workbook whose number formats carry a currency symbol switches this to match.';
         refs.anim.checked = !!settings.animations;
         refs.calm.checked = settings.motionIntensity === 'ruhig';
         paintSwitches();
-        var vm = String(settings.variableMonthly || 0);
-        if (refs.varInput !== document.activeElement && refs.varInput.value !== vm) refs.varInput.value = vm;
-        refs.varRange.value = String(Math.min(settings.variableMonthly || 0, 3000));
-        /* Ohne Modell muss hier ein Strich stehen, keine alte Zahl. Das Blatt
-           bleibt nach dem Löschen erreichbar — stünden die Ausgaben noch da,
-           wäre „Delete local data" eine Behauptung. */
+        var em = String(settings.monthlyExpenses || 0);
+        if (refs.expInput !== document.activeElement && refs.expInput.value !== em) refs.expInput.value = em;
+        refs.expRange.value = em;
+        /* Die Summe hängt an der Einstellung, nicht an der Mappe — sie steht
+           auch ohne Modell da. Nur der Stichmonat braucht eins. */
+        var monthly = Math.max(0, Number(settings.monthlyExpenses) || 0);
+        refs.total.textContent = U.eur(monthly);
+        refs.annual.textContent = U.eur(monthly * 12);
         if (v) {
-          refs.fixed.textContent = U.eur(v.expenses.fixedMonthly);
-          refs.variable.textContent = U.eur(v.expenses.variableMonthly);
-          refs.total.textContent = U.eur(v.expenses.totalMonthly);
-          refs.annual.textContent = U.eur(v.expenses.totalAnnual);
           refs.snap.textContent = U.monthLong(v.monthKey);
         } else {
-          refs.fixed.textContent = '—';
-          refs.variable.textContent = '—';
-          refs.total.textContent = '—';
-          refs.annual.textContent = '—';
           refs.snap.textContent = '—';
         }
         if (model) {

@@ -72,26 +72,27 @@ are read off the current month; the model also carries `receivables`,
 `tangible`, `retirement`, `totalAssets` and `netWorth`, all of them already
 parsed and summed per month.
 
-### The variable share
+### The monthly expenses
 
-Food, leisure and holidays are not in the workbook, so nordstern adds them on
-top of the fixed costs. This one figure moves all eight targets at once.
+Nothing about spending is in the workbook, so nordstern asks for one figure
+directly: what your household costs in a month, fixed costs and living
+included. This one figure moves all eight targets at once.
 
 **Once:** *Settings → expenses*. It is stored in your browser and survives
 reloads — but not *Delete local data*, and not a different browser.
 
-**Permanently:** `js/store.js`, the constant `DEFAULT_VARIABLE`:
+**Permanently:** `js/store.js`, the constant `DEFAULT_EXPENSES`:
 
 ```js
-var DEFAULT_VARIABLE = 600;        // 20 € a day, rounded
+var DEFAULT_EXPENSES = 2500;       // a placeholder, not anyone's real figure
 ```
 
 That is what a fresh browser starts with, and what *Delete local data* falls
-back to. It is deliberately not zero: at zero every target counts fixed costs
-only and therefore sits too low, which is a worse error than a rough guess.
-It is equally deliberately not anyone's real spending — change it to whatever
-your household actually costs, and the dashboard stops calling it an
-estimate as soon as anyone touches the field.
+back to. It is deliberately not zero: at zero every target would sit at zero
+too, which is a worse error than a rough guess. It is equally deliberately
+not anyone's real spending — change it to whatever your household actually
+costs, and the dashboard stops calling it an estimate as soon as anyone
+touches the field.
 
 If you fork this for someone else, this constant and the `MILESTONES` table
 are the two places to visit before handing it over.
@@ -246,7 +247,7 @@ Worth knowing, so you do not go looking:
 ## Checklist
 
 ```
-0. what does living cost?     → js/store.js  DEFAULT_VARIABLE
+0. what does living cost?     → js/store.js  DEFAULT_EXPENSES
 1. edit js/calc.js            → MILESTONES
 2. matching icon?             → js/ui/icons.js  GLYPHS
 3. matching gradient?         → js/ui/cards.js  WASH

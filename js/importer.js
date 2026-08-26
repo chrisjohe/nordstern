@@ -1,18 +1,18 @@
 /* NORDSTERN — Importer.
    SÄMTLICHES Wissen über den Aufbau der Arbeitsmappe lebt in dieser Datei.
-   Ausgewertet, behalten und gespeichert werden ausschließlich die Blätter
-   "Data Input" und "Expenses"; für xlsx, xlsm und xlsb wird kein anderes
-   überhaupt dekodiert (siehe openWorkbook, wo auch steht, warum ods und
-   numbers das nicht können).
+   Ausgewertet, behalten und gespeichert wird ausschließlich das Blatt
+   "Data Input"; für xlsx, xlsm und xlsb wird kein anderes überhaupt
+   dekodiert (siehe openWorkbook, wo auch steht, warum ods und numbers das
+   nicht können).
    Die Datei wird nur gelesen — nie geschrieben, nie ergänzt. */
 (function (global) {
   'use strict';
 
   var NS = global.NORDSTERN || (global.NORDSTERN = {});
-  /* 2 statt 1, seit das Modell die Blattnamen nicht mehr mitführt: ein unter
-     Version 1 gespeichertes Modell trägt sie noch, und die sollen weg. Ein
-     Versionssprung wirft es beim Laden fort — einmal neu importieren. */
-  var MODEL_VERSION = 2;
+  /* Wer die Form des Modells ändert, zählt hier hoch: ein Modell mit anderer
+     Nummer wirft store.js beim Laden fort, und die App bittet um einen neuen
+     Import statt mit einer alten Form weiterzurechnen. */
+  var MODEL_VERSION = 3;
   /* Anzeigewährung für die Warnhinweise unten ("… 5.855,00 USD, …") — vom
      Aufrufer über opts.currency gesetzt, je Lauf neu, wie `noted`. Betrifft
      nur den Text der Warnung, nicht die Zahl: die Mappe wird nicht
@@ -115,11 +115,11 @@
     return null;
   }
 
-  /* Zählung je Lauf, über beide Blätter hinweg — wie `noted`, aber nicht auf
-     ein Blatt beschränkt: erst parseWorkbook weiß, ob eine oder mehrere
-     Währungen vorkommen. `currencySeen` verhindert die doppelte Zählung
-     derselben Zelle: „Data Input" liest z. B. die Summenzeile einer Sektion
-     einmal für die Monatsreihe und ein zweites Mal für die Gegenprobe. */
+  /* Zählung je Lauf, nicht je Aufruf von noteInit — erst parseWorkbook weiß,
+     ob eine oder mehrere Währungen vorkommen. `currencySeen` verhindert die
+     doppelte Zählung derselben Zelle: „Data Input" liest die Summenzeile
+     einer Sektion einmal für die Monatsreihe und ein zweites Mal für die
+     Gegenprobe. */
   var currencyTally = null;
   var currencySeen = null;
   function currencyTallyReset() { currencyTally = {}; }
@@ -137,7 +137,7 @@
     if (codes.length === 0) return null;
     if (codes.length === 1) return codes[0];
     codes.sort(function (a, b) { return currencyTally[b] - currencyTally[a]; });
-    warnings.push('Amounts are formatted in more than one currency on the sheets (' +
+    warnings.push('Amounts are formatted in more than one currency on the sheet (' +
       codes.join(', ') + '). Shown as ' + shownAs + ' — change it in settings.');
     return null;
   }
@@ -462,95 +462,12 @@
     };
   }
 
-  /* --------------------------------------------------- Aufbau von "Expenses" */
-
-  var EXP_MONTHLY_TOTAL = 'monthly fixed costs';
-  var EXP_ANNUAL_TOTAL  = 'annual fixed costs';
-  var EXP_HEADER        = 'kind';
-
-  function parseExpenses(ws, errors, warnings) {
-    noteInit('Expenses');
-    var range = decodeRange(ws);
-    var L = labelRows(ws, range);
-    var rMonthly = L.map[EXP_MONTHLY_TOTAL];
-    var rAnnual  = L.map[EXP_ANNUAL_TOTAL];
-    var before = errors.length;
-
-    /* Beide Zeilen sind Pflicht — und nicht ihrer Summe wegen, sondern weil
-       sie die Grenzen sind. Über der ersten stehen die monatlichen Posten,
-       zwischen beiden die jährlichen; ohne sie lässt sich nicht sagen, welcher
-       Posten welcher ist. Fehlte die monatliche Zeile, zählte jeder
-       Jahresposten zusätzlich als Monatslast; fehlte die jährliche, fiele er
-       ganz aus. Beides verschiebt alle acht Zielbeträge, und beides sähe aus
-       wie ein sauberer Import.
-
-       Dieselbe Regel wie in "Data Input": jede Sektion braucht ihren Kopf und
-       ihre Summenzeile, auch wenn sie bei null steht. Eine leere Zelle in der
-       Summenzeile ist etwas anderes und bleibt erlaubt — dann rechnet der
-       Importer die Posten darüber zusammen. */
-    if (rMonthly == null) errors.push('Sheet "Expenses": row "Monthly fixed costs" not found. It marks where the monthly items end.');
-    if (rAnnual == null) errors.push('Sheet "Expenses": row "Annual fixed costs" not found. It marks where the annual items end.');
-    if (rMonthly != null && rAnnual != null && rAnnual < rMonthly) {
-      errors.push('Sheet "Expenses": "Annual fixed costs" stands above "Monthly fixed costs". The annual items belong between the two rows.');
-    }
-    if (errors.length > before) return null;
-
-    function items(from, to) {
-      var out = [];
-      for (var r = from; r < to; r++) {
-        var name = str(ws, r, 0).replace(/ /g, ' ').trim();
-        if (!name) continue;
-        /* Erst die Zeile einordnen, dann den Betrag lesen: in der Kopfzeile
-           steht in Spalte B das Wort „Amount", und das ist keine Zahl, die
-           jemand nur falsch geschrieben hätte. */
-        var k = norm(name);
-        if (k === EXP_MONTHLY_TOTAL || k === EXP_ANNUAL_TOTAL || k === EXP_HEADER) continue;
-        var amount = num(ws, r, 1);
-        if (amount == null) continue;
-        out.push({ name: name, amount: amount, due: str(ws, r, 2).trim() || null });
-      }
-      return out;
-    }
-
-    var monthlyItems = items(range.r0, rMonthly);
-    var annualItems  = items(rMonthly + 1, rAnnual);
-
-    var monthlyFixed = num(ws, rMonthly, 1);
-    var annualFixed  = num(ws, rAnnual, 1);
-    if (monthlyFixed == null) monthlyFixed = monthlyItems.reduce(function (a, b) { return a + b.amount; }, 0);
-    if (annualFixed == null) annualFixed = annualItems.reduce(function (a, b) { return a + b.amount; }, 0);
-
-    /* Die monatliche Last wird gerechnet, nicht gelesen: monatlich plus
-       jährlich durch zwölf. Keine Zeile der Mappe darf das überschreiben —
-       ein Anker für eine Zeile, die niemand hat, wäre eine Behauptung über
-       eine fremde Datei. */
-    var computed = monthlyFixed + annualFixed / 12;
-
-    var sumM = monthlyItems.reduce(function (a, b) { return a + b.amount; }, 0);
-    if (Math.abs(sumM - monthlyFixed) > 0.02) {
-      warnings.push('Monthly line items add up to ' + sumM.toFixed(2) + ' ' + dispCode + ', the total row says ' + monthlyFixed.toFixed(2) + ' ' + dispCode + '.');
-    }
-    var sumA = annualItems.reduce(function (a, b) { return a + b.amount; }, 0);
-    if (Math.abs(sumA - annualFixed) > 0.02) {
-      warnings.push('Annual line items add up to ' + sumA.toFixed(2) + ' ' + dispCode + ', the total row says ' + annualFixed.toFixed(2) + ' ' + dispCode + '.');
-    }
-    noteFlush(warnings);
-
-    return {
-      monthlyItems: monthlyItems,
-      annualItems: annualItems,
-      monthlyFixed: monthlyFixed,
-      annualFixed: annualFixed,
-      fixedMonthly: computed
-    };
-  }
-
   /* ------------------------------------------------------------------- API */
 
-  /* Die zwei Blätter, die gelesen werden dürfen — und sonst keines. */
-  var WANTED = ['Data Input', 'Expenses'];
+  /* Das eine Blatt, das gelesen werden darf — und sonst keines. */
+  var WANTED = ['Data Input'];
 
-  /** Unter welchen Namen die zwei Blätter in dieser Mappe wirklich stehen.
+  /** Unter welchem Namen das Blatt in dieser Mappe wirklich steht.
       Groß-/Kleinschreibung und Leerraum dürfen abweichen (norm()), deshalb
       lässt sich der Filter unten nicht einfach mit WANTED füttern. */
   function resolveNames(sheetNames) {
@@ -565,14 +482,14 @@
   }
 
   /** Öffnet die Mappe in zwei Durchgängen: erst das Inhaltsverzeichnis, dann
-      ausschließlich die zwei erlaubten Blätter.
+      ausschließlich das eine erlaubte Blatt.
 
       Der Umweg ist der Preis dafür, dass SheetJS ohne `sheets` jedes Blatt
       parst — auch das, auf dem jemand seine Gehaltsverhandlung notiert hat.
       `bookSheets: true` liest nur die Namensliste und keinen Blattinhalt.
 
       Für ods und numbers ignoriert SheetJS den Filter und parst trotzdem
-      alles. Deshalb wird danach hart auf die zwei Blätter reduziert: was
+      alles. Deshalb wird danach hart auf das eine Blatt reduziert: was
       nicht dazugehört, kommt nicht über diese Funktion hinaus. Mit derselben
       Bewegung fallen die Mappen-Eigenschaften weg — dort steht sonst der
       Name dessen, der die Datei angelegt hat. */
@@ -601,14 +518,11 @@
     currencyTallyReset();
     var errors = [], warnings = [];
     var wsData = findSheet(wb, 'Data Input');
-    var wsExp = findSheet(wb, 'Expenses');
     if (!wsData) errors.push('Sheet "Data Input" is missing.');
-    if (!wsExp) errors.push('Sheet "Expenses" is missing.');
     if (errors.length) return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
 
     var data = parseDataInput(wsData, errors, warnings);
-    var exp = data ? parseExpenses(wsExp, errors, warnings) : null;
-    if (errors.length || !data || !exp) return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
+    if (errors.length || !data) return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
 
     var currency = currencyResult(warnings, dispCode);
 
@@ -623,7 +537,6 @@
         accounts: data.accounts,
         sectionOrder: data.sectionOrder,
         skipped: data.skipped,
-        expenses: exp,
         warnings: warnings
       }
     };

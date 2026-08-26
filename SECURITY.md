@@ -24,21 +24,20 @@ write path in the code — `XLSX.write` is never called by the application,
 only by the developer tools that generate the example workbook. Your file is
 not moved, renamed, re-saved or "helpfully" repaired.
 
-Only two sheets are read: **Data Input** and **Expenses**. The parser is
-handed those two names, so in `.xlsx`, `.xlsm` and `.xlsb` no other sheet is
-decoded at all. SheetJS ignores that filter for `.ods` and `.numbers`; there
-every sheet is decoded into memory, and everything but the two is dropped the
-moment the workbook is open, before a single cell is read out of it. Either
-way, no other sheet and no sheet name reaches the model or your
-`localStorage` — the example workbook ships with a third sheet purely to
-demonstrate this.
+Only one sheet is read: **Data Input**. The parser is handed that one name,
+so in `.xlsx`, `.xlsm` and `.xlsb` no other sheet is decoded at all. SheetJS
+ignores that filter for `.ods` and `.numbers`; there every sheet is decoded
+into memory, and everything but that sheet is dropped the moment the workbook
+is open, before a single cell is read out of it. Either way, no other sheet
+and no sheet name reaches the model or your `localStorage` — the example
+workbook ships with a second sheet purely to demonstrate this.
 
 ## Where your data actually sits
 
 | What | Where | How to remove it |
 |---|---|---|
 | The parsed model | `localStorage`, key `nordstern.model.v1` | *Settings → data source → Delete local data*, or clear site data |
-| Your settings, including the variable monthly amount you typed | `localStorage`, key `nordstern.settings.v1` | the same button — it removes every `nordstern.*` key, not just the model |
+| Your settings, including the monthly expenses you typed | `localStorage`, key `nordstern.settings.v1` | the same button — it removes every `nordstern.*` key, not just the model |
 | Your spreadsheet | Wherever you keep it | nordstern never touches it |
 
 *Delete local data* also wipes the screen: history, dial, cards and the

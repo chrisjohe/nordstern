@@ -114,9 +114,7 @@
     var yearAgo = back(months, i, 12);
 
     /* --- Ausgaben ------------------------------------------------------- */
-    var fixedMonthly = model.expenses ? model.expenses.fixedMonthly : 0;
-    var variableMonthly = Math.max(0, Number(settings.variableMonthly) || 0);
-    var totalMonthly = fixedMonthly + variableMonthly;
+    var totalMonthly = Math.max(0, Number(settings.monthlyExpenses) || 0);
     var totalAnnual = totalMonthly * 12;
 
     /* --- Position ------------------------------------------------------- */
@@ -235,14 +233,12 @@
       sections: sections,
       sectionItems: sectionItems,
       expenses: {
-        fixedMonthly: fixedMonthly,
-        variableMonthly: variableMonthly,
-        totalMonthly: totalMonthly,
-        totalAnnual: totalAnnual,
+        monthly: totalMonthly,
+        annual: totalAnnual,
         /* „Gesetzt" heisst: ein Mensch hat den Betrag angefasst — nicht,
            dass einer dasteht. Die Vorgabe ist eine Schätzung, und solange
            niemand sie bestätigt hat, sagt der Hinweis unter dem Berg das auch. */
-        variableSet: !!settings.variableSet
+        set: !!settings.expensesSet
       },
       contingency: contingency,
       stations: stations,

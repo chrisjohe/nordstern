@@ -12,13 +12,12 @@ leaves the machine.
 
 ## 1. Sheets that are read
 
-Only **`Data Input`** and **`Expenses`**. Every other sheet in your file is
-dropped as the workbook is opened, whatever it is called, and never reaches
-the model. The example workbook ships with a third sheet purely to
-demonstrate that.
+Only **`Data Input`**. Every other sheet in your file is dropped as the
+workbook is opened, whatever it is called, and never reaches the model. The
+example workbook ships with a second sheet purely to demonstrate that.
 
-Sheet names are matched case-insensitively and with whitespace normalised. If
-either of the two is missing, the import stops with a named error.
+The sheet name is matched case-insensitively and with whitespace normalised.
+If it is missing, the import stops with a named error.
 
 ## 2. `Data Input`
 
@@ -118,46 +117,19 @@ the list of rows that could not be found.
 The example workbook produces zero warnings, which is the point of it: if your
 own file warns, the difference is in your file, not in the reader.
 
-## 3. `Expenses`
+## 3. Assumptions
 
-| Row | Use |
-|---|---|
-| A first row labelled `Kind` | header, skipped |
-| items above `Monthly fixed costs` | monthly line items |
-| `Monthly fixed costs` | monthly total |
-| items between the two totals | annual line items |
-| `Annual fixed costs` | annual total |
-
-A third column is read as a due date if it is there, and ignored if it is not.
-
-**Both total rows are required.** They are not there for their sums but as
-the boundaries: above the first stand the monthly items, between the two the
-annual ones. Without them there is no way to tell which item is which — a
-missing monthly row would count every annual item as a monthly load as well, a
-missing annual row would drop it altogether, and all eight FIRE targets follow
-from that figure. A missing row therefore stops the import, exactly as in
-`Data Input`.
-
-Their **amounts** may be left blank; then the line items above them are added
-up instead. The monthly load is **always computed**: `monthly + annual ÷ 12`.
-If the line items and the total row disagree by more than 0.02 €, both are
-kept and a warning is shown — the total row wins, because that is the number
-you look at in your own spreadsheet.
-
-## 4. Assumptions
-
-1. **The variable share of spending does not come from the workbook.** Fixed
-   costs are fixed costs: no food, no leisure, no holidays. That share is set
-   in the settings and stored locally. It **defaults to a placeholder**
-   (`DEFAULT_VARIABLE` in `js/store.js`, 600 € a month — 20 € a day), because
-   at zero all eight targets would silently count fixed costs only and sit too
-   low. The placeholder is nobody's real figure, and the dashboard keeps
-   calling it an estimate until someone touches the field.
+1. **The monthly expenses do not come from the workbook.** There is nothing to
+   parse — the amount is one number, typed once in the settings and stored
+   locally. It **defaults to a placeholder** (`DEFAULT_EXPENSES` in
+   `js/store.js`, 2 500 € a month), because at zero all eight targets would
+   silently sit at zero too. The placeholder is nobody's real figure, and the
+   dashboard keeps calling it an estimate until someone touches the field.
 2. **Liquid share and invested share are fractions of `Total assets`**, not of
    net worth. Measured against net worth they can exceed 100 %, which is a
    usable figure but not a drawable proportion — and the dial beside them
    draws exactly these proportions. What net worth *is* good for is leverage,
-   which has its own figure (see section 5).
+   which has its own figure (see section 4).
 3. **Contingency counts against `Total liquid`.** Claims, property and
    retirement assets are not available at short notice and stay out of it.
 4. **The seven investment stations count against `Total investments`.**
@@ -177,10 +149,9 @@ you look at in your own spreadsheet.
    circle between them while the centre shows the true section total. Zero
    rows stay out: a closed account is not a line item.
 
-## 5. Targets
+## 4. Targets
 
-With `M` = total monthly expenses = fixed costs (from the workbook) + the
-variable share (from the settings):
+With `M` = monthly expenses, from the settings:
 
 | Card | Term of art | Target | Counts against |
 |---|---|---|---|
@@ -220,12 +191,12 @@ figure and is not one: that ratio rises when equity grows as readily as when
 debt does. Across the example series it reads 26 % at a sixfold multiplier and
 77 % at a twofold one — the wrong way round.
 
-## 6. What is stored
+## 5. What is stored
 
 `localStorage`, under `nordstern.model.v1` (the normalised model, tens of
 kilobytes depending on how many months and accounts you have) and
-`nordstern.settings.v1` (which holds the variable monthly amount — the one
-number you type rather than import).
+`nordstern.settings.v1` (which holds the monthly expenses — the one number
+you type rather than import).
 
 *Delete local data* removes every key that starts with `nordstern.` and resets
 the running page to its first-visit state. Anything stored under a different
@@ -235,7 +206,7 @@ If storage is unavailable — under `file://` some browsers use an opaque origin
 — the application keeps working and asks for the file again each time it is
 opened. Nothing else changes.
 
-## 7. Numbers and dates
+## 6. Numbers and dates
 
 The interface is English; number and date formats follow the chosen
 **currency** — *Settings → data source*, EUR by default. EUR formats as
@@ -250,18 +221,18 @@ every formatter in that file goes through `setCurrency()`, which is why a
 fifth currency is one row away — see
 [CUSTOMISE.md](CUSTOMISE.md#adding-a-currency).
 
-## 8. Currency
+## 7. Currency
 
 nordstern assumes the **whole workbook is in one currency**. Nothing is
 converted, ever — the currency setting only changes how a figure is written,
 not what it is. Switching it does not touch the parsed model, so it needs no
-re-import, and it does not touch the variable monthly amount either: it stays
+re-import, and it does not touch the monthly expenses amount either: it stays
 whatever number was typed in, now printed with a different symbol and
 grouping.
 
 On import, the reader looks at the **Excel number format** behind the amount
-cells on both sheets, `Data Input` and `Expenses` — not their content, the
-format string Excel stores alongside each cell. If every format that carries a currency symbol carries
+cells on `Data Input` — not their content, the format string Excel stores
+alongside each cell. If every format that carries a currency symbol carries
 the *same* one (`€`, `$`, `£`, `CHF`, the codes `EUR`/`USD`/`GBP`/`CHF`, or an
 Excel tag such as `[$CHF-807]`), the currency setting switches to match and
 the import toast names it. If no format carries a symbol, the setting is left

@@ -36,9 +36,9 @@ It runs from `file://` with no server and no build step.
    `examples/nordstern-example.xlsx` or extend `tools/make-example.mjs`.
    `npm run privacy` scans everything a commit would carry against a real
    workbook when one is present.
-6. **Do not read the user's workbook** beyond the sheets `Data Input` and
-   `Expenses`, and do not print its contents. If you must inspect it, print
-   labels from column A, never amounts.
+6. **Do not read the user's workbook** beyond the sheet `Data Input`, and do
+   not print its contents. If you must inspect it, print labels from column
+   A, never amounts.
 
 ## Where things live
 
@@ -46,7 +46,7 @@ It runs from `file://` with no server and no build step.
 |---|---|
 | how the spreadsheet is read | `js/importer.js` — **all** workbook knowledge is here, and nowhere else |
 | the eight milestones | `js/calc.js` → `MILESTONES`. Read `docs/CUSTOMISE.md` first |
-| what living costs by default | `js/store.js` → `DEFAULT_VARIABLE` (600 € a month, a placeholder). The second half of making the milestones someone's own: the targets are multiples of fixed **plus** this |
+| what living costs by default | `js/store.js` → `DEFAULT_EXPENSES` (2 500 € a month, a placeholder for the whole monthly spending — the targets are multiples of it) |
 | derived figures, FIRE ladder | `js/calc.js` |
 | the mountain | `js/ui/mountain.js`. Route control points are coupled to `t` in `calc.js`; `tests/geometry.mjs` enforces it |
 | the history chart | `js/ui/chart.js` → the `SERIES` table |

@@ -9,19 +9,18 @@
   var KEY_MODEL = 'nordstern.model.v1';
   var KEY_SETTINGS = 'nordstern.settings.v1';
 
-  /* Der eine Betrag, den niemand aus der Mappe lesen kann: was Essen,
-     Freizeit und Urlaub im Monat kosten. Bei 0 zählen alle acht Ziele nur die
-     Fixkosten — und liegen damit sichtbar zu niedrig, was schlimmer ist als
-     eine grobe Schätzung. Deshalb steht hier eine: 20 € am Tag, gerundet auf
-     600 € im Monat. Das ist eine Hausnummer und niemandes echte Ausgabe;
-     wer sie dauerhaft anders haben will, ändert diese Zeile (siehe
-     docs/CUSTOMISE.md), wer sie einmal anders haben will, tippt sie in
-     Einstellungen → expenses. */
-  var DEFAULT_VARIABLE = 600;
+  /* Die eine Zahl, die die App nicht aus der Mappe lesen kann: was der
+     Haushalt im Monat kostet, Fixkosten und Leben zusammen. Bei 0 lägen alle
+     acht Ziele bei null — sichtbar falsch, und schlimmer als eine grobe
+     Schätzung. Deshalb steht hier eine: 2.500 € im Monat. Das ist eine
+     Hausnummer und niemandes echte Ausgabe; wer sie dauerhaft anders haben
+     will, ändert diese Zeile (siehe docs/CUSTOMISE.md), wer sie einmal anders
+     haben will, tippt sie in Einstellungen → expenses. */
+  var DEFAULT_EXPENSES = 2500;
 
   var DEFAULT_SETTINGS = {
-    variableMonthly: DEFAULT_VARIABLE,
-    variableSet: false,        // hat je ein Mensch den Betrag bestätigt?
+    monthlyExpenses: DEFAULT_EXPENSES,
+    expensesSet: false,        // hat je ein Mensch den Betrag bestätigt?
     animations: true,
     motionIntensity: 'normal', // 'ruhig' | 'normal'
     currency: 'EUR'
@@ -91,9 +90,6 @@
     for (var j = 0; j < m.sectionOrder.length; j++) {
       if (!Array.isArray(m.accounts[m.sectionOrder[j]])) return false;
     }
-    if (!m.expenses || typeof m.expenses !== 'object') return false;
-    if (!num(m.expenses.fixedMonthly)) return false;
-    if (!items(m.expenses.monthlyItems) || !items(m.expenses.annualItems)) return false;
     return true;
   }
   function num(v) { return typeof v === 'number' && isFinite(v); }
@@ -107,14 +103,6 @@
       if (!a || typeof a.name !== 'string') return false;
       if (!Array.isArray(a.values) || a.values.length !== monthCount) return false;
       for (var j = 0; j < a.values.length; j++) if (!num(a.values[j])) return false;
-    }
-    return true;
-  }
-
-  function items(rows) {
-    if (!Array.isArray(rows)) return false;
-    for (var i = 0; i < rows.length; i++) {
-      if (!rows[i] || typeof rows[i].name !== 'string' || !num(rows[i].amount)) return false;
     }
     return true;
   }
@@ -143,7 +131,7 @@
   function clearModel() { if (ok) try { LS.removeItem(KEY_MODEL); } catch (e) {} }
 
   /* „Delete local data" heisst alles, nicht das Modell allein. In den
-     Einstellungen steht der variable monatliche Betrag — eine von Hand
+     Einstellungen steht der monatliche Ausgabenbetrag — eine von Hand
      eingetippte Zahl, also genauso persönlich wie jeder Kontostand.
      Wer den Knopf drückt, will nichts zurücklassen; deshalb wird hier über
      alle Schlüssel gegangen und jeder entfernt, der uns gehört. Erst
@@ -184,7 +172,7 @@
         }
       }
     } catch (e) {}
-    s.variableMonthly = Math.max(0, Number(s.variableMonthly) || 0);
+    s.monthlyExpenses = Math.max(0, Number(s.monthlyExpenses) || 0);
     if (!Object.prototype.hasOwnProperty.call(currencyCodes(), s.currency)) s.currency = 'EUR';
     return s;
   }
@@ -195,7 +183,7 @@
   }
 
   NS.store = {
-    DEFAULT_SETTINGS: DEFAULT_SETTINGS, DEFAULT_VARIABLE: DEFAULT_VARIABLE,
+    DEFAULT_SETTINGS: DEFAULT_SETTINGS, DEFAULT_EXPENSES: DEFAULT_EXPENSES,
     loadModel: loadModel, saveModel: saveModel, clearModel: clearModel, clearAll: clearAll,
     _usable: usable,
     loadSettings: loadSettings, saveSettings: saveSettings

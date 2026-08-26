@@ -25,10 +25,10 @@ air-gapped laptop, an email to yourself.
 
 Either way, start with **`examples/nordstern-example.xlsx`** — drag it onto
 the window. Seven years, all of it invented: a flat bought on day one and
-fully financed, a mortgage annuity in the fixed costs, a securities loan drawn
-in a single month. `tools/make-example.mjs` wrote it, and every figure is in
-that script in plain text, monthly market returns included; the file itself was
-then formatted by hand, so that opening it shows how it is put together. The
+fully financed, a securities loan drawn in a single month.
+`tools/make-example.mjs` wrote it, and every figure is in that script in
+plain text, monthly market returns included; the file itself was then
+formatted by hand, so that opening it shows how it is put together. The
 generator refuses to overwrite it without `--force`, and `tests/example.mjs`
 keeps the two honest — it regenerates the workbook to a throwaway path and
 compares both models figure by figure.
@@ -60,7 +60,7 @@ verify yourself in about two minutes:
 | Nothing *can* be uploaded | `grep -r "fetch\|XMLHttpRequest\|WebSocket" js/` — only the vendored SheetJS matches, and only in dead branches |
 | The browser enforces it | `export/nordstern.html` carries `connect-src 'none'; form-action 'none'` |
 | Your spreadsheet is not modified | There is no write path. `XLSX.write` is never called by the app |
-| Only two sheets are read | The example workbook ships with a third sheet; neither its name nor its content appears in the app or in `localStorage` |
+| Only one sheet is read | The example workbook ships with a second sheet; neither its name nor its content appears in the app or in `localStorage` |
 | No web fonts, no CDN, no analytics | `npm test` fails the build if any of those appear |
 
 The parsed result is kept in your browser's `localStorage` and nowhere else,
@@ -73,7 +73,7 @@ See [SECURITY.md](SECURITY.md) for the longer version.
 
 ## Your workbook
 
-nordstern reads **two sheets** and ignores everything else in the file:
+nordstern reads **one sheet** and ignores everything else in the file:
 
 **`Data Input`** — one column per month, one row per account. Rows are found
 by their **label in column A**, never by row number, so you can insert
@@ -105,24 +105,8 @@ Rows in *italics* are your own — name them anything. The others are the
 anchors and must read exactly as shown. `Liabilities` is matched exactly, so a
 helper row such as `Liabilities *(-1)` is left alone.
 
-**`Expenses`** — your fixed costs, with two total rows.
-
-| Column A | Column B |
-|---|---|
-| *Rent* | *780,00* |
-| *Electricity* | *95,00* |
-| Monthly fixed costs | 875,00 |
-| *Car insurance* | *620,00* |
-| *Liability insurance* | *84,00* |
-| Annual fixed costs | 704,00 |
-
-Both total rows are needed: they separate the monthly items from the annual
-ones. Their amounts may be left blank, and the items above them are added up
-instead. The monthly load is always computed as `monthly + annual ÷ 12`. A
-first row called `Kind` is treated as a header and skipped.
-
-The same tables are inside the app under *Settings → workbook*, so you can
-compare them against your own file without leaving the page. The full contract
+The same table is inside the app under *Settings → workbook*, so you can
+compare it against your own file without leaving the page. The full contract
 — tolerances, what happens when sums disagree, the FIRE mathematics — is in
 [docs/DATA_CONTRACT.md](docs/DATA_CONTRACT.md).
 
@@ -143,10 +127,10 @@ work, but it is the one path verified by hand rather than by machine.
 
 ## The eight milestones
 
-The ladder is a multiple of your **total monthly expenses**. Seven stations
-count against invested assets; the reserve counts against liquid assets — the
-only difference between them, and the reason your reserve can sit half empty
-while your portfolio is full.
+The ladder is a multiple of your **total monthly expenses**, set once in
+*Settings → expenses*. Seven stations count against invested assets; the
+reserve counts against liquid assets — the only difference between them, and
+the reason your reserve can sit half empty while your portfolio is full.
 
 | # | Name | Term of art | Multiple | Counts against |
 |---|---|---|---|---|
@@ -228,8 +212,8 @@ expenses · data source · workbook · motion · privacy · about
 A `tablist` with a single tab stop: ↑/↓ move, Home/End jump to the ends,
 Escape closes the sheet.
 
-* **expenses** — your total per month, and the variable share, which moves all
-  eight targets immediately.
+* **expenses** — your monthly total, which moves all eight targets
+  immediately.
 * **data source** — currency (EUR, USD, GBP, CHF), then import status as a
   square plus a word, then file, time and data age; warnings from the import,
   then *Re-read workbook* and *Delete local data*.
@@ -253,7 +237,7 @@ puts a button to **workbook** next to the reason it failed.
 GBP, CHF. The workbook is assumed to be entirely in one currency; switching
 the setting reformats every number and axis label (1.234,56 € becomes
 $1,234.56 or CHF 1'234.56) without changing a single figure, including the
-variable monthly amount. The interface itself stays English throughout —
+monthly expenses amount. The interface itself stays English throughout —
 language and locale are separate things. Importing a workbook helps: if the
 Excel number format behind the amount cells carries exactly one currency
 symbol, the setting switches to match and the import toast says so; a
@@ -297,7 +281,7 @@ npm test
 | Suite | What it holds down |
 |---|---|
 | `tests/smoke.mjs` | the whole page against a DOM, with a real import |
-| `tests/behaviour.mjs` | empty state, import, persistence, variable share, series switch, card ↔ mountain, motion, the arrival animation and what must *not* retrigger it, a broken workbook and the way back, edge cases, the contrast ramp, and that deleting local data leaves nothing behind |
+| `tests/behaviour.mjs` | empty state, import, persistence, monthly expenses, series switch, card ↔ mountain, motion, the arrival animation and what must *not* retrigger it, a broken workbook and the way back, edge cases, the contrast ramp, and that deleting local data leaves nothing behind |
 | `tests/geometry.mjs` | height field, contours, route, mountain proportion, framing across 576 views, marker spacing across 360 |
 | `tests/formats.mjs` | every format the file dialog offers parses to identical figures |
 | `tests/example.mjs` | the shipped example workbook still says exactly what `tools/make-example.mjs` says, and the generator will not overwrite its hand formatting |

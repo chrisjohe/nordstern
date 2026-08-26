@@ -40,8 +40,10 @@ sec('Leerzustand ohne gespeicherte Daten');
   ok(!d.querySelector('.overlay').classList.contains('is-open'),'Einstellungen zunächst zu');
   d.getElementById('btnSettings').dispatchEvent(new w.Event('click'));
   ok(d.querySelector('.overlay').classList.contains('is-open'),'Zahnrad öffnet sie auch ohne Daten');
-  ok([...d.querySelectorAll('.sheet-facts .num')].every(n=>n.textContent==='—'),
-     'Beträge stehen als Gedankenstrich statt leer');
+  /* Die Ausgaben kommen aus den Einstellungen, nicht aus der Mappe — die
+     Vorgabe steht deshalb schon vor jedem Import da, nicht als Strich. */
+  ok(N(d.querySelector('.sheet-facts .num').textContent)===N(w.NORDSTERN.util.eur(w.NORDSTERN.store.DEFAULT_EXPENSES)),
+     'die Ausgaben-Vorgabe steht schon ohne Import: '+d.querySelector('.sheet-facts .num').textContent);
   /* Eine Ebene: sechs Namen links, genau ein Abschnitt rechts. */
   const tabs=[...d.querySelectorAll('.sheet-nav-item')];
   const names=tabs.map(b=>b.textContent).join(' · ');
@@ -84,9 +86,9 @@ sec('Leerzustand ohne gespeicherte Daten');
   /* Die Tabelle ist ein Abbild der Mappe: zwei Spalten, links der wörtliche
      Zellinhalt, rechts ein Beispiel. */
   const tbl=[...layout.querySelectorAll('.wbt')];
-  ok(tbl.length===2,'ein Abbild je gelesenem Blatt: '+tbl.length);
+  ok(tbl.length===1,'ein Abbild des einen gelesenen Blatts: '+tbl.length);
   ok(tbl.map(t=>[...t.querySelectorAll('thead th')].map(n=>n.textContent).join('|')).join(' / ')
-       ==='Column A|Column B, C, D … / Column A|Column B',
+       ==='Column A|Column B, C, D …',
      'linke Spalte und Beispielspalte sind überschrieben: '+
      tbl.map(t=>t.querySelector('th:last-child').textContent).join(' / '));
   ok(tbl.every(t=>[...t.querySelectorAll('tbody tr')].every(r=>r.children.length===2)),
@@ -97,9 +99,9 @@ sec('Leerzustand ohne gespeicherte Daten');
   const rows=tbl.flatMap(t=>[...t.querySelectorAll('tbody tr')]);
   const labels=rows.filter(r=>!r.classList.contains('is-item'))
                    .map(r=>r.children[0].textContent.trim());
-  ok(labels.length===17,'siebzehn Pflichtzeilen genannt: '+labels.length);
-  ok(rows.filter(r=>r.classList.contains('is-item')).length===8,
-     'acht Beispielzeilen, frei benennbar: '+rows.filter(r=>r.classList.contains('is-item'))
+  ok(labels.length===15,'fünfzehn Pflichtzeilen genannt: '+labels.length);
+  ok(rows.filter(r=>r.classList.contains('is-item')).length===4,
+     'vier Beispielzeilen, frei benennbar: '+rows.filter(r=>r.classList.contains('is-item'))
        .map(r=>r.children[0].textContent).join(' · '));
   ok(labels.every(l=>src.toLowerCase().includes(l.toLowerCase())),
      'jede kommt im Importer vor: '+labels.filter(l=>!src.toLowerCase().includes(l.toLowerCase())).join(' | '));
@@ -124,8 +126,8 @@ sec('Leerzustand ohne gespeicherte Daten');
      +ex['Total retirement']===ex['Total assets'],'das Beispiel summiert sich: '+ex['Total assets']);
   ok(ex['Total assets']-ex['Total liabilities']===ex['Total net worth'],
      'und die Differenz stimmt auch: '+ex['Total net worth']);
-  ok(layout.textContent.includes('"Data Input"')&&layout.textContent.includes('"Expenses"'),
-     'beide gelesenen Blätter sind benannt');
+  ok(layout.textContent.includes('"Data Input"')&&!/expenses/i.test(layout.textContent),
+     'nur das eine gelesene Blatt ist benannt');
   ok(layout.textContent.includes('never by row number'),'der Hinweis auf die Ankerlogik steht dabei');
   ok(d.querySelector('.sheet-sec[data-sec="source"] .sheet-status .meta-import').textContent==='no import',
      'Importstatus steht oben im Abschnitt „data source“');
@@ -335,7 +337,6 @@ sec('Beschädigtes Modell im Speicher');
     'currentIndex neben der Reihe':    JSON.stringify({...good,currentIndex:good.months.length+5}),
     'ein Monat ohne Net Worth':        JSON.stringify({...good,months:good.months.map((m,i)=>i===3?{...m,netWorth:null}:m)}),
     'keine Monate':                    JSON.stringify({...good,months:[]}),
-    'Ausgaben fehlen':                 JSON.stringify({...good,expenses:null}),
     /* Alles, was durch die erste Fassung der Prüfung noch durchkam und dann
        beim Start warf — die Zahl zwischen zwei Monaten, das leere Konto. */
     'currentIndex als Bruch':          JSON.stringify({...good,currentIndex:0.5}),
@@ -344,8 +345,10 @@ sec('Beschädigtes Modell im Speicher');
     'eine zu kurze Kontenreihe':       bend(m=>{m.accounts.liquid[0].values.pop();}),
     'ein Stand ist keine Zahl':        bend(m=>{m.accounts.liquid[0].values[3]=null;}),
     'die Verbindlichkeiten sind hin':  bend(m=>{m.accounts.liabilities=[{name:'Darlehen'}];}),
-    'ein Posten ohne Betrag':          bend(m=>{m.expenses.monthlyItems[0].amount='viel';}),
-    'ein Monatsschlüssel entstellt':   bend(m=>{m.months[2].key='2026-8';})
+    'ein Monatsschlüssel entstellt':   bend(m=>{m.months[2].key='2026-8';}),
+    /* Die Versionsnummer allein ist der schnellste Weg, ein Modell aus der
+       vorigen Form zu verwerfen — hier stand einmal `expenses` drin. */
+    'alte Modellversion (v2)':         JSON.stringify({...good,version:2})
   };
   for(const [what,raw] of Object.entries(broken)){
     const {w,errors}=await boot({storage:{[KEY]:raw}});
@@ -377,8 +380,8 @@ sec('Beschädigtes Modell im Speicher');
   }
 }
 
-/* ---------- 3. Variabler Anteil wirkt sofort ---------- */
-sec('Variabler Anteil verschiebt alle Ziele');
+/* ---------- 3. Monatliche Ausgaben wirken sofort ---------- */
+sec('Monatliche Ausgaben verschieben alle Ziele');
 { const {w,errors}=await boot({storage:{...store}});
   const d=w.document;
   const before=d.querySelector('.card[data-id="coast"]').dataset.status;
@@ -388,21 +391,21 @@ sec('Variabler Anteil verschiebt alle Ziele');
   ok(d.querySelector('.overlay').classList.contains('is-open'),'der Hinweis öffnet das Blatt');
   ok(d.querySelector('.sheet-nav-item[aria-selected="true"]').textContent==='expenses',
      'und zwar in expenses: '+d.querySelector('.sheet-nav-item[aria-selected="true"]').textContent);
-  /* Der Betrag ist bewusst gross: die Fixkosten dieses Haushalts werden von
-     der Annuität beherrscht, ein kleiner variabler Anteil verschöbe keine
-     einzige Station über ihre Schwelle. */
-  const inp=d.getElementById('setVar');
-  inp.value='2600'; inp.dispatchEvent(new w.Event('input'));
+  /* Der Betrag ist bewusst gross: die Vorgabe von 2.500 € liegt weit unter dem
+     Depot der Beispielmappe (345.198,39 €), ein kleiner Ausschlag verschöbe
+     keine einzige Station über ihre Schwelle. */
+  const inp=d.getElementById('setExp');
+  inp.value='6000'; inp.dispatchEvent(new w.Event('input'));
   await tick(30);
   const after=d.querySelector('.card[data-id="coast"]').dataset.status;
   const afterTarget=d.querySelector('.card[data-id="coast"] .f-target').textContent;
   ok(before==='reached'&&after==='current','Coast FI kippt von erreicht auf aktuell ('+before+'→'+after+')');
-  /* Vorher steht die Vorgabe von 600 € im Betrag, nicht null — der Hinweis
+  /* Vorher steht die Vorgabe von 2.500 € im Betrag, nicht null — der Hinweis
      oben ist trotzdem da, weil sie niemand bestätigt hat. */
-  ok(N(beforeTarget)==='231.300 €','Ziel vorher '+beforeTarget);
-  ok(N(afterTarget)==='351.300 €','Ziel nachher '+afterTarget);
-  ok(N(d.querySelector('.sheet-facts .is-total').textContent)==='5.855,00 €','Gesamtausgaben: '+d.querySelector('.sheet-facts .is-total').textContent);
-  ok(!d.querySelector('.st-hint'),'Hinweis „variabler Anteil“ verschwindet');
+  ok(N(beforeTarget)==='150.000 €','Ziel vorher '+beforeTarget);
+  ok(N(afterTarget)==='360.000 €','Ziel nachher '+afterTarget);
+  ok(N(d.querySelector('.sheet-facts .is-total').textContent)==='6.000,00 €','Gesamtausgaben: '+d.querySelector('.sheet-facts .is-total').textContent);
+  ok(!d.querySelector('.st-hint'),'Hinweis „expenses are an estimate“ verschwindet');
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }
@@ -457,7 +460,7 @@ sec('Währung: Oberfläche, Neustart, Löschen');
   ok(optVals.join(',')==='EUR,USD,GBP,CHF','vier Optionen in dieser Reihenfolge: '+optVals.join(','));
   ok(sel.value==='EUR','Anfangswert EUR');
   const unit=d.querySelector('.field-unit');
-  ok(N(unit.textContent)==='€','Einheit neben dem variablen Betrag zu Beginn: '+unit.textContent);
+  ok(N(unit.textContent)==='€','Einheit neben dem Ausgabenbetrag zu Beginn: '+unit.textContent);
 
   sel.value='USD';
   sel.dispatchEvent(new w.Event('change'));
@@ -491,7 +494,7 @@ sec('Währung: Oberfläche, Neustart, Löschen');
   ok(again.errors.length===0,'keine Fehler: '+again.errors.join(' | '));
 
   /* „Delete local data“ setzt die Währung mit zurück auf die Vorgabe —
-     dieselbe Prüfung wie für den variablen Betrag (Abschnitt 14), hier für
+     dieselbe Prüfung wie für den Ausgabenbetrag (Abschnitt 14), hier für
      die Währung. */
   again.w.confirm=()=>true;
   const del=[...again.w.document.querySelectorAll('#settingsZone button')]
@@ -801,7 +804,6 @@ sec('Unbrauchbare Mappenstruktur');
   const XLSX=w.XLSX;
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['irgendwas',1]]),'Data Input');
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Art','Betrag']]),'Expenses');
   const res=w.NORDSTERN.importer.parseWorkbook(wb,'kaputt.xlsx');
   ok(!res.ok,'Import wird abgelehnt');
   ok(res.errors.length>=3,'nennt die fehlenden Zeilen ('+res.errors.length+')');
@@ -809,7 +811,7 @@ sec('Unbrauchbare Mappenstruktur');
   const wb2=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb2,XLSX.utils.aoa_to_sheet([['x']]),'Tabelle1');
   const res2=w.NORDSTERN.importer.parseWorkbook(wb2,'leer.xlsx');
-  ok(!res2.ok && res2.errors.length===2,'fehlende Blätter werden benannt: '+res2.errors.join(' / '));
+  ok(!res2.ok && res2.errors.length===1,'das fehlende Blatt wird benannt: '+res2.errors.join(' / '));
 
   /* Und derselbe Weg einmal ganz: Datei einlesen, Vorhang mit Begründung,
      und daneben der kürzeste Weg zu dem, was gesucht wird. */
@@ -864,20 +866,18 @@ sec('Lücken und Doppel in der Monatsreihe');
     ['Total liabilities', ...months.map(()=>0)],
     ['Total net worth', ...months.map((_,i)=>1100+100*i+i)]
   ],{cellDates:true});
-  const expenses=XLSX.utils.aoa_to_sheet([
-    ['Kind','Amount'],['Rent',1000],['Monthly fixed costs',1000],
-    ['Insurance',1200],['Annual fixed costs',1200]
-  ]);
   const read=(months)=>{
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,sheet(months),'Data Input');
-    XLSX.utils.book_append_sheet(wb,expenses,'Expenses');
     return w.NORDSTERN.importer.parseWorkbook(wb,'reihe.xlsx');
   };
 
   /* Zum Vergleich: dieselbe Mappe ohne Loch. */
   const clean=read([[2026,1],[2026,2],[2026,3]]);
   ok(clean.ok&&clean.warnings.length===0,'die lückenlose Reihe kommt ohne Hinweis durch: '+clean.warnings.join(' | '));
+  /* Kein zweites Blatt nötig — es wird nicht gelesen, und das Modell trägt
+     danach kein expenses-Feld mehr. */
+  ok(!('expenses' in clean.model),'ohne zweites Blatt importiert: kein expenses-Feld im Modell');
 
   const gap=read([[2026,1],[2026,2],[2026,4]]);
   ok(gap.ok,'die löchrige Reihe wird trotzdem gelesen');
@@ -951,10 +951,6 @@ sec('Zahlen als Text');
       ['Liabilities'],['  Loan',0,0],['Total liabilities',0,0],
       ['Total net worth',depot,depot]
     ],{cellDates:true}),'Data Input');
-    XLSX.utils.book_append_sheet(b,XLSX.utils.aoa_to_sheet([
-      ['Kind','Amount'],['Rent',1000],['Monthly fixed costs',1000],
-      ['Insurance',1200],['Annual fixed costs',1200]
-    ]),'Expenses');
     return w.NORDSTERN.importer.parseWorkbook(b,'text.xlsx');
   };
   const asText=wb('1.234,56'), asNumber=wb(1234.56);
@@ -976,64 +972,7 @@ sec('Zahlen als Text');
   w.close();
 }
 
-/* ---------- 6d. Die zwei Grenzen im Blatt „Expenses" ---------- */
-/* Die Summenzeilen sind nicht der Summe wegen da, sondern als Grenze: über
-   der ersten stehen die monatlichen Posten, zwischen beiden die jährlichen.
-   Fehlt eine, ist nicht mehr zu sagen, welcher Posten welcher ist — und alle
-   acht Zielbeträge hängen daran. Also abgelehnt, nicht geraten. */
-sec('Die Ausgaben brauchen ihre zwei Grenzen');
-{ const {w,errors}=await boot();
-  const XLSX=w.XLSX;
-  const D=(y,m)=>new w.Date(y,m-1,1);
-  const data=XLSX.utils.aoa_to_sheet([
-    ['Month',        D(2026,1), D(2026,2)],
-    ['Liquid'],['  Cash',100,110],['Total liquid',100,110],
-    ['Claims'],['Total claims',0,0],
-    ['Investments'],['  Depot',1000,1100],['Total investments',1000,1100],
-    ['Property'],['Total property',0,0],
-    ['Retirement'],['Total retirement',0,0],
-    ['Total assets',1100,1210],
-    ['Liabilities'],['  Loan',0,0],['Total liabilities',0,0],
-    ['Total net worth',1100,1210]
-  ],{cellDates:true});
-  const read=(rows)=>{
-    const b=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(b,data,'Data Input');
-    XLSX.utils.book_append_sheet(b,XLSX.utils.aoa_to_sheet(rows),'Expenses');
-    return w.NORDSTERN.importer.parseWorkbook(b,'ausgaben.xlsx');
-  };
-  const both=read([['Kind','Amount'],['Rent',1000],['Monthly fixed costs',1000],
-                   ['Insurance',1200],['Annual fixed costs',1200]]);
-  ok(both.ok&&both.model.expenses.fixedMonthly===1100,
-     'mit beiden Grenzen: 1000 + 1200/12 = '+both.model.expenses.fixedMonthly);
-
-  const noMonthly=read([['Kind','Amount'],['Rent',1000],
-                        ['Insurance',1200],['Annual fixed costs',1200]]);
-  ok(!noMonthly.ok&&noMonthly.errors.some(t=>/"Monthly fixed costs" not found/.test(t)),
-     'ohne die monatliche Grenze bricht es ab: '+noMonthly.errors.join(' | '));
-
-  const noAnnual=read([['Kind','Amount'],['Rent',1000],['Monthly fixed costs',1000],
-                       ['Insurance',1200]]);
-  ok(!noAnnual.ok&&noAnnual.errors.some(t=>/"Annual fixed costs" not found/.test(t)),
-     'ohne die jährliche ebenso: '+noAnnual.errors.join(' | '));
-
-  const swapped=read([['Kind','Amount'],['Insurance',1200],['Annual fixed costs',1200],
-                      ['Rent',1000],['Monthly fixed costs',1000]]);
-  ok(!swapped.ok&&swapped.errors.some(t=>/stands above/.test(t)),
-     'und vertauscht auch: '+swapped.errors.join(' | '));
-
-  /* Eine leere Zelle in der Summenzeile bleibt erlaubt — die Grenze steht ja,
-     also lassen sich die Posten darüber zusammenzählen. */
-  const blank=read([['Kind','Amount'],['Rent',700],['Coffee',300],['Monthly fixed costs'],
-                    ['Insurance',1200],['Annual fixed costs',1200]]);
-  ok(blank.ok&&blank.model.expenses.monthlyFixed===1000,
-     'leere Summenzelle: die Posten darüber ergeben '+blank.model.expenses.monthlyFixed);
-  ok(blank.warnings.length===0,'und das ohne Hinweis: '+blank.warnings.join(' | '));
-  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
-  w.close();
-}
-
-/* ---------- 6e. Die Lücke im Verlauf ---------- */
+/* ---------- 6d. Die Lücke im Verlauf ---------- */
 /* Nach Index verteilt sah ein halbes Jahr ohne Eintrag aus wie ein
    Monatsschritt: die Kurve wurde flacher, und man las ruhige Monate statt
    fehlender. Jetzt trägt die Waagerechte Zeit, und über die Lücke geht kein
@@ -1412,21 +1351,21 @@ sec('Negative Kontostände in einer Sektion');
 /* Wer löscht, erwartet den Zustand vor dem ersten Import — nicht einen
    zugezogenen Vorhang, hinter dem Verlauf, Scheibe und Karten weiterstehen,
    und nicht ein Einstellungsblatt, das die Ausgaben samt dem von Hand
-   eingegebenen variablen Betrag weiter zeigt. Genau das prüft diese Reihe. */
+   eingegebenen Betrag weiter zeigt. Genau das prüft diese Reihe. */
 sec('Delete local data lässt nichts stehen');
 { const store3={};
   const {w,errors}=await boot({storage:store3});
   const d=w.document;
   importFixture(w);
-  /* Der variable Anteil ist die einzige Zahl, die nicht aus der Mappe kommt,
-     sondern von Hand eingetippt wird — sie muss genauso verschwinden. */
-  w.NORDSTERN.app.ui.settings.open('workbook');
-  const varIn=d.querySelector('#setVar');
-  varIn.value='640';
-  varIn.dispatchEvent(new w.Event('input',{bubbles:true}));
+  /* Die monatlichen Ausgaben sind die einzige Zahl, die nicht aus der Mappe
+     kommt, sondern von Hand eingetippt wird — sie muss genauso verschwinden. */
+  w.NORDSTERN.app.ui.settings.open('expenses');
+  const expIn=d.querySelector('#setExp');
+  expIn.value='640';
+  expIn.dispatchEvent(new w.Event('input',{bubbles:true}));
   await tick(30);
   ok(Object.keys(store3).length===2,'vorher liegen Modell und Einstellungen im Speicher: '+Object.keys(store3).join(' · '));
-  ok(/640/.test(store3['nordstern.settings.v1']||''),'und der variable Betrag steht drin');
+  ok(/640/.test(store3['nordstern.settings.v1']||''),'und der Ausgabenbetrag steht drin');
   ok(!!d.querySelector('.hero-val'),'die Bühne ist gefüllt');
 
   w.confirm=()=>true;
@@ -1447,13 +1386,16 @@ sec('Delete local data lässt nichts stehen');
   ok([...d.querySelectorAll('.card-bar i')].every(i=>i.style.width==='0%'),'alle Balken stehen auf null');
   ok([...d.querySelectorAll('.card-back-foot .f-value')].every(n=>n.textContent==='—'),'keine Beträge mehr auf den Rückseiten');
 
-  /* Das Blatt bleibt erreichbar — also muss auch dort ein Strich stehen. */
-  ok([...d.querySelectorAll('#settingsZone .num')].every(n=>n.textContent==='—'),
-     'die Ausgaben im Blatt sind Striche: '+[...d.querySelectorAll('#settingsZone .num')].map(n=>n.textContent).join(' · '));
+  /* Das Blatt bleibt erreichbar — die Ausgaben kommen aus den Einstellungen,
+     nicht aus der Mappe, und stehen deshalb wieder auf der Vorgabe, nicht auf
+     einem Strich. Nur der Dateiname, der wirklich aus dem Import stammt, wird
+     zum Strich. */
   ok(d.querySelector('#settingsZone .src-name').textContent==='—','der Dateiname der Mappe ist fort');
-  const DEF=w.NORDSTERN.store.DEFAULT_VARIABLE;
-  ok(DEF>0,'die Vorgabe für den variablen Anteil ist keine Null: '+DEF);
-  ok(varIn.value===String(DEF),'der variable Betrag steht wieder auf der Vorgabe: '+varIn.value);
+  const DEF=w.NORDSTERN.store.DEFAULT_EXPENSES;
+  ok(DEF>0,'die Vorgabe für die Ausgaben ist keine Null: '+DEF);
+  ok(expIn.value===String(DEF),'der Ausgabenbetrag steht wieder auf der Vorgabe: '+expIn.value);
+  ok(N(d.querySelector('#settingsZone .num').textContent)===N(w.NORDSTERN.util.eur(DEF)),
+     'und die Summe im Blatt zeigt wieder die Vorgabe, keinen Strich: '+d.querySelector('#settingsZone .num').textContent);
   /* Der Hinweis unter dem Berg steht hier nicht — es gibt keinen Berg mehr,
      über den er etwas sagen könnte. Dass er mit der Vorgabe wiederkommt,
      sobald wieder eine Mappe da ist, prüft Abschnitt 3. */
@@ -1464,9 +1406,9 @@ sec('Delete local data lässt nichts stehen');
   const again=await boot({storage:store3});
   ok(!again.w.document.getElementById('gate').hidden,'nach dem Neustart bleibt der Vorhang zu');
   ok(again.w.NORDSTERN.app.state.model===null,'kein Modell mehr im Zustand');
-  ok(again.w.NORDSTERN.app.state.settings.variableMonthly===again.w.NORDSTERN.store.DEFAULT_VARIABLE,
-     'und der variable Betrag ist wieder die Vorgabe: '+again.w.NORDSTERN.app.state.settings.variableMonthly);
-  ok(again.w.NORDSTERN.app.state.settings.variableSet===false,'als Schätzung, nicht als bestätigter Wert');
+  ok(again.w.NORDSTERN.app.state.settings.monthlyExpenses===again.w.NORDSTERN.store.DEFAULT_EXPENSES,
+     'und der Ausgabenbetrag ist wieder die Vorgabe: '+again.w.NORDSTERN.app.state.settings.monthlyExpenses);
+  ok(again.w.NORDSTERN.app.state.settings.expensesSet===false,'als Schätzung, nicht als bestätigter Wert');
   again.w.close();
 }
 
@@ -1520,7 +1462,7 @@ sec('Aufbau beim Ankommen der Daten');
      'er braucht nur seinen Anteil der Umdrehung: '+liab.style.getPropertyValue('--frac'));
 
   /* Ein Zug am Regler rendert alles neu — aufbauen darf sich nichts. */
-  const varIn=d.getElementById('setVar');
+  const varIn=d.getElementById('setExp');
   varIn.value='700'; varIn.dispatchEvent(new w.Event('input',{bubbles:true}));
   await tick(40);
   ok(!line().classList.contains('is-drawing'),'ein Zug am Regler zeichnet die Linie nicht neu');
@@ -1582,8 +1524,6 @@ sec('Die Mappe heisst Mappe');
      'der Leerzustand auch: '+d.getElementById('gatePick').textContent);
   const reread=[...d.querySelectorAll('#settingsZone button')].find(b=>/Re-read/.test(b.textContent));
   ok(reread&&reread.textContent==='Re-read workbook','und das Blatt: '+(reread&&reread.textContent));
-  ok([...d.querySelectorAll('#settingsZone dt')].some(n=>n.textContent==='Fixed costs from the workbook'),
-     'die Ausgaben kommen aus der Mappe, nicht aus einem Produkt');
   /* Wo der Name doch steht, steht er als Herkunftsangabe neben den anderen. */
   const copy=d.getElementById('gateCopy').textContent;
   ok(/Excel/.test(copy)&&/Numbers/.test(copy)&&/LibreOffice/.test(copy)&&/Google Sheets/.test(copy),
@@ -1610,7 +1550,7 @@ sec('Das Blatt „privacy"');
      'die Zusage nennt, was es nicht gibt');
   ok(/localStorage/.test(txt)&&/Delete local data/.test(txt),
      'und sagt, was gespeichert wird und wie man es loswird');
-  ok(/Data Input/.test(txt)&&/Expenses/.test(txt),'sowie was gelesen wird');
+  ok(/Data Input/.test(txt)&&!/expenses/i.test(txt),'sowie was gelesen wird — nur das eine Blatt');
   ok(/Content-Security-Policy/.test(txt),'und wodurch der Browser es durchsetzt');
   /* Ein Blatt, das über fehlende Verbindungen spricht, darf selbst keine
      aufmachen: die Links im About-Blatt sind die einzigen im ganzen Blatt. */

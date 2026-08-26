@@ -77,12 +77,12 @@ ok(m.months.length === 84, '84 Monate: ' + m.months.length);
 ok(m.months[L].key === '2026-08', 'bis August 2026: ' + m.months[L].key);
 const names = g.XLSX.read(fs.readFileSync(path.join(ROOT, 'examples/nordstern-example.xlsx')),
   { type: 'buffer', bookSheets: true }).SheetNames;
-ok(names.length === 3 && names.some((n) => /read me/i.test(n)),
-   'drei Blätter, davon eines, das ungelesen bleibt: ' + names.join(' · '));
+ok(names.length === 2 && names.some((n) => /read me/i.test(n)),
+   'zwei Blätter, davon eines, das ungelesen bleibt: ' + names.join(' · '));
 
-/* Und das dritte Blatt bleibt draußen: weder sein Name noch ein Satz daraus
+/* Und das zweite Blatt bleibt draußen: weder sein Name noch ein Satz daraus
    steht im Modell, das gleich im localStorage landet. */
-const third = names.find((n) => !/^(data input|expenses)$/i.test(n));
+const third = names.find((n) => !/^data input$/i.test(n));
 const wbAll = g.XLSX.read(fs.readFileSync(path.join(ROOT, 'examples/nordstern-example.xlsx')),
   { type: 'buffer', cellDates: true });
 const cells = Object.keys(wbAll.Sheets[third]).filter((k) => k[0] !== '!')
@@ -93,7 +93,7 @@ const leaked = [third, ...cells].filter((s) => dump.includes(s));
 ok(leaked.length === 0, 'nichts vom dritten Blatt im Modell: ' + leaked.join(' | '));
 ok(!('sheetNames' in m), 'und die Blattnamen stehen gar nicht erst darin');
 ok(Math.abs(m.months[L].netWorth - 450239.15) < 0.005, 'Net Worth 450.239,15: ' + m.months[L].netWorth.toFixed(2));
-ok(Math.abs(m.expenses.fixedMonthly - 3255) < 0.005, 'Fixkosten 3.255,00: ' + m.expenses.fixedMonthly.toFixed(2));
+ok(!('expenses' in m), 'kein expenses-Feld im Modell — die Ausgaben kommen aus den Einstellungen');
 
 /* Und der Erzeuger überschreibt die Formatierung nicht aus Versehen. */
 const r = execFileSync('node', ['-e', `

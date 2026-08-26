@@ -208,51 +208,6 @@ const wsData = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true });
 fmt.forEach(({ r, c, z }) => { const a = XLSX.utils.encode_cell({ r, c }); if (wsData[a]) wsData[a].z = z; });
 wsData['!cols'] = [{ wch: 34 }, ...dates.map(() => ({ wch: 12 }))];
 
-/* ------------------------------------------------------------- Expenses */
-
-/* Die Annuität steht hier als ein Posten. Streng genommen ist nur ihr
-   Zinsanteil Aufwand und die Tilgung Sparen — aber in einer Fixkostenliste
-   steht, was jeden Monat abgeht, und genau das treibt die Zielbeträge. Wer es
-   anders halten will, trägt nur den Zinsanteil ein. */
-const MONTHLY = [
-  ['Mortgage (interest + amortisation)', ANNUITY, 'monthly'],
-  ['Service charges (owners’ association)', 385, 'monthly'],
-  ['Securities loan interest', r2(LOMBARD * 0.035 / 12), 'monthly'],
-  ['Electricity', 78, 'monthly'],
-  ['Internet', 45, 'monthly'],
-  ['Mobile phone', 25, 'monthly'],
-  ['Groceries', 420, 'monthly'],
-  ['Public transport', 58, 'monthly'],
-  ['Gym', 35, 'monthly'],
-  ['Streaming', 28, 'monthly'],
-  ['Dental top-up', 38, 'monthly']
-];
-const ANNUAL = [
-  ['Property tax', 320, 'February'],
-  ['Car insurance', 640, 'January'],
-  ['Car tax', 168, 'March'],
-  ['Home contents insurance', 142, 'April'],
-  ['Liability insurance', 84, 'April'],
-  ['Broadcasting fee', 220, 'quarterly'],
-  ['Travel health insurance', 34, 'June'],
-  ['Software licences', 108, 'November']
-];
-const tot = (rows) => r2(rows.reduce((a, r) => a + r[1], 0));
-
-const eoa = [['Kind', 'Amount', 'Due']];
-MONTHLY.forEach((r) => eoa.push(r));
-eoa.push(['Monthly fixed costs', tot(MONTHLY), '']);
-eoa.push([]);
-ANNUAL.forEach((r) => eoa.push(r));
-eoa.push(['Annual fixed costs', tot(ANNUAL), '']);
-
-const wsExp = XLSX.utils.aoa_to_sheet(eoa);
-for (let r = 1; r < eoa.length; r++) {
-  const a = XLSX.utils.encode_cell({ r, c: 1 });
-  if (wsExp[a] && typeof wsExp[a].v === 'number') wsExp[a].z = MONEY;
-}
-wsExp['!cols'] = [{ wch: 34 }, { wch: 12 }, { wch: 12 }];
-
 /* ------------------------------------------------------------- Read me */
 
 const wsRead = XLSX.utils.aoa_to_sheet([
@@ -262,11 +217,10 @@ const wsRead = XLSX.utils.aoa_to_sheet([
   ['Seven years of a household that bought a flat on day one and financed'],
   ['all of it, so the numbers show a large asset and a large debt side by side.'],
   [],
-  ['nordstern reads two sheets and nothing else:'],
+  ['nordstern reads one sheet and nothing else:'],
   ['  "Data Input"', 'one column per month, one row per account'],
-  ['  "Expenses"', 'your fixed costs, monthly and annual'],
   [],
-  ['This third sheet is here to prove the point: it is never read.'],
+  ['This second sheet is here to prove the point: it is never read.'],
   ['Add as many of your own as you like.'],
   [],
   ['Rows are found by their label in column A, never by row number.'],
@@ -278,7 +232,6 @@ wsRead['!cols'] = [{ wch: 22 }, { wch: 58 }];
 const wb = XLSX.utils.book_new();
 XLSX.utils.book_append_sheet(wb, wsRead, 'Read me');
 XLSX.utils.book_append_sheet(wb, wsData, 'Data Input');
-XLSX.utils.book_append_sheet(wb, wsExp, 'Expenses');
 
 /* Wohin geschrieben wird. Ohne Angabe an den angestammten Platz — aber nicht
    über eine Datei, die schon dort liegt.
@@ -312,7 +265,6 @@ writeFileSync(out, XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', cellDates:
 
 const L = MONTHS - 1;
 const eur = (n) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).padStart(14);
-const fixed = tot(MONTHLY) + tot(ANNUAL) / 12;
 console.log(out);
 console.log('  ' + MONTHS + ' Monate, ' + START.getFullYear() + '-' + String(START.getMonth() + 1).padStart(2, '0') +
             ' … ' + dates[L].getFullYear() + '-' + String(dates[L].getMonth() + 1).padStart(2, '0'));
@@ -325,8 +277,3 @@ console.log('  Vermögen      ' + eur(assets[L]));
 console.log('  Darlehen      ' + eur(mortgage[L]) + '   (von ' + LOAN0.toLocaleString('de-DE') + ')');
 console.log('  Schulden      ' + eur(liabTotal[L]));
 console.log('  NET WORTH     ' + eur(net[L]));
-console.log('  Fixkosten     ' + eur(fixed) + ' mtl. (' + tot(MONTHLY).toLocaleString('de-DE') +
-            ' + ' + tot(ANNUAL).toLocaleString('de-DE') + '/12), davon Annuität ' + ANNUITY.toLocaleString('de-DE'));
-console.log('  Stationen     Contingency ' + Math.round(sectionTotals[0][L] / (3 * fixed) * 100) + '% · ' +
-            'Stable Course ' + Math.round(sectionTotals[2][L] / (60 * fixed) * 100) + '% · ' +
-            'Aurora ' + Math.round(sectionTotals[2][L] / (120 * fixed) * 100) + '%');
