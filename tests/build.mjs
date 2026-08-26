@@ -25,13 +25,13 @@ ok(!/<script[^>]*\ssrc=/i.test(html),'kein <script src=> mehr');
    einem Ladeattribut wäre eine zweite Datei — und damit kein Bau mehr. */
 let markup=html,prev;
 do{prev=markup;markup=markup.replace(/<(style|script)\b[\s\S]*?<\/\1>/g,'');}while(markup!==prev);
-/* Eine data:-Adresse lädt nichts nach — sie ist bereits da, das trägt der
-   eine Symbol-Link fürs SVG, siehe unten. favicon.png ist die eine bewusste
-   Ausnahme: Safari zeigt keine data:-Symbole, die Datei bleibt relativ und
-   liegt auf Pages neben der Seite; die Prüfung unten zählt sie gesondert.
-   Hier zählen nur Pfade, die eine andere, ungeplante zweite Datei wären. */
+/* favicon.png ist die bewusste Ausnahme: Safari zeigt keine data:-Symbole,
+   also bleibt sie eine relative Datei, die auf Pages neben der Seite liegt;
+   die Prüfung unten zählt sie gesondert. Hier zählen nur Pfade, die eine
+   andere, ungeplante zweite Datei wären. */
 const load=[...markup.matchAll(/\s(?:src|href)="([^"]*)"/g)].map(m=>m[1])
-  .filter(v=>!/^(?:https?|data):/.test(v)).filter(v=>v!=='favicon.png');
+  .filter(v=>!/^(?:https?|data):/.test(v))
+  .filter(v=>v!=='favicon.png');
 ok(load.length===0,'keine ladenden Pfade im Markup: '+load.join(', '));
 ok(!/@import/.test(html),'kein @import');
 ok(!/fonts\.googleapis|cdn\.|unpkg|jsdelivr/i.test(html),'keine fremden Hosts');
@@ -43,7 +43,7 @@ ok(/default-src 'none'/.test(csp),'CSP: nichts ist erlaubt, was nicht dasteht');
 ok(/connect-src 'none'/.test(csp),'CSP: keine Verbindung nach draussen');
 ok(/form-action 'none'/.test(csp),'CSP: kein Formular kann etwas fortschicken');
 ok(/base-uri 'none'/.test(csp),'CSP: die Basis-URL lässt sich nicht verbiegen');
-ok(/img-src 'self'/.test(csp),'CSP: Bilder nur vom eigenen Ursprung, das PNG-Symbol auf Pages');
+ok(/img-src 'self'/.test(csp),'CSP: Bilder nur vom eigenen Ursprung, die Symbol-Datei auf Pages');
 ok(csp.indexOf('http')<0,'CSP nennt keinen fremden Host: '+csp);
 /* Auch zur Laufzeit entsteht keine Adresse: die Karten tasten nach keinem
    Bild neben der Datei, ihre Verläufe sind gerechnet. */
@@ -96,52 +96,30 @@ const bars=w=>[...w.document.querySelectorAll('.card .card-back .card-bar i')].m
 ok(bars(B.w)===bars(A.w),'die Fortschritte der acht Karten stimmen überein');
 
 sec('Der Quelltext verlinkt das Symbol relativ');
-/* Nur im Bau wird das SVG zur Datenadresse — index.html selbst muss
-   favicon.svg und favicon.png relativ verlinken, sonst hätte die
-   doppelt-geklickte Seite über file:// kein Symbol. Das PNG bleibt auch im
-   Bau relativ verlinkt, siehe unten. */
+/* index.html verlinkt favicon.png relativ, und der Bau rührt den Link nicht
+   an — auch im Bau bleibt es eine relative Datei. favicon.svg ist nur die
+   Quelle, aus der favicon.png gerendert ist, und wird nirgends verlinkt. */
 const srcHtml=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
-ok(/<link\b[^>]*\shref="favicon\.svg"/.test(srcHtml),
-  'index.html verlinkt favicon.svg relativ');
 ok(/<link\b[^>]*\shref="favicon\.png"/.test(srcHtml),
   'index.html verlinkt favicon.png relativ');
+ok(!/<link\b[^>]*\shref="favicon\.svg"/.test(srcHtml),
+  'index.html verlinkt favicon.svg nicht');
 
 sec('Keine Daten im Bau');
 /* Der eigentliche Wächter steht in tests/privacy.mjs — er prüft gegen eine
    echte Mappe und über alle Dateien, die ins Repository wandern würden.
-   Hier bleibt nur, was die Datei selbst betrifft. Eine Ausnahme von "keine
-   Datenadresse": der eine Symbol-Link fürs SVG, dessen Inhalt hier gegen die
-   Quelldatei geprüft wird, statt ihn nur zuzulassen. Das PNG-Symbol bleibt
-   auch im Bau eine relative Datei — Safari zeigt keine data:-Symbole. */
-const iconLinks=[...markup.matchAll(/<link\b([^>]*)>/g)]
-  .map(m=>m[1]).filter(attrs=>/\bhref="data:/.test(attrs));
-ok(iconLinks.length===1,'genau ein eingefalteter Symbol-Link: gezählt '+iconLinks.length);
-ok(iconLinks.every(attrs=>/\brel="icon"/.test(attrs)),
-  'die Datenadresse steckt in einem <link rel="icon">');
-/* Ausschliesslich in Ladeattributen gezählt, nicht in Kommentartext — der
-   Kommentar über dem Symbol-Link erklärt in Worten, warum es eine
-   data:-Adresse gibt, und nennt das Wort dabei selbst. */
-const dataCount=(markup.match(/(?:src|href)="data:/g)||[]).length;
-ok(dataCount===1,'genau eine Datenadresse im Bau, ausserhalb nichts: gezählt '+dataCount);
+   Hier bleibt nur, was die Datei selbst betrifft: keine data:-Adresse
+   irgendwo im Bau, auch nicht für die Symbol-Datei. */
+const dataCount=(html.match(/(?:src|href)="data:/g)||[]).length;
+ok(dataCount===0,'keine Datenadresse im Bau: gezählt '+dataCount);
 
-const svgSrc=fs.readFileSync(path.join(ROOT,'favicon.svg'),'utf8');
-
-const svgLinks=iconLinks.filter(attrs=>/href="data:image\/svg\+xml/.test(attrs));
-ok(svgLinks.length===1,'genau ein SVG-Symbol-Link: gezählt '+svgLinks.length);
-const svgMatch=svgLinks[0]&&svgLinks[0].match(/href="data:image\/svg\+xml;charset=utf-8,([^"]*)"/);
-ok(!!svgMatch,'die SVG-Datenadresse ist URL-kodiert');
-ok(!!svgMatch&&decodeURIComponent(svgMatch[1])===svgSrc,
-  'die eingefaltete SVG stimmt Byte für Byte mit favicon.svg überein');
-ok(!/data:image\/png/.test(html),'keine PNG-Datenadresse im Bau');
-
-/* Das PNG bleibt relativ verlinkt, zweimal, und sein rel="icon"-Link steht
-   nach dem eingefalteten SVG-Link — WebKit nimmt von mehreren rel="icon"
-   das letzte mit type-Attribut, und das muss die Datei sein, nicht die
-   data:-Adresse, die Safari nicht zeigt. */
-const pngHrefs=[...html.matchAll(/\shref="favicon\.png"/g)];
-ok(pngHrefs.length===2,'zwei relative Links auf favicon.png: gezählt '+pngHrefs.length);
-ok(html.indexOf('<link rel="icon" type="image/png"')>html.indexOf('data:image/svg+xml'),
-  'das PNG-rel="icon" steht nach dem eingefalteten SVG-Link');
+/* Genau ein PNG-Symbol-Link, genau ein Home-Bildschirm-Link, kein
+   favicon.svg im Bau — es gibt nur noch das eine Symbol. */
+const pngIconLinks=[...html.matchAll(/<link rel="icon" type="image\/png"[^>]*\shref="favicon\.png">/g)];
+ok(pngIconLinks.length===1,'genau ein PNG-Symbol-Link: gezählt '+pngIconLinks.length);
+const touchLinks=[...html.matchAll(/<link rel="apple-touch-icon" href="favicon\.png">/g)];
+ok(touchLinks.length===1,'genau ein Home-Bildschirm-Link: gezählt '+touchLinks.length);
+ok(!/<link\b[^>]*\shref="favicon\.svg"/.test(html),'kein favicon.svg-Link im Bau');
 ok(!html.includes('PK\u0003\u0004'),'kein Stück einer Mappe im Bau');
 ok(!/nordstern-example/i.test(html),'auch die Beispielmappe steckt nicht drin');
 

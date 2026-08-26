@@ -1,17 +1,17 @@
 /* NORDSTERN — Build.
-   Faltet index.html, die drei Stylesheets, die vierzehn Skripte und die
-   beiden Kachel-Dateien zu einer einzigen Datei unter export/. Kein Bundler,
-   kein Minifier, keine Umschrift: der Quelltext wandert Zeichen für Zeichen
-   in <style> und <script>, nur die Reihenfolge aus index.html hält ihn
-   zusammen. Wer die gebaute Datei liest, liest dieselben Zeilen wie im
-   Ordner nebenan — samt Kommentaren.
+   Faltet index.html, die drei Stylesheets und die vierzehn Skripte zu einer
+   einzigen Datei unter export/. Kein Bundler, kein Minifier, keine
+   Umschrift: der Quelltext wandert Zeichen für Zeichen in <style> und
+   <script>, nur die Reihenfolge aus index.html hält ihn zusammen. Wer die
+   gebaute Datei liest, liest dieselben Zeilen wie im Ordner nebenan — samt
+   Kommentaren.
 
    Die Regel, die alles andere bestimmt: es werden ausschliesslich Dateien
-   eingefaltet, die index.html selbst verlinkt — aus css/ und js/, dazu als
-   einzige Ausnahme die zwei benannten Kachel-Dateien im Wurzelverzeichnis.
-   Damit kann durch einen Tippfehler nichts aus excel/ oder img/ in die
-   Ausgabe geraten. Ein Bau, der eine Datei ausserhalb dieser Liste
-   anfassen müsste, bricht ab statt sie mitzunehmen. */
+   eingefaltet, die index.html selbst verlinkt — aus css/ und js/. Damit kann
+   durch einen Tippfehler nichts aus excel/ oder img/ in die Ausgabe geraten.
+   Ein Bau, der eine Datei ausserhalb dieser Liste anfassen müsste, bricht ab
+   statt sie mitzunehmen. Die Symbol-Datei im Wurzelverzeichnis fasst der Bau
+   gar nicht erst an, siehe unten. */
 import { readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, resolve, relative, sep } from 'node:path';
@@ -41,19 +41,6 @@ const inlined = [];
 function note(rel, src) {
   inlined.push({ rel, bytes: Buffer.byteLength(src, 'utf8') });
   return src;
-}
-
-/* Die Kachel-Datei liegt im Wurzelverzeichnis, nicht unter css/ oder js/ —
-   die Positivliste oben gilt nur für Stil und Skript. Hier reicht ein fester
-   Name: nichts sonst wird aus dem Wurzelverzeichnis gelesen. favicon.png
-   gehört nicht dazu — sie wird nicht eingefaltet, sondern bleibt eine Datei
-   neben der Seite, siehe unten. */
-const ICON_FILES = ['favicon.svg'];
-function readIcon(rel) {
-  if (!ICON_FILES.includes(rel)) {
-    throw new Error('Bau abgebrochen: "' + rel + '" ist nicht die Kachel-Datei.');
-  }
-  return readFileSync(resolve(ROOT, rel));
 }
 
 /* Ein </script> im Skript oder ein </style> im Stylesheet würde den Block
@@ -87,25 +74,12 @@ html = html.replace(
   }
 );
 
-/* Wie oben bei Stylesheets und Skripten: ein <link> mit relativem Pfad wird
-   zu einem <link> mit data:-Adresse, die übrigen Attribute (rel, type,
-   sizes) bleiben stehen — aber nur für das SVG. Safari zeigt keine
-   data:-Symbole, also brächte das PNG als data:-Adresse dort nichts; die
-   Datei bleibt relativ und liegt auf Pages neben der Seite. Über file://
-   fehlt sie dort im Bau: Chromium und Firefox zeigen dann das SVG, Safari
-   gar nichts, und wer sie will, legt favicon.png neben die gebaute Datei.
-   Jede Datei wird nur einmal gelesen und im Bericht gezählt, auch wenn
-   mehrere <link>-Tags sie nennen. */
-const iconBufs = {};
-html = html.replace(
-  /[ \t]*<link\b[^>]*\shref="(favicon\.svg)"[^>]*>/g,
-  (m, href) => {
-    if (!iconBufs[href]) iconBufs[href] = note(href, readIcon(href));
-    const buf = iconBufs[href];
-    const uri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(buf.toString('utf8'));
-    return m.replace('href="' + href + '"', 'href="' + uri + '"');
-  }
-);
+/* Den Symbol-Link rührt der Bau nicht an: Safari lädt keine data:-Adressen,
+   also bliebe das Falten wirkungslos. favicon.png bleibt eine Datei neben
+   der Seite; auf Pages liefert der Workflow sie aus. Über file:// fehlt sie
+   im Bau, es sei denn, wer die gebaute Datei öffnet, legt favicon.png
+   daneben. favicon.svg ist nur die Quelle, aus der favicon.png gerendert
+   ist, und wird nirgends verlinkt. */
 
 const left = html.match(/\s(?:href|src)="(?:css|js)\/[^"]+"/g);
 if (left) throw new Error('Bau abgebrochen: nicht eingefaltet — ' + left.join(', '));
@@ -121,10 +95,10 @@ if (left) throw new Error('Bau abgebrochen: nicht eingefaltet — ' + left.join(
    wie Stil. Das lockert nichts, was für die Zusage zählt: eingebetteter Code
    kann ohne connect-src und ohne form-action nichts nach draussen geben.
 
-   img-src 'self' ist einzig für das PNG-Symbol vom eigenen Ursprung gedacht.
-   Kein Weg nach draussen entsteht dadurch, weil nur derselbe Ursprung
-   erlaubt ist, von dem die Seite selbst kommt — auf Pages also nur die
-   Datei favicon.png daneben, nirgendwo sonst.
+   img-src 'self' ist einzig für die Symbol-Datei vom eigenen Ursprung
+   gedacht. Kein Weg nach draussen entsteht dadurch, weil nur derselbe
+   Ursprung erlaubt ist, von dem die Seite selbst kommt — auf Pages also nur
+   favicon.png daneben, nirgendwo sonst.
 
    Nur der Bau bekommt sie. Über file:// ist der Ursprung undurchsichtig,
    und ein script-src 'self' würde im Ordner nebenan die vierzehn Skripte

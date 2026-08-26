@@ -189,7 +189,8 @@ js/ui/cards.js          the eight milestone cards
 js/ui/settings.js       the settings sheet
 js/app.js               wiring and states
 js/vendor/              SheetJS 0.20.3, vendored — the only dependency
-favicon.svg/.png        tab and home-screen icon; the build inlines the SVG, the PNG stays a file
+favicon.png             tab and home-screen icon, served as a file beside the page
+favicon.svg             the vector source the PNG is rendered from, not linked
 examples/               the example workbook (generated, invented figures)
 tools/build.mjs         folds everything into one file
 tools/make-example.mjs  writes examples/nordstern-example.xlsx
@@ -263,15 +264,13 @@ npm run build   # → export/nordstern.html
 ```
 
 One file: the three stylesheets and the fourteen scripts as `<style>` and
-`<script>`, in the order `index.html` loads them, plus `favicon.svg` as a
-`data:` address on its `<link>` tag. No bundler, no minifier — the source is
-copied character for character, each block carrying its origin path in
-`data-src`.
+`<script>`, in the order `index.html` loads them. No bundler, no minifier —
+the source is copied character for character, each block carrying its origin
+path in `data-src`.
 
-`favicon.png` stays a file next to the page rather than a `data:` address,
-because Safari shows no `data:` favicons. On Pages it is served beside the
-page; offline, Chromium and Firefox use the inlined SVG, Safari shows no
-icon unless `favicon.png` sits next to the built file.
+The icon is not folded in: Safari loads no `data:` favicons, so it stays a
+file. On Pages it is served beside the page; the built file opened from disk
+shows no tab icon unless `favicon.png` sits next to it.
 
 The build reads only files that `index.html` itself links, and only from
 `css/` and `js/`; any other path aborts it. Nothing is loaded from outside
@@ -283,7 +282,7 @@ default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';
 img-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'
 ```
 
-`img-src 'self'` is only for `favicon.png` — the page's own origin, nothing
+`img-src 'self'` is only for the icon file — the page's own origin, nothing
 else — the rest still forbids any outbound request.
 
 The SheetJS licence sits as a comment above the folded-in script, because

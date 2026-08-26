@@ -42,8 +42,8 @@ jobs:
           mkdir -p _site
           cp export/nordstern.html _site/index.html
           cp examples/nordstern-example.xlsx _site/
-          # Safari does not render data: favicons, so the PNG is served as a
-          # file beside the page.
+          # Safari loads no data: favicons, so the icon is served as a file
+          # beside the page.
           cp favicon.png _site/
           touch _site/.nojekyll
           # The page must carry the policy that forbids any outbound request.
