@@ -1810,5 +1810,50 @@ sec('About: Stern, Wortmarke, Fassung');
   });
 }
 
+/* ---------- 17. Raster bei niedrigen Fenstern ---------- */
+sec('Raster bei niedrigen Fenstern');
+{ const css=fs.readFileSync(new URL('../css/layout.css',import.meta.url),'utf8');
+  /* jsdom kennt keine Media Queries, also wird das Stylesheet als Text
+     geprüft. @media-Blöcke können verschachtelte Klammern enthalten (z. B.
+     Selektoren mit Pseudoelementen), eine einzelne Regex ist dafür zu
+     zerbrechlich — die Blöcke werden mit einem kleinen Klammer-Zähler
+     herausgeschnitten. */
+  const mediaBlocks=[];
+  const open=/@media\s*([^{]+)\{/g;
+  let m;
+  while((m=open.exec(css))){
+    const cond=m[1].trim();
+    let depth=1, i=open.lastIndex;
+    while(depth>0&&i<css.length){
+      if(css[i]==='{') depth++;
+      else if(css[i]==='}') depth--;
+      i++;
+    }
+    mediaBlocks.push({cond, body:css.slice(open.lastIndex, i-1)});
+    open.lastIndex=i;
+  }
+  ok(mediaBlocks.length>0,'mindestens ein @media-Block in layout.css gefunden');
+
+  /* 1: jeder Block, der die Bühne auf eine Spalte stapelt, hängt nur an
+     max-width — eine niedrige, aber breite Fensterform darf nicht stapeln. */
+  const stackBlocks=mediaBlocks.filter(b=>/\.stage\s*\{[^}]*grid-template-columns:\s*1fr/.test(b.body));
+  ok(stackBlocks.length>0,'mindestens ein Block stapelt die Bühne (.stage auf 1fr)');
+  ok(stackBlocks.every(b=>/max-width/.test(b.cond)&&!/max-height/.test(b.cond)),
+     'stapelnde Blöcke hängen nur an max-width, nie an max-height: '+stackBlocks.map(b=>b.cond).join(' | '));
+
+  /* 2: der Block für niedrige, breite Fenster hebt den Ein-Viewport-Zwang auf
+     (overflow: auto), rührt die Spaltenaufteilung aber nicht an. */
+  const shortWide=mediaBlocks.find(b=>/max-height/.test(b.cond)&&/min-width/.test(b.cond));
+  ok(!!shortWide,'es gibt einen Block für niedrige, breite Fenster (max-height und min-width)');
+  if(shortWide){
+    ok(/overflow:\s*auto/.test(shortWide.body),'er hebt den Ein-Viewport-Zwang auf: overflow: auto');
+    ok(!/\.stage\b/.test(shortWide.body),'und rührt .stage nicht an — die zwei Spalten bleiben stehen');
+  }
+
+  /* 3: der schmale Block existiert weiterhin unverändert bei 1180px. */
+  ok(mediaBlocks.some(b=>/max-width:\s*1180px/.test(b.cond)&&!/min-width/.test(b.cond)),
+     'der schmale Block (max-width: 1180px) existiert weiterhin');
+}
+
 console.log('\n'+pass+' bestanden, '+fail+' fehlgeschlagen');
 process.exit(fail?1:0);

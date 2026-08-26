@@ -1,5 +1,7 @@
 /* NORDSTERN — Panorama-Gerüst.
-   Desktop: ein Viewport, kein Scroll. Schmalere Fenster verdichten und scrollen. */
+   Desktop: ein Viewport, kein Scroll. Schmalere Fenster verdichten und
+   scrollen; niedrige, aber breite Fenster behalten die zwei Spalten und
+   scrollen ebenfalls. */
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -122,11 +124,14 @@ body {
 }
 
 /* --- Verdichtung ----------------------------------------------------------
-   Unterhalb dieser Höhe passen Hero, Verlauf, Struktur und Kartenschiene nicht
-   mehr nebeneinander in einen Viewport: dann wird gestapelt und gescrollt,
-   statt dass sich die Blöcke überlagern. Die Kapitelworte hängen an der
-   Fensterhöhe, brauchen aber trotzdem ihren Anteil. */
-@media (max-width: 1180px), (max-height: 840px) {
+   Zwei Fälle, zwei Blöcke. Schmale Fenster (Block A): Hero, Verlauf, Struktur
+   und Kartenschiene passen nicht mehr nebeneinander in einen Viewport, also
+   wird gestapelt und gescrollt, statt dass sich die Blöcke überlagern. Kurze,
+   aber breite Fenster (Block B): die zwei Spalten passen noch nebeneinander,
+   nur reicht die Höhe nicht für einen Viewport ohne Scroll — die
+   Ein-Viewport-Regel fällt, die Spalten bleiben stehen, es wird gescrollt
+   statt gestapelt. */
+@media (max-width: 1180px) {
   body { overflow: auto; }
   .shell { height: auto; min-height: 100vh; grid-template-rows: var(--head-h) auto; }
   .stage { grid-template-columns: 1fr; }
@@ -134,6 +139,12 @@ body {
   .zone--position { border-bottom: 1px solid var(--line-hair); }
   .zone--mountain { grid-template-rows: auto minmax(52vh, 1fr) auto; padding-bottom: 16px; }
   .zone--position { grid-template-rows: auto minmax(240px, 1fr) auto; }
+}
+@media (max-height: 840px) and (min-width: 1181px) {
+  body { overflow: auto; }
+  .shell { height: auto; min-height: 100vh; grid-template-rows: var(--head-h) auto; }
+  .zone--position { grid-template-rows: auto minmax(240px, 1fr) var(--rail-h); }
+  .zone--mountain { grid-template-rows: auto minmax(52vh, 1fr) auto; padding-bottom: 16px; }
 }
 @media (max-width: 720px) {
   /* Vier Kennzahlspalten sind hier zu viel: zwei Spalten, zeilenweise. */

@@ -202,12 +202,15 @@ The card rail is a fixed grid. In **`css/layout.css`**:
         grid-template-rows: repeat(2, var(--card-h)); }
 ```
 
-and a stacked fallback further down for short windows:
+and a stacked fallback further down for narrow windows:
 
 ```css
 .rail { grid-template-columns: repeat(2, minmax(0, 1fr));
         grid-template-rows: repeat(4, var(--card-h)); }
 ```
+
+Short but wide windows are a separate case: the two columns stay side by
+side and the page scrolls instead, so the rail keeps its four-wide grid there.
 
 Six cards want `repeat(3, …)` × 2. Ten want `repeat(5, …)` × 2 and will be
 narrow. The design target is a desktop window with **no scrolling**, and the
