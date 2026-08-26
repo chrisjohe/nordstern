@@ -246,6 +246,10 @@ Worth knowing, so you do not go looking:
 * **The reserve ring.** It is driven by whichever station has
   `basis: 'liquid'`. If you give a second station `basis: 'liquid'`, the ring
   follows the first one.
+* **The history chart.** On *Invested*, it draws a threshold line for every
+  station with `basis: 'investment'` whose target falls inside the currently
+  visible range. Add a station and it shows up there too, with no wiring of
+  its own.
 
 ## Checklist
 

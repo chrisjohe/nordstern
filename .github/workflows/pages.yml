@@ -1,7 +1,8 @@
-# Pages serves exactly one thing: the single-file build — the same file you
-# would download and open from your own disk, so hosted and offline copy cannot
-# drift apart. It is built here rather than committed: a generated megabyte in
-# the history goes stale without anyone noticing.
+# Pages serves the single-file build — the same file you would download and
+# open from your own disk, so hosted and offline copy cannot drift apart —
+# plus the example workbook and the icon file beside it. The build is done
+# here rather than committed: a generated megabyte in the history goes stale
+# without anyone noticing.
 name: pages
 
 on:
@@ -41,6 +42,9 @@ jobs:
           mkdir -p _site
           cp export/nordstern.html _site/index.html
           cp examples/nordstern-example.xlsx _site/
+          # Safari does not render data: favicons, so the PNG is served as a
+          # file beside the page.
+          cp favicon.png _site/
           touch _site/.nojekyll
           # The page must carry the policy that forbids any outbound request.
           grep -q "connect-src 'none'" _site/index.html \

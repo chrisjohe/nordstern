@@ -710,6 +710,120 @@ sec('Vorjahreslinie folgt dem Zeiger');
   w.close();
 }
 
+/* ---------- 4c. Chart: Stationslinien ---------- */
+/* Nur „Invested" misst gegen dieselbe Größe wie die sieben Stationen — auf
+   Net oder Total stünde die Schwelle an der falschen Stelle. Die Gruppe
+   g.chart-stations steht trotzdem immer im SVG, auch leer, damit sich der
+   Aufbau des Dokuments nicht mit der gewählten Reihe ändert. */
+sec('Stationslinien im Verlauf');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  const svg=()=>d.querySelector('.chart-svg');
+  const stationsG=()=>d.querySelector('.chart-stations');
+  const stations=()=>[...stationsG().querySelectorAll('.chart-station')];
+  const click=b=>b.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  const clickText=(sel,text)=>click([...d.querySelectorAll(sel)].find(b=>b.textContent===text));
+
+  /* 1: Vorauswahl ist Net — die Gruppe ist da, aber leer; auf Total ebenso. */
+  ok(!!stationsG(),'g.chart-stations steht im SVG, auch ohne Stationen');
+  ok(stations().length===0,'auf Net zeigt sie keine Station: '+stations().length);
+  clickText('.series .range-btn','Total'); await tick(20);
+  ok(stations().length===0,'auf Total ebenso leer: '+stations().length);
+
+  /* 4: Reihenfolge im Dokument — nach dem Gitter, vor der Fläche. */
+  const kids=[...svg().children].map(n=>n.getAttribute('class')||n.tagName);
+  const idxGrid=kids.findIndex(k=>k.includes('chart-grid'));
+  const idxStations=kids.findIndex(k=>k.includes('chart-stations'));
+  const idxFill=kids.findIndex(k=>k.includes('chart-fill'));
+  ok(idxGrid>=0&&idxStations>idxGrid&&idxFill>idxStations,
+     'chart-stations liegt zwischen Gitter und Fläche: '+kids.join(' · '));
+
+  /* 2: Invested, 5 Jahre (Vorauswahl) — vier Stationen, alle im Beispieldepot
+     (345.198,39 €) bereits erreicht, aufsteigend nach Ziel sortiert. */
+  clickText('.series .range-btn','Invested'); await tick(20);
+  const st=stations();
+  ok(st.length===4,'vier Stationen im sichtbaren Fenster: '+st.length);
+  ok(st.map(s=>s.dataset.id).join()==='snowball,fyou,coast,barista',
+     'aufsteigend nach Ziel: '+st.map(s=>s.dataset.id).join());
+  ok(st.every(s=>s.classList.contains('is-reached')),'alle vier gelten als erreicht');
+  ok(st.every(s=>s.querySelectorAll('line').length===1&&s.querySelectorAll('text').length===1),
+     'jede Station trägt genau eine Linie und ein Label');
+  ok(st.map(s=>s.querySelector('text').textContent).join(' · ')
+       ==='First Light · Velocity · Stable Course · Aurora',
+     'die vier Stationsnamen: '+st.map(s=>s.querySelector('text').textContent).join(' · '));
+
+  /* 3: Die Linien liegen exakt bei Y(target) — dieselbe Skala wie das Gitter
+     (viewBox 520×190, pad t 14 / b 20, ih 156). Fenster hier: 0…386.201 €. */
+  const ih=190-14-20, ymin=0, ymax=386201.0986;
+  const Y=v=>14+ih-((v-ymin)/(ymax-ymin))*ih;
+  const aurora=st.find(s=>s.dataset.id==='barista');
+  const y1=Number(aurora.querySelector('line').getAttribute('y1'));
+  ok(Math.abs(y1-Y(300000))<0.6,
+     'Aurora-Linie bei Y(300.000 €): '+y1.toFixed(2)+' vs '+Y(300000).toFixed(2));
+  ok(aurora.querySelector('line').getAttribute('y1')===aurora.querySelector('line').getAttribute('y2'),
+     'die Linie steht waagerecht');
+
+  /* 5+6: Labels rechtsbündig auf x = 520 − 16 − 2, mindestens 12 px
+     Grundlinienabstand zueinander — auch wenn die Linien selbst enger stehen:
+     First Light und Velocity liegen als Linien nur rund 6 px auseinander,
+     ihre Labels weichen deshalb auseinander. */
+  ok(st.every(s=>s.querySelector('text').getAttribute('text-anchor')==='end'
+       &&Number(s.querySelector('text').getAttribute('x'))===502),
+     'alle Labels rechtsbündig auf x=502');
+  const labelYs=st.map(s=>Number(s.querySelector('text').getAttribute('y')));
+  for (var pi=0; pi<labelYs.length; pi++) for (var pj=pi+1; pj<labelYs.length; pj++)
+    ok(Math.abs(labelYs[pi]-labelYs[pj])>=12,
+       'Label '+pi+' und '+pj+' halten 12 px Abstand: '+labelYs.join(' · '));
+  const flLineY=Number(st[0].querySelector('line').getAttribute('y1'));
+  const veLineY=Number(st[1].querySelector('line').getAttribute('y1'));
+  ok(Math.abs(flLineY-veLineY)<12,
+     'First Light und Velocity liegen als Linien eng beieinander: '+Math.abs(flLineY-veLineY).toFixed(1)+' px');
+
+  /* 7: 1 Jahr — nur, wessen Ziel ins schmale Fenster fällt. */
+  clickText('.range .range-btn','1 year'); await tick(20);
+  const st1y=stations();
+  ok(st1y.length===1&&st1y[0].dataset.id==='barista'&&st1y[0].classList.contains('is-reached'),
+     'im 1-Jahres-Fenster nur Aurora: '+st1y.map(s=>s.dataset.id).join());
+  clickText('.range .range-btn','5 years'); await tick(20);
+
+  /* 8: Ausgaben verschieben alle Ziele — und damit, welche Station im
+     Fenster liegt und ob sie erreicht ist. */
+  const setExp=v=>{ var inp=d.getElementById('setExp'); inp.value=String(v); inp.dispatchEvent(new w.Event('input')); };
+  setExp(1500); await tick(30);
+  const st1500=stations();
+  ok(st1500.length===5,'bei 1.500 €/Monat kommt eine fünfte Station ins Fenster: '+st1500.length);
+  const passage=st1500.find(s=>s.dataset.id==='semi');
+  ok(!!passage&&!passage.classList.contains('is-reached'),'Passage (360.000 €) ist dabei, aber nicht erreicht');
+  const passageY=Number(passage.querySelector('line').getAttribute('y1'));
+  const auroraY1500=Number(st1500.find(s=>s.dataset.id==='barista').querySelector('line').getAttribute('y1'));
+  ok(passageY<auroraY1500,'ihre Linie liegt höher im Chart als die von Aurora: '+passageY.toFixed(1)+' < '+auroraY1500.toFixed(1));
+
+  setExp(4000); await tick(30);
+  const st4000=stations();
+  ok(st4000.length===3&&st4000.every(s=>['snowball','fyou','coast'].indexOf(s.dataset.id)>=0),
+     'bei 4.000 €/Monat bleiben nur die ersten drei — Aurora (480.000 €) läge über der Skala: '
+     +st4000.map(s=>s.dataset.id).join());
+
+  setExp(2500); await tick(30);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* Regeln im Stylesheet: die Stationslinie blass und gestrichelt, die Gruppe
+   fängt keine Zeigerereignisse ab, und sie ist Teil desselben Aufbau-Effekts
+   wie Fläche und Vorjahreslinie — sonst blitzt sie beim Reihenwechsel
+   unvermittelt auf, statt sich einzublenden. */
+{ const css=fs.readFileSync(new URL('../css/components.css',import.meta.url),'utf8');
+  const stationLine=(/\.chart-station line\s*\{([^}]*)\}/.exec(css)||[])[1]||'';
+  ok(/var\(--ink-mute\)/.test(stationLine)&&/stroke-dasharray/.test(stationLine),
+     'die Stationslinie ist blass und gestrichelt: '+stationLine.trim());
+  ok(/\.chart-stations\s*\{[^}]*pointer-events:\s*none/.test(css),
+     'die Gruppe fängt keine Zeigerereignisse ab');
+  const arriveRules=[...css.matchAll(/([^{}]*)\{[^{}]*animation:[^;]*nsArriveFade[^;]*;/g)].map(m=>m[1]);
+  ok(arriveRules.some(function(r){ return /\.chart-stations/.test(r); }),
+     'chart-stations ist Teil des Aufbau-Effekts (nsArriveFade)');
+}
+
 /* ---------- 5. Bewegung aus ---------- */
 sec('Animationen abschaltbar & Systemvorgabe');
 { const {w,errors}=await boot({storage:{...store}});

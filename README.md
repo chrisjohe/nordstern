@@ -40,7 +40,9 @@ Five things, on one screen, without scrolling:
 * **Net worth** — the current figure, what changed this month, this year, and
   since you started keeping records.
 * **History** — one line, read three ways: *Net* (what is left), *Total* (what
-  is there), *Invested* (what is working), against a dashed year-ago trace.
+  is there), *Invested* (what is working), against a dashed year-ago trace. On
+  *Invested*, the stations that fall within the visible range appear as pale
+  threshold lines, so you see when each one was crossed.
 * **Structure** — a radial instrument that opens: click a section to see the
   accounts inside it. Both rings share one scale, so if you owe more than you
   own the asset ring no longer closes and the gap is the shortfall.
@@ -187,7 +189,7 @@ js/ui/cards.js          the eight milestone cards
 js/ui/settings.js       the settings sheet
 js/app.js               wiring and states
 js/vendor/              SheetJS 0.20.3, vendored — the only dependency
-favicon.svg/.png        tab and home-screen icon; the single-file build inlines both
+favicon.svg/.png        tab and home-screen icon; the build inlines the SVG, the PNG stays a file
 examples/               the example workbook (generated, invented figures)
 tools/build.mjs         folds everything into one file
 tools/make-example.mjs  writes examples/nordstern-example.xlsx
@@ -261,20 +263,28 @@ npm run build   # → export/nordstern.html
 ```
 
 One file: the three stylesheets and the fourteen scripts as `<style>` and
-`<script>`, in the order `index.html` loads them, plus the two icon files as
-`data:` addresses on their `<link>` tags. No bundler, no minifier —
-the source is copied character for character, each block carrying its origin
-path in `data-src`.
+`<script>`, in the order `index.html` loads them, plus `favicon.svg` as a
+`data:` address on its `<link>` tag. No bundler, no minifier — the source is
+copied character for character, each block carrying its origin path in
+`data-src`.
+
+`favicon.png` stays a file next to the page rather than a `data:` address,
+because Safari shows no `data:` favicons. On Pages it is served beside the
+page; offline, Chromium and Firefox use the inlined SVG, Safari shows no
+icon unless `favicon.png` sits next to the built file.
 
 The build reads only files that `index.html` itself links, and only from
-`css/` and `js/`; any other path aborts it. Nothing is loaded at runtime: no
-external font, no `@import`, no foreign host, no image. The browser enforces
-that — the built file carries
+`css/` and `js/`; any other path aborts it. Nothing is loaded from outside
+the page's own origin at runtime: no external font, no `@import`, no foreign
+host. The browser enforces that — the built file carries
 
 ```
 default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';
-img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'
+img-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'
 ```
+
+`img-src 'self'` is only for `favicon.png` — the page's own origin, nothing
+else — the rest still forbids any outbound request.
 
 The SheetJS licence sits as a comment above the folded-in script, because
 handing on the build redistributes SheetJS rather than merely using it.

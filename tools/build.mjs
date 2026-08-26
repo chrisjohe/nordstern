@@ -43,13 +43,15 @@ function note(rel, src) {
   return src;
 }
 
-/* Die zwei Kachel-Dateien liegen im Wurzelverzeichnis, nicht unter css/ oder
-   js/ — die Positivliste oben gilt nur für Stil und Skript. Hier reicht eine
-   feste Liste von Namen: nichts sonst wird aus dem Wurzelverzeichnis gelesen. */
-const ICON_FILES = ['favicon.svg', 'favicon.png'];
+/* Die Kachel-Datei liegt im Wurzelverzeichnis, nicht unter css/ oder js/ —
+   die Positivliste oben gilt nur für Stil und Skript. Hier reicht ein fester
+   Name: nichts sonst wird aus dem Wurzelverzeichnis gelesen. favicon.png
+   gehört nicht dazu — sie wird nicht eingefaltet, sondern bleibt eine Datei
+   neben der Seite, siehe unten. */
+const ICON_FILES = ['favicon.svg'];
 function readIcon(rel) {
   if (!ICON_FILES.includes(rel)) {
-    throw new Error('Bau abgebrochen: "' + rel + '" ist keine der beiden Kachel-Dateien.');
+    throw new Error('Bau abgebrochen: "' + rel + '" ist nicht die Kachel-Datei.');
   }
   return readFileSync(resolve(ROOT, rel));
 }
@@ -85,21 +87,22 @@ html = html.replace(
   }
 );
 
-/* Wie oben bei Stylesheets und Skripten: dieselben zwei Formate, dieselbe
-   Idee — ein <link> mit relativem Pfad wird zu einem <link> mit data:-Adresse,
-   die übrigen Attribute (rel, type, sizes) bleiben stehen. SVG ist Text und
-   wird URL-kodiert; PNG ist binär und wird base64-kodiert. Jede Datei wird
-   nur einmal gelesen und im Bericht gezählt, auch wenn mehrere <link>-Tags
-   sie nennen. */
+/* Wie oben bei Stylesheets und Skripten: ein <link> mit relativem Pfad wird
+   zu einem <link> mit data:-Adresse, die übrigen Attribute (rel, type,
+   sizes) bleiben stehen — aber nur für das SVG. Safari zeigt keine
+   data:-Symbole, also brächte das PNG als data:-Adresse dort nichts; die
+   Datei bleibt relativ und liegt auf Pages neben der Seite. Über file://
+   fehlt sie dort im Bau: Chromium und Firefox zeigen dann das SVG, Safari
+   gar nichts, und wer sie will, legt favicon.png neben die gebaute Datei.
+   Jede Datei wird nur einmal gelesen und im Bericht gezählt, auch wenn
+   mehrere <link>-Tags sie nennen. */
 const iconBufs = {};
 html = html.replace(
-  /[ \t]*<link\b[^>]*\shref="(favicon\.svg|favicon\.png)"[^>]*>/g,
+  /[ \t]*<link\b[^>]*\shref="(favicon\.svg)"[^>]*>/g,
   (m, href) => {
     if (!iconBufs[href]) iconBufs[href] = note(href, readIcon(href));
     const buf = iconBufs[href];
-    const uri = href === 'favicon.svg'
-      ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(buf.toString('utf8'))
-      : 'data:image/png;base64,' + buf.toString('base64');
+    const uri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(buf.toString('utf8'));
     return m.replace('href="' + href + '"', 'href="' + uri + '"');
   }
 );
@@ -118,6 +121,11 @@ if (left) throw new Error('Bau abgebrochen: nicht eingefaltet — ' + left.join(
    wie Stil. Das lockert nichts, was für die Zusage zählt: eingebetteter Code
    kann ohne connect-src und ohne form-action nichts nach draussen geben.
 
+   img-src 'self' ist einzig für das PNG-Symbol vom eigenen Ursprung gedacht.
+   Kein Weg nach draussen entsteht dadurch, weil nur derselbe Ursprung
+   erlaubt ist, von dem die Seite selbst kommt — auf Pages also nur die
+   Datei favicon.png daneben, nirgendwo sonst.
+
    Nur der Bau bekommt sie. Über file:// ist der Ursprung undurchsichtig,
    und ein script-src 'self' würde im Ordner nebenan die vierzehn Skripte
    aussperren, statt irgendetwas zu schützen. */
@@ -125,7 +133,7 @@ const CSP = [
   "default-src 'none'",
   "script-src 'unsafe-inline'",
   "style-src 'unsafe-inline'",
-  "img-src 'none'",
+  "img-src 'self'",
   "connect-src 'none'",
   "form-action 'none'",
   "base-uri 'none'"

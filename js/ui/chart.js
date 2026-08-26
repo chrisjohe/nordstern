@@ -219,14 +219,66 @@
       /* Orientierungslinien */
       var step = niceStep(max - min, 3.2);
       var gy = U.svg('g', { class: 'chart-grid' });
+      var gridLabels = [];                  /* Grundlinie und geschätzte Breite, für die Stationslabels */
       for (var v = Math.ceil(min / step) * step; v <= max; v += step) {
         var y = Y(v);
         gy.appendChild(U.svg('line', { x1: pad.l, x2: w - pad.r, y1: y, y2: y }));
         var t = U.svg('text', { x: pad.l + 2, y: y - 5, class: 'chart-ylab' });
         t.textContent = U.eurShort(v);
         gy.appendChild(t);
+        gridLabels.push({ y: y - 5, width: t.textContent.length * 5.6 });
       }
       g.appendChild(gy);
+
+      /* Stationslinien.
+
+         Nur auf „Invested": die sieben Stationen messen gegen das Depot, auf
+         Net oder Total wären die Schwellen falsch — es ist nicht dieselbe
+         Größe. Die Skala rechnet weiter allein aus der Kurve; die Stationen
+         zoomen sich nicht hinein. Was über `max` liegt, ist ohnehin „noch
+         weit weg" und bleibt außen vor, statt die Kurve zusammenzustauchen.
+         Die Gruppe steht trotzdem immer im SVG, auch leer — die Struktur
+         bleibt stabil, egal welche Reihe gerade gezeigt wird.
+
+         Liegen zwei Ziele nah beieinander, überlappten sich ihre Labels:
+         die Linien bleiben exakt auf ihrer Höhe (sie sind die Aussage), nur
+         die Beschriftung weicht nach oben aus, bis ihr Platz frei ist. */
+      var gs = U.svg('g', { class: 'chart-stations' });
+      /* Rückt ein Label nach oben, bis sein 12-px-Band frei von allen bereits
+         gesetzten Bändern ist — anderen Stationslabels und, sofern sie sich
+         waagerecht überhaupt berühren könnten, den Gitterbeschriftungen links. */
+      var stationLabelYs = [];
+      function placeLabel(y, labelWidth) {
+        for (;;) {
+          var blockedByStation = stationLabelYs.some(function (by) { return Math.abs(by - y) < 12; });
+          var blockedByGrid = gridLabels.some(function (gl) {
+            return Math.abs(gl.y - y) < 12 && pad.l + 2 + gl.width > w - pad.r - 2 - labelWidth;
+          });
+          if (!blockedByStation && !blockedByGrid) break;
+          y -= 12;
+        }
+        stationLabelYs.push(y);
+        return y;
+      }
+      if (state.series === 'invested') {
+        var stations = state.view.stations
+          .filter(function (s) { return min <= s.target && s.target <= max; })
+          .sort(function (a, b) { return a.target - b.target; });
+        stations.forEach(function (s) {
+          var y = Y(s.target);
+          var labelW = s.name.length * 5.6;
+          var labelY = placeLabel(y - 4, labelW);
+          var line = U.svg('line', { x1: pad.l, x2: w - pad.r, y1: y, y2: y });
+          var text = U.svg('text', {
+            x: w - pad.r - 2, y: labelY, class: 'chart-stations-lab', 'text-anchor': 'end'
+          });
+          text.textContent = s.name;
+          gs.appendChild(U.svg('g', {
+            class: 'chart-station' + (s.reached ? ' is-reached' : ''), 'data-id': s.id
+          }, [line, text]));
+        });
+      }
+      g.appendChild(gs);
 
       /* Jahresmarken */
       var gx = U.svg('g', { class: 'chart-xlab' });

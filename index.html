@@ -10,9 +10,13 @@
 <meta name="description" content="Net worth, spending and FIRE progress in one HTML page. Reads your spreadsheet in the browser, sends nothing.">
 <meta property="og:title" content="nordstern">
 <meta property="og:description" content="Net worth, spending and FIRE progress in one HTML page. Reads your spreadsheet in the browser, sends nothing.">
-<!-- Zwei Formate: Chrome und Firefox nehmen das SVG, Safari kennt kein
-     SVG-Favicon und nimmt auf Mac wie iPad das apple-touch-icon, das dort
-     zugleich das Symbol fuer den Home-Bildschirm ist. -->
+<!-- Zwei Formate: Chromium und Firefox nehmen das SVG, das im Bau als
+     data:-Adresse eingefaltet wird. Safari zeigt keine data:-Symbole und
+     nimmt stattdessen das PNG als Datei, die auf Pages neben der Seite liegt
+     und auf Mac wie iPad zugleich das Symbol fuer Favoriten und
+     Home-Bildschirm ist. Das sizes steht am PNG, damit WebKit es bei der
+     Auswahl vor das groessenlose SVG stellt. -->
+<link rel="icon" type="image/png" sizes="180x180" href="favicon.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.png">
 <meta name="color-scheme" content="dark">
