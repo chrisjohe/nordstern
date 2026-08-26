@@ -336,7 +336,10 @@
 
        Jetzt zählt der Kalender: ein Snapshot ist ein Monat, der stattgefunden
        hat. Dazu muss in der Spalte überhaupt etwas stehen — leere Spalten für
-       den Rest des Jahres legt man sich gern im Voraus an.
+       den Rest des Jahres legt man sich gern im Voraus an. Das gilt nicht nur
+       rechts vom letzten Snapshot: eine leere Spalte mitten in der Reihe ist
+       ebenso wenig ein Monat, der stattgefunden hat — sie wird als Lücke
+       behandelt, nicht als Nullstand.
 
        Der Füllgrad taugt nicht als Kriterium: eine Fortschreibung füllt fast
        so viele Kontozeilen wie ein gelebter Monat, und ein paar Prozentpunkte
@@ -364,10 +367,21 @@
       return null;
     }
 
-    var used = cols.slice(0, lastIdx + 1);
+    /* `used` nimmt nur Spalten mit Daten bis lastIdx — eine leere Spalte
+       mitten in der Reihe (Februar ausgelassen, Januar und März stehen) wird
+       hier bereits ausgesiebt, statt später als Nullstand in die Monatsreihe
+       zu rutschen. Die Lückenerkennung unten sieht dann den Sprung von
+       Januar auf März und meldet ihn wie jede andere Lücke; eine eigene
+       Warnung sagt zusätzlich, dass es eine leere Spalte war. */
+    var used = [], emptyInside = [];
+    for (var i2 = 0; i2 <= lastIdx; i2++) {
+      if (hasData(cols[i2].col)) used.push(cols[i2]); else emptyInside.push(cols[i2].key);
+    }
     /* Was rechts liegen bleibt, wird nicht still verworfen — die Einstellungen
-       sagen es unter „data source". */
-    var skipped = cols.length - used.length;
+       sagen es unter „data source". Gezählt werden Spalten rechts von
+       lastIdx, nicht die Differenz der Längen — die trüge auch die innen
+       ausgesiebten leeren Spalten mit. */
+    var skipped = cols.length - (lastIdx + 1);
 
     /* Die Reihe muss Monat für Monat aufsteigen. Sie tut es fast immer — und
        wenn nicht, fällt es nirgends auf: die Berechnung liest die Spalte
@@ -405,6 +419,14 @@
       warnings.push('The series skips ' + missing + ' month' + (missing === 1 ? '' : 's') +
         ', the first gap after ' + firstGap +
         '. Comparisons across a gap say how far back they reach.');
+    }
+    /* Zusatz zur Lückenwarnung oben: sagt, dass die Lücke keine fehlende
+       Spalte war, sondern eine vorhandene, leere — damit lässt sich das eine
+       vom anderen unterscheiden, ohne in die Mappe zu schauen. */
+    if (emptyInside.length) {
+      warnings.push(emptyInside.length + ' empty month column' + (emptyInside.length === 1 ? '' : 's') +
+        ' inside the series ' + (emptyInside.length === 1 ? 'was' : 'were') +
+        ' skipped: ' + emptyInside.join(', ') + '.');
     }
 
     /* Monatsreihe */
@@ -466,7 +488,7 @@
       currentIndex: months.length - 1,
       accounts: accounts,
       sectionOrder: SECTIONS.map(function (s) { return s.id; }),
-      skipped: skipped ? { count: skipped, from: cols[used.length].key } : null
+      skipped: skipped ? { count: skipped, from: cols[lastIdx + 1].key } : null
     };
   }
 
@@ -519,8 +541,11 @@
     var available = (toc.SheetNames || []).slice();
     var chosen = chooseSheet(available);
     if (!chosen) return { SheetNames: [], Sheets: {}, available: available };
+    /* cellNF: true — ohne das legt SheetJS das Zahlenformat einer Zelle
+       (c.z) gar nicht erst ab, und currencyOfFormat() liest immer null.
+       Die Erkennung der Währung hängt daran. */
     var wb = X.read(bytes, {
-      type: 'array', cellDates: true, cellFormula: false, cellStyles: false, sheets: [chosen]
+      type: 'array', cellDates: true, cellNF: true, cellFormula: false, cellStyles: false, sheets: [chosen]
     });
     var kept = {};
     if (wb.Sheets[chosen]) kept[chosen] = wb.Sheets[chosen];

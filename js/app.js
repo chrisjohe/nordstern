@@ -111,6 +111,14 @@
       var res = NS.importer.parseArrayBuffer(fr.result, file.name, { currency: state.settings.currency });
       if (!res.ok) {
         ui.settings.setStatus('error', 'unknown structure');
+        /* Mit einem stehenden Modell bleibt die Bühne stehen: der Vorhang
+           verdeckte sonst ein funktionierendes Dashboard, ohne einen Weg
+           zurück ausser einem harten Neustart. Nur ohne Modell fehlt etwas
+           zu zeigen — dafür, und nur dafür, ist der Vorhang da. */
+        if (state.model) {
+          toast('The file does not match the expected layout. The current data stays.', 'error');
+          return;
+        }
         showGate('The structure does not match',
           'The file was read, but the expected layout is missing. It was not modified.',
           res.errors);

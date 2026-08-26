@@ -247,11 +247,22 @@ XLSX.utils.book_append_sheet(wb, wsData, 'Data Input');
    die Formatierung wirklich verwerfen will. */
 const outArg = process.argv.indexOf('--out');
 const forced = process.argv.indexOf('--force') >= 0;
-const out = outArg >= 0 && process.argv[outArg + 1]
+if (outArg >= 0 && !process.argv[outArg + 1]) {
+  console.error('--out braucht einen Pfad.');
+  console.error('');
+  console.error('  --out <pfad>   woandershin schreiben (zum Vergleichen)');
+  console.error('  --force        die Formatierung verwerfen und neu erzeugen');
+  process.exit(1);
+}
+const SHIPPED = resolve(ROOT, 'examples/nordstern-example.xlsx');
+const out = outArg >= 0
   ? resolve(process.cwd(), process.argv[outArg + 1])
-  : resolve(ROOT, 'examples/nordstern-example.xlsx');
+  : SHIPPED;
 
-if (outArg < 0 && !forced && existsSync(out)) {
+/* Die Erlaubnis hängt am Ziel, nicht daran, ob --out auf der Kommandozeile
+   stand: --out examples/nordstern-example.xlsx trifft dasselbe Ziel wie gar
+   kein --out und braucht denselben Schutz. */
+if (!forced && resolve(out) === SHIPPED && existsSync(out)) {
   console.error('Es liegt schon eine Mappe unter examples/ — und die ist von Hand');
   console.error('formatiert; dieses Skript kann das nicht nachbilden.');
   console.error('');

@@ -16,7 +16,7 @@
    den Reihen und in der Dokumentation nicht mehr), oder das Skript wurde
    geändert, ohne die Mappe neu zu erzeugen (npm run example -- --force). */
 import fs from 'fs'; import os from 'os'; import path from 'path';
-import { execFileSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 
@@ -95,15 +95,24 @@ ok(!('sheetNames' in m), 'und die Blattnamen stehen gar nicht erst darin');
 ok(Math.abs(m.months[L].netWorth - 450239.15) < 0.005, 'Net Worth 450.239,15: ' + m.months[L].netWorth.toFixed(2));
 ok(!('expenses' in m), 'kein expenses-Feld im Modell — die Ausgaben kommen aus den Einstellungen');
 
-/* Und der Erzeuger überschreibt die Formatierung nicht aus Versehen. */
-const r = execFileSync('node', ['-e', `
-  const {spawnSync} = require('child_process');
-  const r = spawnSync('node', ['${path.join(ROOT, 'tools/make-example.mjs')}'], {encoding: 'utf8'});
-  console.log(JSON.stringify({ status: r.status, err: r.stderr }));
-`], { encoding: 'utf8', cwd: ROOT });
-const guard = JSON.parse(r);
-ok(guard.status !== 0, 'ohne --force schreibt der Erzeuger nicht über die ausgelieferte Mappe');
-ok(/--force/.test(guard.err), 'und sagt, wie man es doch tut');
+/* Und der Erzeuger überschreibt die Formatierung nicht aus Versehen — auf
+   keinem der Wege, die auf die ausgelieferte Mappe zielen: gar kein --out,
+   --out ohne Wert (fiele sonst still auf denselben Default zurück) und
+   --out, das ausdrücklich dorthin zeigt, ob relativ oder absolut. */
+const shippedPath = path.join(ROOT, 'examples/nordstern-example.xlsx');
+const shippedBefore = fs.readFileSync(shippedPath);
+const guardCases = [
+  [],
+  ['--out'],
+  ['--out', 'examples/nordstern-example.xlsx'],
+  ['--out', shippedPath]
+];
+for (const args of guardCases) {
+  const r = spawnSync('node', [path.join(ROOT, 'tools/make-example.mjs'), ...args], { encoding: 'utf8', cwd: ROOT });
+  ok(r.status !== 0, 'ohne --force schreibt der Erzeuger nicht über die ausgelieferte Mappe (' + JSON.stringify(args) + '): status ' + r.status);
+  ok(/--force/.test(r.stderr), 'und sagt, wie man es doch tut (' + JSON.stringify(args) + '): ' + r.stderr);
+}
+ok(fs.readFileSync(shippedPath).equals(shippedBefore), 'die ausgelieferte Mappe blieb byte-gleich über alle Läufe');
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('\n' + pass + ' bestanden, ' + fail + ' fehlgeschlagen');

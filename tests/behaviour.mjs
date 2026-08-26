@@ -346,6 +346,12 @@ sec('Beschädigtes Modell im Speicher');
     'ein Stand ist keine Zahl':        bend(m=>{m.accounts.liquid[0].values[3]=null;}),
     'die Verbindlichkeiten sind hin':  bend(m=>{m.accounts.liabilities=[{name:'Darlehen'}];}),
     'ein Monatsschlüssel entstellt':   bend(m=>{m.months[2].key='2026-8';}),
+    /* '2026-99' bestand die alte, laxere Regel (\d{2} passt auf jede
+       zweistellige Zahl) — der Monat muss im Kalender vorkommen. */
+    'ein Monat mit Monat 99':          bend(m=>{m.months[2].key='2026-99';}),
+    /* Nur liquid und investment wurden früher geprüft — ein Monat ohne
+       tangible kam unbemerkt durch und lieferte NaN in der Rechnung. */
+    'tangible fehlt in einem Monat':   bend(m=>{delete m.months[3].tangible;}),
     /* Die Versionsnummer allein ist der schnellste Weg, ein Modell aus der
        vorigen Form zu verwerfen — hier stand einmal `expenses` drin. */
     'alte Modellversion (v2)':         JSON.stringify({...good,version:2})
@@ -1039,6 +1045,38 @@ sec('Unbrauchbare Mappenstruktur');
   w.close();
 }
 
+/* ---------- 5b. Unbrauchbarer Import bei stehendem Modell ---------- */
+/* Der Vorhang ist die Ansage „hier gibt es nichts zu sehen" — und die stimmt
+   nicht mehr, sobald schon eine Mappe geladen ist. Ein zweiter, kaputter
+   Import darf dann das stehende Dashboard nicht hinter dem Vorhang
+   verschwinden lassen, ohne einen Weg zurück ausser Neustart. */
+sec('Unbrauchbarer Import bei bereits geladenem Modell');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  const modelBefore=w.NORDSTERN.app.state.model;
+  ok(!!modelBefore&&d.getElementById('gate').hidden,'ein Modell steht, der Vorhang ist zu');
+
+  const XLSX=w.XLSX;
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['irgendwas',1]]),'Data Input');
+  const file=new w.File([XLSX.write(wb,{type:'array',bookType:'xlsx'})],'kaputt.xlsx');
+  const picker=d.getElementById('filePicker');
+  Object.defineProperty(picker,'files',{value:[file],configurable:true});
+  picker.dispatchEvent(new w.Event('change'));
+  await tick(80);
+
+  ok(d.getElementById('gate').hidden,'der Vorhang bleibt zu — die stehende Bühne bleibt sichtbar');
+  ok(w.NORDSTERN.app.state.model===modelBefore,'das Modell im Zustand bleibt dasselbe');
+  ok(d.querySelector('.hero-val'),'die Bühne zeigt weiter, was vorher stand');
+  ok(d.querySelector('.sheet-status .meta-import').textContent==='unknown structure',
+     'der Status meldet den Fehler: '+d.querySelector('.sheet-status .meta-import').textContent);
+  ok(d.getElementById('toast').textContent.includes('does not match the expected layout')&&
+     d.getElementById('toast').className.includes('is-error'),
+     'der Toast nennt den Fehler, statt den Vorhang zu ziehen: '+d.getElementById('toast').textContent);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 6a. Blattname: Aliase und Einzelblatt-Fallback ---------- */
 /* „Data Input" ist der erste Name der Liste, nicht der einzige — und eine
    Mappe mit nur einem Blatt braucht überhaupt keinen Treffer. Erst zwei
@@ -1185,6 +1223,24 @@ sec('Lücken und Doppel in der Monatsreihe');
      (dHoled.yoy&&dHoled.yoy.span));
   ok(dHoled.pace!==null&&dHoled.paceSpan===11,
      'und das Tempo teilt durch diese elf Monate, nicht durch zwölf: paceSpan='+dHoled.paceSpan);
+  /* Und dieselben elf Monate stehen an der Serie fürs Chart — nicht nur am
+     obersten yoy-Feld, sonst zeigt der Zeiger dort weiter „vs. last year". */
+  ok(dHoled.series[dHoled.series.length-1].yearAgoSpan===11,
+     'die Serie trägt den Abstand selbst: '+dHoled.series[dHoled.series.length-1].yearAgoSpan);
+
+  /* Einmal ganz: Modell in die App, Chart zeigen, Zeiger auf den letzten
+     Punkt — das Lesefenster muss denselben Abstand nennen wie oben, nicht
+     hart „vs. last year". */
+  w.NORDSTERN.app.state.model=holed.model;
+  w.NORDSTERN.app.refresh(); await tick(30);
+  const d=w.document;
+  const body=d.querySelector('.chart-body');
+  const hover=x=>{ const e=new w.Event('pointermove'); e.clientX=x; e.clientY=300; body.dispatchEvent(e); };
+  hover(9999);
+  const ya=[...d.querySelectorAll('.chart-tip .tip-row')]
+    .find(r=>/months ago|last year/.test(r.textContent));
+  ok(ya&&/^vs\. 11 months ago/.test(ya.textContent),
+     'das Lesefenster nennt den echten Abstand: '+(ya&&ya.textContent));
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }
@@ -1691,6 +1747,48 @@ sec('Negativer Net Worth');
      „39 % investiert" plötzlich etwas anderes, nur weil Schulden dazukamen. */
   ok(/3,7 %/.test(d.querySelector('.orbit-arc[data-id="liquid"]').getAttribute('aria-label')),
      'die Sektionsanteile bleiben Anteile am Vermögen: '+d.querySelector('.orbit-arc[data-id="liquid"]').getAttribute('aria-label'));
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 12b. Eine negative Sektion in der Übersicht ---------- */
+/* Nicht dasselbe wie oben: dort überwiegen die Schulden, hier ist eine
+   einzelne Sektion (liquid) selbst negativ und fällt deshalb aus `sections`
+   heraus — `total` sinkt mit ihr, während die übrigen, gezeichneten Anteile
+   unverändert bleiben. Ohne die Positiv-Summe in der Skala reichten deren
+   Bögen zusammen über eine volle Umdrehung hinaus. */
+sec('Negative Sektion in der Übersicht');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  const sweep=id=>{
+    const n=d.querySelector('.orbit-arc[data-id="'+id+'"],.orbit-short[data-id="'+id+'"]');
+    if(!n) return null;
+    if(n.tagName==='circle') return Math.PI*2;
+    const m=/M([-\d.]+) ([-\d.]+)A[\d.]+ [\d.]+ 0 (\d) (\d) ([-\d.]+) ([-\d.]+)/.exec(n.getAttribute('d'));
+    if(!m) return null;
+    const a=(x,y)=>Math.atan2(Number(x)-135,-(Number(y)-135));
+    let s0=a(m[1],m[2]), s1=a(m[5],m[6]);
+    let dl=s1-s0; if(m[4]==='0') dl=-Math.abs(dl); if(dl<0&&m[4]==='1') dl+=Math.PI*2;
+    return Math.abs(dl)+(m[3]==='1'&&Math.abs(dl)<Math.PI?Math.PI*2-2*Math.abs(dl):0);
+  };
+  const ringTotal=()=>['liquid','receivables','investment','tangible','retirement']
+    .map(sweep).filter(x=>x!=null).reduce((a,b)=>a+b,0);
+
+  const m=w.NORDSTERN.app.state.model, L=m.currentIndex;
+  const liqBefore=m.months[L].liquid;
+  /* totalAssets folgt der veränderten Sektion, wie eine echte Mappe es täte:
+     ein überzogenes Girokonto zieht die Summe mit herunter. */
+  m.months[L].totalAssets=m.months[L].totalAssets-liqBefore-20000;
+  m.months[L].liquid=-20000;
+  m.months[L].netWorth=m.months[L].totalAssets-m.months[L].liabilities;
+  w.NORDSTERN.app.refresh(); await tick(30);
+
+  ok(!d.querySelector('.orbit-arc[data-id="liquid"]'),
+     'die negative Sektion trägt keinen Bogen: '+m.months[L].liquid);
+  const rt=ringTotal();
+  ok(rt<=Math.PI*2+0.02,
+     'die übrigen, positiven Bögen bleiben zusammen unter einer vollen Umdrehung: '+
+     rt.toFixed(3)+' von '+(Math.PI*2).toFixed(3));
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }

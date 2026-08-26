@@ -224,14 +224,23 @@
          Der Gegenring darf dabei nicht in die Sättigung laufen: gedeckelt bei
          355° sähen 98 %, 116 % und 300 % gleich aus, und er hörte genau dort
          auf, etwas zu sagen, wo er am meisten zu sagen hätte. */
-      var scale = Math.max(total, liab);
+      /* `total` allein reicht als Skala nicht immer: eine negative Sektion
+         (ein überzogenes Konto in „liquid" etwa) fällt aus `sections` heraus,
+         zieht `total` aber weiter mit herunter. Ohne die Summe der wirklich
+         gezeichneten, positiven Anteile in der Skala reichten deren Bögen
+         dann über 360° hinaus. */
+      var positive = sections.reduce(function (a, s) { return a + s.value; }, 0);
+      var scale = Math.max(total, liab, positive);
       var short = liab > total ? liab - total : 0;
 
       var g = dialRoot('Assets ' + U.eur(total) + ', liabilities ' + U.eur(liab) +
         (short > 0 ? ', exceeding assets by ' + U.eur(short) : ''));
       arcs(g, sections.map(function (s) {
         return { id: s.id, key: s.id, name: s.label, value: s.value, tone: TONE[s.id] || '#7fb2e5' };
-      }), scale, R_OUT, W_OUT, { open: true, pctOf: total });
+      /* Der Anteil bleibt am Vermögen gemessen — ausser `total` selbst ist
+         zu klein dafür (derselbe Fall wie oben), dann tritt `positive` an
+         seine Stelle, sonst läse eine einzelne Sektion über 100 %. */
+      }), scale, R_OUT, W_OUT, { open: true, pctOf: Math.max(total, positive) });
 
       /* Die offene Stelle im Vermögensring bleibt nicht leer: eine blasse
          Spur im Schuldenton füllt sie. Eine Lücke allein läse sich als

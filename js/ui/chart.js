@@ -135,7 +135,10 @@
           key: d.key, index: d.index, assets: d.assets, liabilities: d.liabilities,
           netWorth: d.value, investment: d.investment,
           value: d[sr.field],
-          yearAgo: d[sr.past]
+          yearAgo: d[sr.past],
+          /* Unabhängig von der gezeigten Reihe — derselbe Monat, derselbe
+             Vorjahresabstand, egal ob Net, Total oder Invested gerade läuft. */
+          yearAgoSpan: d.yearAgoSpan
         };
       });
 
@@ -438,8 +441,14 @@
         row('Assets', U.make('b', { text: U.eur0(d.assets) }));
         row('Liabilities', U.make('b', { class: 'neg', text: U.eur0(d.liabilities) }));
       }
+      /* Dieselbe Regel wie an der Kennzahl darüber (js/ui/position.js): der
+         Abstand steht in der Beschriftung, sobald er von zwölf Monaten
+         abweicht — sonst hiesse eine Elf-Monats-Lücke „vs. last year", und
+         das stimmt nicht. */
+      var yoyLabel = d.yearAgoSpan != null && d.yearAgoSpan !== 12
+        ? 'vs. ' + d.yearAgoSpan + ' months ago' : 'vs. last year';
       tip.appendChild(U.make('div', { class: 'tip-row' }, [
-        U.make('span', { text: 'vs. last year' }),
+        U.make('span', { text: yoyLabel }),
         U.make('b', { class: delta == null ? 'muted' : delta >= 0 ? 'pos' : 'neg',
           text: delta == null ? 'no year-ago value' : U.eurSigned(delta) + '  ' + U.pctSigned(relY) })
       ]));

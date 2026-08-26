@@ -62,7 +62,7 @@ verify yourself in about two minutes:
 | Nothing *can* be uploaded | `grep -r "fetch\|XMLHttpRequest\|WebSocket" js/` — only the vendored SheetJS matches, and only in dead branches |
 | The browser enforces it | `export/nordstern.html` carries `connect-src 'none'; form-action 'none'` |
 | Your spreadsheet is not modified | There is no write path. `XLSX.write` is never called by the app |
-| Only one sheet is read | The example workbook ships with a second sheet; neither its name nor its content appears in the app or in `localStorage` |
+| Only "Data Input" is kept | The example workbook ships with a second sheet; neither its name nor its content appears in the app or in `localStorage`. For `.xlsx`, `.xlsm` and `.xlsb` no other sheet is even decoded; `.ods` and `.numbers` are decoded in full first, then everything but this sheet is dropped — see [SECURITY.md](SECURITY.md) |
 | No web fonts, no CDN, no analytics | `npm test` fails the build if any of those appear |
 
 The parsed result is kept in your browser's `localStorage` and nowhere else,
@@ -75,10 +75,12 @@ See [SECURITY.md](SECURITY.md) for the longer version.
 
 ## Your workbook
 
-nordstern reads **one sheet** and ignores everything else in the file. It
-looks for a sheet named `Data Input`, or one of a handful of aliases such as
-`Data` or `Daten`; a workbook with only one sheet needs no matching name at
-all — that sheet is used whatever it is called.
+nordstern keeps **one sheet** and ignores everything else in the file — for
+`.xlsx`, `.xlsm` and `.xlsb` no other sheet is even decoded, while `.ods` and
+`.numbers` are decoded in full first and everything but this sheet is then
+dropped. It looks for a sheet named `Data Input`, or one of a handful of
+aliases such as `Data` or `Daten`; a workbook with only one sheet needs no
+matching name at all — that sheet is used whatever it is called.
 
 **`Data Input`** — one column per month, one row per account. Rows are found
 by their **label in column A**, never by row number, so you can insert

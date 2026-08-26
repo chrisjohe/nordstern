@@ -69,9 +69,15 @@
     for (var i = 0; i < m.months.length; i++) {
       var mo = m.months[i];
       if (!mo || typeof mo !== 'object') return false;
-      if (!/^\d{4}-\d{2}$/.test(mo.key)) return false;
+      /* '2026-99' bestand die alte, laxere Prüfung — der Monat selbst muss
+         im Kalender vorkommen, nicht nur zweistellig sein. */
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mo.key)) return false;
       if (!num(mo.netWorth) || !num(mo.totalAssets) || !num(mo.liabilities)) return false;
-      if (!num(mo.liquid) || !num(mo.investment)) return false;
+      /* Alle fünf Sektionen, nicht nur liquid/investment — sonst kommt ein
+         Monat durch, dem der Importer nie eine Zahl für „tangible" oder
+         „retirement" geschrieben hätte, und die Rechnung liest NaN. */
+      if (!num(mo.liquid) || !num(mo.receivables) || !num(mo.investment) ||
+          !num(mo.tangible) || !num(mo.retirement)) return false;
     }
     /* Ganzzahlig, nicht nur im Bereich: months[0.5] ist undefined, und der
        Zugriff darauf wirft. `% 1` statt Number.isInteger — diese Datei bleibt

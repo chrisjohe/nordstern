@@ -239,6 +239,10 @@
            folgen, was gerade gezeichnet wird, sonst vergleicht sie Äpfel. */
         assetsYearAgo: ya ? ya.m.totalAssets : null,
         investmentYearAgo: ya ? ya.m.investment : null,
+        /* Der tatsächliche Abstand — bei einer Lücke im Vorjahr nicht immer
+           zwölf. Der Chart braucht ihn für dieselbe Beschriftungsregel, die
+           js/ui/position.js schon für die Kennzahl darüber anwendet. */
+        yearAgoSpan: ya ? ya.span : null,
         index: idx
       };
     });

@@ -181,8 +181,9 @@
         refs.warn,
         U.make('div', { class: 'sheet-actions' }, [refs.reimport, refs.forget]),
         U.make('p', { class: 'sheet-copy', text:
-          'Only the sheet "Data Input" is read. The workbook is never ' +
-          'modified, and nothing leaves this machine.' })
+          'Only the sheet "Data Input" is used; for .ods and .numbers the reader decodes ' +
+          'the whole file first, then the other sheets are discarded. The workbook is ' +
+          'never modified, and nothing leaves this machine.' })
       ]));
 
       /* --- Aufbau der Mappe ------------------------------------------------

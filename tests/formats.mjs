@@ -151,10 +151,16 @@ console.log('\n== Währung');
   });
 }
 
-/* 3. Erkennung am ganzen Workbook. Die Formate werden ausschließlich im
-   Speicher verändert, nie auf die Platte geschrieben (AGENTS.md #4) — und
-   je Fall an einer frischen Kopie, sonst liest der nächste Fall die
-   Mutation des vorigen mit. */
+/* 3. Erkennung an der parseWorkbook-Schicht: c.z wird im Speicher gesetzt
+   und nie geschrieben oder neu gelesen — das prüft currencyOfFormat und
+   currencyResult für sich, schnell und ohne openWorkbook. Was c.z beim
+   echten Einlesen überhaupt erst füllt (cellNF beim zweiten X.read in
+   openWorkbook), prüft das nicht mit: dieser Weg und der echte Lesepfad
+   über Bytes sind nicht dasselbe, und nur der zweite lief bis zum Fix in
+   openWorkbook ins Leere, egal welches Format auf dem Blatt stand. Ein
+   eigener Fall weiter unten schreibt darum echte Bytes und liest sie mit
+   parseArrayBuffer zurück — je Fall an einer frischen Kopie, sonst liest
+   der nächste Fall die Mutation des vorigen mit. */
 /* Ein roher XLSX.read trägt SheetNames in Dateireihenfolge — hier „Read me"
    vor „Data Input". parseWorkbook vertraut inzwischen darauf, dass an
    Index 0 bereits das gewählte Blatt steht (das leistet sonst chooseSheet
@@ -223,6 +229,75 @@ function setAmountFormat(wb, sheetNames, fmt) {
   const r = g.NORDSTERN.importer.parseWorkbook(wb, 'x.xlsx', {});
   ok(r.currency === null, 'e) ein reines Gebietsschema ohne Symbol trägt keine Währung: ' + r.currency);
   ok(!r.warnings.some((x) => x.includes('more than one')), 'e) und keine Mehrfachwarnung: ' + r.warnings.join(' | '));
+}
+{
+  /* f) Derselbe Nachweis wie a)-e), aber über den echten Lesepfad: eine
+     frische Kopie der Beispielmappe bekommt auf ein paar verstreuten
+     Betragszellen ein Dollar-Format, wird in Bytes geschrieben (nie auf die
+     Platte, nur in den Speicher — AGENTS.md #4) und über parseArrayBuffer
+     zurückgelesen, genau wie im Dateidialog. Ohne cellNF: true beim zweiten
+     X.read in openWorkbook bliebe currency hier null, unabhängig vom
+     Format auf dem Blatt — das ist der Fall, den a)-e) nicht sehen. */
+  const wb = XLSX.read(fs.readFileSync(FIXTURE), { type: 'buffer', cellDates: true });
+  const ws = wb.Sheets['Data Input'];
+  const amountAddrs = Object.keys(ws).filter((a) => a.charAt(0) !== '!' && typeof ws[a].v === 'number');
+  [0, 0.25, 0.5, 0.75, 1].forEach((f) => {
+    const a = amountAddrs[Math.min(amountAddrs.length - 1, Math.floor((amountAddrs.length - 1) * f))];
+    ws[a].z = '"$"#,##0.00';
+  });
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', cellDates: true });
+  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  const r = g.NORDSTERN.importer.parseArrayBuffer(ab, 'usd.xlsx', { currency: 'EUR' });
+  ok(r.ok, 'f) liest sich über den echten Byte-Pfad: ' + (r.errors || []).join(' | '));
+  ok(r.currency === 'USD', 'f) und erkennt USD über parseArrayBuffer, nicht nur über parseWorkbook: ' + r.currency);
+}
+
+/* ------------------------------------------------------------ Lücken */
+console.log('\n== Lücken');
+
+/* Eine leere Spalte mitten in der Reihe ist kein Monat mit Nettovermögen 0
+   — sie fällt aus der Reihe, wie ein fehlender Monat auch. Alle Konten- und
+   Summenzellen einer Spalte in der Mitte werden gelöscht, dann geht es über
+   den echten Byte-Pfad: Bytes schreiben (nie auf die Platte), mit
+   parseArrayBuffer zurücklesen. */
+{
+  const wb = XLSX.read(fs.readFileSync(FIXTURE), { type: 'buffer', cellDates: true });
+  const ws = wb.Sheets['Data Input'];
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  const col = 42;                                    // ein Monat in der Mitte der 84er-Reihe
+  const keyOf = (c) => {
+    const d = ws[XLSX.utils.encode_cell({ r: 0, c })].v;
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  };
+  const emptyMonth = keyOf(col), beforeMonth = keyOf(col - 1), afterMonth = keyOf(col + 1);
+  for (let r = 1; r <= range.e.r; r++) delete ws[XLSX.utils.encode_cell({ r, c: col })];
+
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', cellDates: true });
+  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  const r = g.NORDSTERN.importer.parseArrayBuffer(ab, 'gap.xlsx', {});
+  ok(r.ok, 'leere Spalte in der Mitte liest sich: ' + (r.errors || []).join(' | '));
+  ok(r.model.months.length === base.model.months.length - 1,
+     'ein Monat weniger als in der Beispielmappe: ' + r.model.months.length + ' vs ' + base.model.months.length);
+  ok(!r.model.months.some((m) => m.key === emptyMonth),
+     'der leere Monat ' + emptyMonth + ' fehlt in der Reihe: ' + r.model.months.map((m) => m.key).join(', '));
+
+  const beforeM = r.model.months.find((m) => m.key === beforeMonth);
+  const afterM = r.model.months.find((m) => m.key === afterMonth);
+  const baseBeforeM = base.model.months.find((m) => m.key === beforeMonth);
+  const baseAfterM = base.model.months.find((m) => m.key === afterMonth);
+  ok(!!beforeM && beforeM.netWorth === baseBeforeM.netWorth,
+     'der Monat davor (' + beforeMonth + ') behält seinen Wert: ' + (beforeM && beforeM.netWorth));
+  ok(!!afterM && afterM.netWorth === baseAfterM.netWorth,
+     'der Monat danach (' + afterMonth + ') behält seinen Wert: ' + (afterM && afterM.netWorth));
+
+  const lastKey = r.model.months[r.model.months.length - 1].key;
+  const baseLastKey = base.model.months[base.model.months.length - 1].key;
+  ok(lastKey === baseLastKey, 'der letzte Monat bleibt der letzte, keine Verschiebung: ' + lastKey);
+
+  ok(r.warnings.some((x) => x.includes('The series skips 1 month')),
+     'Warnung nennt die Lücke: ' + r.warnings.join(' | '));
+  ok(r.warnings.some((x) => x.includes('empty month column') && x.includes(emptyMonth)),
+     'und eine eigene Warnung nennt die leere Spalte: ' + r.warnings.join(' | '));
 }
 
 console.log('\n' + pass + ' bestanden, ' + fail + ' fehlgeschlagen');
