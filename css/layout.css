@@ -130,8 +130,9 @@ body {
    aber breite Fenster (Block B): die zwei Spalten passen noch nebeneinander,
    nur reicht die Höhe nicht für einen Viewport ohne Scroll — die
    Ein-Viewport-Regel fällt, die Spalten bleiben stehen, es wird gescrollt
-   statt gestapelt. */
-@media (max-width: 1180px) {
+   statt gestapelt. Die Grenze liegt bei 1180 px, weil ein 11"-iPad quer
+   genau 1180 px breit ist und noch zwei Spalten bekommen soll. */
+@media (max-width: 1179px) {
   body { overflow: auto; }
   .shell { height: auto; min-height: 100vh; grid-template-rows: var(--head-h) auto; }
   .stage { grid-template-columns: 1fr; }
@@ -140,7 +141,7 @@ body {
   .zone--mountain { grid-template-rows: auto minmax(52vh, 1fr) auto; padding-bottom: 16px; }
   .zone--position { grid-template-rows: auto minmax(240px, 1fr) auto; }
 }
-@media (max-height: 840px) and (min-width: 1181px) {
+@media (max-height: 840px) and (min-width: 1180px) {
   body { overflow: auto; }
   .shell { height: auto; min-height: 100vh; grid-template-rows: var(--head-h) auto; }
   .zone--position { grid-template-rows: auto minmax(240px, 1fr) var(--rail-h); }

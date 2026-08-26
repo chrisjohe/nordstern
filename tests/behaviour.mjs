@@ -1850,9 +1850,9 @@ sec('Raster bei niedrigen Fenstern');
     ok(!/\.stage\b/.test(shortWide.body),'und rührt .stage nicht an — die zwei Spalten bleiben stehen');
   }
 
-  /* 3: der schmale Block existiert weiterhin unverändert bei 1180px. */
-  ok(mediaBlocks.some(b=>/max-width:\s*1180px/.test(b.cond)&&!/min-width/.test(b.cond)),
-     'der schmale Block (max-width: 1180px) existiert weiterhin');
+  /* 3: der schmale Block endet bei 1179px — ein 11"-iPad quer (1180px) bekommt zwei Spalten. */
+  ok(mediaBlocks.some(b=>/max-width:\s*1179px/.test(b.cond)&&!/min-width/.test(b.cond)),
+     'der schmale Block (max-width: 1179px) existiert weiterhin');
 }
 
 console.log('\n'+pass+' bestanden, '+fail+' fehlgeschlagen');
