@@ -135,12 +135,13 @@ ok(!!svgMatch&&decodeURIComponent(svgMatch[1])===svgSrc,
 ok(!/data:image\/png/.test(html),'keine PNG-Datenadresse im Bau');
 
 /* Das PNG bleibt relativ verlinkt, zweimal, und sein rel="icon"-Link steht
-   vor dem eingefalteten SVG-Link — WebKit stellt beim Auswählen des Symbols
-   die Datei mit sizes vor das grössenlose SVG. */
+   nach dem eingefalteten SVG-Link — WebKit nimmt von mehreren rel="icon"
+   das letzte mit type-Attribut, und das muss die Datei sein, nicht die
+   data:-Adresse, die Safari nicht zeigt. */
 const pngHrefs=[...html.matchAll(/\shref="favicon\.png"/g)];
 ok(pngHrefs.length===2,'zwei relative Links auf favicon.png: gezählt '+pngHrefs.length);
-ok(html.indexOf('href="favicon.png"')<html.indexOf('data:image/svg+xml'),
-  'das PNG-rel="icon" steht vor dem eingefalteten SVG-Link');
+ok(html.indexOf('<link rel="icon" type="image/png"')>html.indexOf('data:image/svg+xml'),
+  'das PNG-rel="icon" steht nach dem eingefalteten SVG-Link');
 ok(!html.includes('PK\u0003\u0004'),'kein Stück einer Mappe im Bau');
 ok(!/nordstern-example/i.test(html),'auch die Beispielmappe steckt nicht drin');
 

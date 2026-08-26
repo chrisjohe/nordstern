@@ -14,10 +14,11 @@
      data:-Adresse eingefaltet wird. Safari zeigt keine data:-Symbole und
      nimmt stattdessen das PNG als Datei, die auf Pages neben der Seite liegt
      und auf Mac wie iPad zugleich das Symbol fuer Favoriten und
-     Home-Bildschirm ist. Das sizes steht am PNG, damit WebKit es bei der
-     Auswahl vor das groessenlose SVG stellt. -->
-<link rel="icon" type="image/png" sizes="180x180" href="favicon.png">
+     Home-Bildschirm ist. Das PNG steht zuletzt: WebKit nimmt von mehreren
+     rel="icon" das letzte mit type-Attribut, und das darf nicht die
+     data:-Adresse sein. -->
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="180x180" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
 <meta name="color-scheme" content="dark">
 <link rel="stylesheet" href="css/tokens.css">
