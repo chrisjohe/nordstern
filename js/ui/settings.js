@@ -6,9 +6,6 @@
   var NS = global.NORDSTERN || (global.NORDSTERN = {});
   var U = NS.util;
 
-  /* Die Reihenfolge ist eine Aussage: erst was Geld kostet, dann woher die
-     Zahlen kommen, dann wie die Mappe dafür aussehen muss. Bewegung ist eine
-     Vorliebe und steht deshalb hinten, About ganz zuletzt. */
   var SECTIONS = [
     { id: 'expenses', label: 'expenses' },
     { id: 'source',   label: 'data source' },
@@ -37,8 +34,6 @@
     var panes = {};
     var active = SECTIONS[0].id;
 
-    /* Ein Abschnitt ist ein Paneel, kein Kapitel mit eigener Überschrift —
-       die trägt der Name in der Spalte links. */
     function pane(id, children) {
       var p = U.make('section', {
         class: 'sheet-sec', 'data-sec': id, id: 'setPane-' + id,
@@ -61,8 +56,8 @@
       if (moveFocus) tabs[id].focus();
     }
 
-    /* ↑/↓ wandern durch die Namen, Pos1/Ende an die Enden — die Liste ist ein
-       einziges Tabstopp, nicht fünf. */
+    /* ↑/↓ und Pos1/Ende wandern durch die Namen; die Liste ist ein
+       einziger Tabstopp. */
     function navKey(ev) {
       var i = SECTIONS.map(function (s) { return s.id; }).indexOf(active);
       var next = null;
@@ -101,8 +96,6 @@
       panel.appendChild(body);
 
       /* --- Ausgaben ------------------------------------------------------ */
-      /* Vorbelegt mit Gedankenstrichen: ohne Import steht hier nichts, und ein
-         leeres Feld sähe nach Fehler aus statt nach „noch nichts gelesen". */
       refs.total = U.make('b', { class: 'num is-total', text: '—' });
       refs.annual = U.make('span', { class: 'sheet-hint', text: '—' });
 
@@ -126,8 +119,6 @@
             (refs.expUnit = U.make('span', { class: 'field-unit', text: '€' }))])
         ]),
         refs.expRange,
-        /* Die Summe ist der Hauptdarsteller: die Zeile darunter führt den
-           Jahreswert als stille Fußnote mit. */
         U.make('dl', { class: 'sheet-facts' }, [
           U.make('dt', { class: 'is-sum', text: 'Per month' }), U.make('dd', { class: 'is-sum' }, [refs.total]),
           U.make('dt', { class: 'is-foot', text: 'Per year' }), U.make('dd', { class: 'is-foot' }, [refs.annual])
@@ -135,9 +126,6 @@
       ]));
 
       /* --- Datenquelle --------------------------------------------------- */
-      /* Die Auswahl steht ganz oben im Abschnitt, noch vor dem Importstatus —
-         sie ist eine Anzeigefrage, keine Angabe über die eingelesene Mappe,
-         und gilt unabhängig davon, ob überhaupt schon etwas gelesen wurde. */
       refs.currency = U.make('select', { id: 'setCurrency', class: 'field-select',
         'aria-describedby': 'setCurrencyHint' },
         Object.keys(U.CURRENCIES).map(function (code) {
@@ -149,10 +137,8 @@
       refs.src = U.make('dd', { class: 'src-name', text: '—' });
       refs.when = U.make('dd', { text: '—' });
       refs.snap = U.make('dd', { text: '—' });
-      /* Was der Importer rechts liegen lässt, steht hier. Fortgeschriebene
-         Spalten sind kein Fehler und keine Warnung — aber sie still zu
-         verwerfen hiesse, über die Datei des Nutzers zu entscheiden, ohne
-         es ihm zu sagen. */
+      /* Was der Importer rechts liegen lässt, wird genannt statt still
+         verworfen. */
       refs.skipped = U.make('dd', { class: 'is-foot' });
       refs.skippedRow = U.make('dt', { class: 'is-foot', text: 'Ignored' });
       refs.warn = U.make('div', { class: 'sheet-warn' });
@@ -160,15 +146,11 @@
       refs.forget = U.make('button', { type: 'button', class: 'btn btn-ghost btn-danger', text: 'Delete local data' });
 
       body.appendChild(pane('source', [
-        /* Anzeige, nicht Umrechnung — die Zahlen selbst ändern sich nicht,
-           nur ihre Schreibweise. Steht vor dem Importstatus, weil sie auch
-           ohne jede Mappe gilt. */
         U.make('div', { class: 'field' }, [
           U.make('label', { class: 'field-lab', htmlFor: 'setCurrency', text: 'Currency' }),
           U.make('div', { class: 'field-ctl' }, [refs.currency])
         ]),
         refs.currencyHint,
-        /* Der Importstatus steht oben im Paneel: er gilt für alles darunter. */
         U.make('div', { class: 'sheet-status' }, [refs.status]),
         U.make('dl', { class: 'sheet-facts' }, [
           U.make('dt', { text: 'File' }), refs.src,
@@ -185,20 +167,14 @@
       ]));
 
       /* --- Aufbau der Mappe ------------------------------------------------
-         Steht hier und nicht nur in der README: scheitert der Import, ist die
-         Oberfläche das Einzige, was offen ist. Ein Abbild der Mappe, keine
-         Beschreibung davon: links wörtlich, was in Spalte A stehen muss,
-         rechts ein Beispiel, Zeile für Zeile mit der eigenen Datei
-         vergleichbar. Die Zahlen sind erfunden und gehen glatt auf: im Code
-         steht kein echter Betrag. */
+         Ein Abbild der Mappe: links wörtlich Spalte A, rechts ein Beispiel.
+         Die Zahlen sind erfunden und gehen glatt auf. */
       function wbRow(r) {
         return U.make('tr', { class: r[2] || '' }, [
           U.make('td', { text: r[0] }),
           U.make('td', { text: r[1] })
         ]);
       }
-      /* Die zweite Überschrift benennt, welche Spalten das Beispiel meint —
-         in „Data Input" alle Monatsspalten. */
       function wbTable(right, rows) {
         return U.make('table', { class: 'wbt' }, [
           U.make('thead', {}, [U.make('tr', {}, [
@@ -247,8 +223,8 @@
       ]));
 
       /* --- Bewegung --------------------------------------------------------
-         Der Schalter ist eine Fläche, kein Kästchen — darunter liegt weiterhin
-         eine echte Checkbox, damit Tastatur und Vorlesen unverändert greifen. */
+         Unter der Fläche liegt eine echte Checkbox, damit Tastatur und
+         Vorlesen greifen. */
       function toggle(id, label) {
         var box = U.make('input', { type: 'checkbox', id: id, class: 'field-check' });
         var state = U.make('span', { class: 'sw-state', 'aria-hidden': 'true', text: 'off' });
@@ -273,10 +249,7 @@
           'The system setting "Reduce motion" is respected.' })
       ]));
 
-      /* --- Datenschutz -----------------------------------------------------
-         Die Zusage steht hier, wo die Frage entsteht, während jemand seine
-         Kontostände hineinzieht, als Liste prüfbarer Tatsachen, nicht als
-         Beteuerung: jede Zeile sagt, woran man sie nachsehen kann. */
+      /* --- Datenschutz ----------------------------------------------------- */
       function fact(term, detail) {
         return [U.make('dt', { text: term }), U.make('dd', { text: detail })];
       }
@@ -310,9 +283,7 @@
       ]));
 
       /* --- About ----------------------------------------------------------
-         Die Lizenztexte stehen wortgleich so da, wie sie der Urheber gesetzt
-         hat. Links werden in den Fließtext eingesetzt, statt darunter zu
-         stehen: ein Rechtshinweis liest sich als ein Absatz. */
+         Lizenztexte wortgleich, wie die Urheber sie gesetzt haben. */
       function link(href, label) {
         return U.make('a', { class: 'sheet-link', href: href,
           target: '_blank', rel: 'noopener noreferrer', text: label });
@@ -324,11 +295,6 @@
       }
       var APACHE = 'https://www.apache.org/licenses/LICENSE-2.0';
 
-      /* Der Stern steht über allem, was hier steht — er ist das Werk, um das
-         es auf diesem Blatt geht, und derselbe, den der Kopfbereich und der
-         Leerzustand tragen. Gezeichnet wird er genau einmal, in header.js.
-         Darunter die Fassung: wer eine Datei weitergibt oder einen Fehler
-         meldet, muss sagen können, welche er hat. */
       body.appendChild(pane('about', [
         U.make('div', { class: 'about-head' }, [
           NS.header.star(52, 'about'),
@@ -413,16 +379,12 @@
       api.patchSettings({ monthlyExpenses: n, expensesSet: true });
     }
 
-    /* Was hinter dem Blatt liegt, während es offen ist. Die Bühne steckt in
-       der Hülle; der Vorhang steht daneben und wäre sonst mit Tab erreichbar,
-       obwohl er verdeckt ist. */
+    /* Was hinter dem Blatt liegt: die Hülle und der Vorhang, der sonst mit
+       Tab erreichbar wäre. */
     function behind() {
       return [U.el('#shell'), U.el('#gate')].filter(Boolean);
     }
 
-    /* Alles, was im Blatt Fokus annehmen kann — ohne die Schalter in den
-       Abschnitten, die gerade nicht angezeigt werden. `hidden` steht am
-       Abschnitt, nicht am einzelnen Schalter, deshalb der Blick nach oben. */
     function focusables() {
       return U.els('a[href], button:not([disabled]), input:not([disabled]), ' +
         'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])', panel)
@@ -431,8 +393,6 @@
 
     var lastFocus = null;
 
-    /* `open('workbook')` führt direkt dorthin: der Hinweis unter dem Berg
-       meint die Ausgaben, ein gescheiterter Import den Aufbau der Mappe. */
     function open(id) {
       if (id) select(id);
       lastFocus = document.activeElement;
@@ -457,17 +417,14 @@
       root.setAttribute('inert', '');
       root.setAttribute('aria-hidden', 'true');
       global.removeEventListener('keydown', onKey);
-      /* Der Fokus kommt dorthin zurück, wo er herkam — sonst steht er nach
-         dem Schliessen am Seitenanfang, und die Tastatur fängt von vorn an.
-         Nur, wenn es das Element noch gibt: „Delete local data" räumt die
-         Bühne ab, aus der heraus geöffnet worden sein kann. */
+      /* Der Fokus kehrt dorthin zurück, wo er herkam, sofern es das Element
+         noch gibt („Delete local data" räumt die Bühne ab). */
       if (lastFocus && lastFocus.isConnected && lastFocus.focus) lastFocus.focus();
       lastFocus = null;
     }
 
-    /* Tab läuft im Blatt im Kreis. Ohne das führt die Tabulatortaste hinter
-       den Vorhang, wo `inert` alles stilllegt — der Fokus verschwindet dann
-       aus dem sichtbaren Teil der Seite. */
+    /* Tab läuft im Blatt im Kreis, sonst führt es hinter den Vorhang, wo
+       `inert` alles stilllegt. */
     function onKey(ev) {
       if (ev.key === 'Escape') { close(); return; }
       if (ev.key !== 'Tab') return;
@@ -504,8 +461,7 @@
         var em = String(settings.monthlyExpenses || 0);
         if (refs.expInput !== document.activeElement && refs.expInput.value !== em) refs.expInput.value = em;
         refs.expRange.value = em;
-        /* Die Summe hängt an der Einstellung, nicht an der Mappe — sie steht
-           auch ohne Modell da. Nur der Stichmonat braucht eins. */
+        /* Die Summe hängt an der Einstellung, nicht an der Mappe. */
         var monthly = Math.max(0, Number(settings.monthlyExpenses) || 0);
         refs.total.textContent = U.eur0(monthly);
         refs.annual.textContent = U.eur0(monthly * 12);
@@ -535,7 +491,6 @@
             });
           }
         } else {
-          /* Der Dateiname der Mappe ist selbst eine Angabe — er geht mit. */
           refs.src.textContent = '—';
           refs.when.textContent = '—';
           refs.skipped.textContent = '';

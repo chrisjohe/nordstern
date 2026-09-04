@@ -6,11 +6,9 @@
   var NS = global.NORDSTERN || (global.NORDSTERN = {});
   var U = NS.util;
 
-  /* `months` ist ein Zeitabstand zum letzten Punkt, keine Punktzahl — bei
-     einer lückenlosen Monatsreihe kommt dasselbe heraus (13 / 61 / 121
-     Punkte), bei einer Quartals- oder Jahresreihe ein Fenster von der
-     richtigen Länge statt einer Handvoll Punkte zu wenig oder zu viel.
-     `months: 0` bleibt „alles". */
+  /* `months` ist ein Zeitabstand zum letzten Punkt, keine Punktzahl; bei
+     Quartalsreihen ergibt das ein Fenster der richtigen Länge. 0 heisst
+     alles. */
   var RANGES = [
     { id: '1y', label: '1 year', months: 12 },
     { id: '5y', label: '5 years', months: 60 },
@@ -18,13 +16,9 @@
     { id: 'all', label: 'All', months: 0 }
   ];
 
-  /* Drei Lesarten desselben Verlaufs, von innen nach außen:
-     Net = was übrig bleibt, Total = was da ist, Invested = was arbeitet.
-     Net steht vorn, weil die Kennzahlen darüber und die Struktur darunter
-     ebenfalls Net Worth meinen — die Route rechts dagegen misst Invested.
-     `field` und `past` benennen dieselbe Größe heute und vor einem Jahr;
-     die gestrichelte Spur muss der gezeigten Reihe folgen, sonst vergleicht
-     sie Äpfel mit Birnen. */
+  /* Drei Lesarten einer Linie. `field` und `past` benennen dieselbe Größe
+     heute und vor einem Jahr; die gestrichelte Spur muss der gezeigten
+     Reihe folgen. */
   var SERIES = [
     { id: 'net', label: 'Net', field: 'value', past: 'yearAgo',
       lead: 'Net worth', title: 'Net worth — assets minus liabilities' },
@@ -47,9 +41,6 @@
   }
 
   function create(root, bus) {
-    /* Zwei Arten von Schalter, deshalb zwei Gruppen — und in dieser Reihenfolge:
-       erst was gezeigt wird, dann über welchen Zeitraum. Die Reihe ist die
-       größere Entscheidung, sie steht deshalb vor den Jahren. */
     var seriesBox = U.make('div', { class: 'series', role: 'group', 'aria-label': 'Series' });
     var rangeBox = U.make('div', { class: 'range', role: 'group', 'aria-label': 'Time range' });
     var tools = U.make('div', { class: 'chart-tools' }, [
@@ -68,9 +59,6 @@
 
     var state = { range: '5y', series: 'net', view: null, pts: [], geom: null, hoverIdx: null, arrive: false, w: 0, h: 0, drawnAt: 0 };
 
-    /* Der Verlauf zeigt genau eine Reihe. Der Schalter tauscht sie aus, statt
-       eine zweite danebenzulegen — dieselbe Linie, dieselbe Fläche, derselbe
-       Puls, nur andere Zahlen darunter. */
     SERIES.forEach(function (s) {
       var b = U.make('button', {
         type: 'button', class: 'range-btn', text: s.label, 'data-series': s.id,
@@ -124,9 +112,8 @@
       var w = Math.max(260, rect.width), h = Math.max(120, rect.height);
       state.w = Math.round(rect.width); state.h = Math.round(rect.height);
       var pad = { l: 8, r: 16, t: 14, b: 20 };
-      /* Eine Reihe, drei Quellen. Alles darunter — Fläche, Schein, Lichtsäule,
-         Puls, Fadenkreuz — rechnet weiter mit `value` und weiß nicht, welche
-         der drei gerade gilt. */
+      /* Alles darunter rechnet mit `value`, ohne zu wissen, welche Reihe
+         gilt. */
       var src = slice();
       if (src.length < 2) return;
       var sr = seriesDef(state.series);
@@ -136,8 +123,6 @@
           netWorth: d.value, investment: d.investment,
           value: d[sr.field],
           yearAgo: d[sr.past],
-          /* Unabhängig von der gezeigten Reihe — derselbe Monat, derselbe
-             Vorjahresabstand, egal ob Net, Total oder Invested gerade läuft. */
           yearAgoSpan: d.yearAgoSpan
         };
       });
@@ -170,19 +155,18 @@
           U.monthLong(data[0].key) + ' to ' + U.monthLong(data[data.length - 1].key) });
 
       var defs = U.svg('defs', {}, [
-        /* Die Fläche als Polarlicht-Vorhang, in kleiner Deckkraft: Grün heißt
-           in diesem Programm „erreicht" und Violett „Vorjahr", als Fläche darf
-           die Farbe Atmosphäre sein, als Strich wäre sie eine Aussage. Der
-           Verlauf hängt an der Bounding-Box der Fläche, nicht am Chart, damit
-           der Kamm immer leuchtet, egal welcher Zeitraum gewählt ist. */
+        /* Kleine Deckkraft: Grün heisst „erreicht", Violett „Vorjahr", als
+           Fläche darf die Farbe Atmosphäre sein. Der Verlauf hängt an der
+           Bounding-Box der Fläche, damit der Kamm bei jedem Zeitraum
+           leuchtet. */
         U.svg('linearGradient', { id: 'nsFill', x1: '0', y1: '0', x2: '0', y2: '1' }, [
           U.svg('stop', { offset: '0', 'stop-color': '#9085e9', 'stop-opacity': '0.26' }),
           U.svg('stop', { offset: '0.26', 'stop-color': '#2fbd8b', 'stop-opacity': '0.16' }),
           U.svg('stop', { offset: '0.58', 'stop-color': '#3987e5', 'stop-opacity': '0.11' }),
           U.svg('stop', { offset: '1', 'stop-color': '#3987e5', 'stop-opacity': '0' })
         ]),
-        /* Blende für die Vorjahreslinie: an beiden Rändern sichtbar, zur Mitte
-           hin ausgeblendet — die Spur bleibt angedeutet, ohne den Chart zuzustellen. */
+        /* Blende für die Vorjahreslinie: an den Rändern sichtbar, zur Mitte
+           ausgeblendet. */
         U.svg('linearGradient', { id: 'nsYaEdge', gradientUnits: 'userSpaceOnUse',
           x1: pad.l, y1: 0, x2: w - pad.r, y2: 0 }, [
           U.svg('stop', { offset: '0', 'stop-color': '#fff' }),
@@ -193,8 +177,7 @@
         U.svg('mask', { id: 'nsYaMask', maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: w, height: h }, [
           U.svg('rect', { x: 0, y: 0, width: w, height: h, fill: 'url(#nsYaEdge)' })
         ]),
-        /* Beim Zeigen wandert ein Fenster mit dem Zeiger mit — man sieht ein
-           Stück vor und zurück, nicht die ganze Linie. */
+        /* Beim Zeigen wandert ein Fenster mit dem Zeiger mit. */
         U.svg('linearGradient', { id: 'nsYaCursor', gradientUnits: 'userSpaceOnUse',
           x1: 0, y1: 0, x2: 1, y2: 0 }, [
           U.svg('stop', { offset: '0', 'stop-color': '#000' }),
@@ -231,12 +214,9 @@
       }
       g.appendChild(gy);
 
-      /* Stationslinien nur auf „Invested": die sieben Stationen messen gegen
-         das Depot, auf Net oder Total wäre es nicht dieselbe Größe. Die Skala
-         rechnet weiter allein aus der Kurve, was über `max` liegt bleibt
-         außen vor statt sie zusammenzustauchen. Liegen zwei Ziele nah
-         beieinander, weicht nur die Beschriftung nach oben aus, die Linien
-         bleiben exakt auf ihrer Höhe, sie sind die Aussage. */
+      /* Nur auf „Invested": die Stationen messen gegen das Depot. Die Skala
+         folgt allein der Kurve, Ziele über `max` bleiben aussen vor. Die
+         Linien bleiben exakt, nur die Labels weichen aus. */
       var gs = U.svg('g', { class: 'chart-stations' });
       /* Rückt ein Label nach oben, bis sein 12-px-Band frei von allen bereits
          gesetzten Bändern ist — anderen Stationslabels und, sofern sie sich
@@ -291,11 +271,8 @@
       });
       g.appendChild(gx);
 
-      /* Fläche + Linie. Über eine Lücke hinweg bricht der Strich ab und
-         bekommt einen gestrichelten Steg statt einer Geraden, die eine
-         Behauptung über nicht eingetragene Monate wäre. Die Fläche läuft
-         weiter durch: sie ist Atmosphäre, kein Wert, und ein Vorhang mit
-         Löchern sähe aus wie ein zweiter Verlauf. */
+      /* Über eine Lücke bricht der Strich ab, ein gestrichelter Steg steht
+         dafür; die Fläche läuft durch, sie ist Atmosphäre, kein Wert. */
       var dFull = '', dLine = '', dGap = '';
       data.forEach(function (d, i) {
         var x = X(i).toFixed(1), y = Y(d.value).toFixed(1);
@@ -328,12 +305,9 @@
       g.appendChild(glow);
       g.appendChild(line);
 
-      /* Ankunft: die Linie zeichnet sich einmal von links nach rechts. Die
-         Länge steht fest, ohne zu messen: der Pfad ist ein Streckenzug durch
-         bekannte Punkte, seine Länge also deren Summe; getTotalLength
-         existiert nicht in jeder Umgebung, in der diese Datei laufen muss.
-         Gezeichnet wird nur, wenn wirklich eine andere Linie entsteht, nicht
-         bei jedem Rendern. */
+      /* Die Länge steht ohne Messen fest: ein Streckenzug durch bekannte
+         Punkte; getTotalLength gibt es nicht in jeder Umgebung. Gezeichnet
+         wird nur bei einer wirklich anderen Linie. */
       if (state.arrive) {
         var len = 0;
         for (var q = 1; q < data.length; q++) {
@@ -358,9 +332,7 @@
         fill: 'url(#nsBeam)', class: 'chart-beam'
       }));
       g.appendChild(U.svg('circle', { cx: lx, cy: ly, r: 9, class: 'chart-last-halo' }));
-      /* Der Herzschlag der linken Hälfte: ein Ring, der im Takt des Sterns aus
-         dem letzten Datenpunkt läuft und vergeht. Kein wandernder Balken —
-         die Stelle bleibt, nur die Welle geht. */
+      /* Ein Ring, der im Takt des Sterns aus dem letzten Punkt läuft. */
       g.appendChild(U.svg('circle', { cx: lx, cy: ly, r: 3.2, class: 'chart-last-ping' }));
       g.appendChild(U.svg('circle', { cx: lx, cy: ly, r: 3.2, class: 'chart-last' }));
 
@@ -381,9 +353,8 @@
       if (!geo) return;
       var r = body.getBoundingClientRect();
       var x = ev.clientX - r.left;
-      /* Gesucht statt zurückgerechnet: seit die Waagerechte Zeit statt Index
-         ist, stehen die Punkte nicht in gleichen Abständen, also gilt der
-         nächstgelegene, auch mitten in einer Lücke. */
+      /* Nächstgelegener Punkt: die Abstände sind ungleich, und mitten in
+         einer Lücke gilt der nähere Rand. */
       var frac = (x - geo.pad.l) / (geo.w - geo.pad.l - geo.pad.r);
       var i = 0;
       for (var k = 1; k < geo.at.length; k++) {
@@ -402,10 +373,7 @@
       tip.innerHTML = '';
       tip.appendChild(U.make('div', { class: 'tip-key', text: U.monthLong(d.key) }));
       tip.appendChild(U.make('div', { class: 'tip-val', text: U.eur(d.value) }));
-      /* Die große Zahl ist die gezeigte Reihe; darunter stehen die beiden
-         Größen, die sie einordnen — je Reihe die, die sie nicht selbst ist.
-         Net nennt seine Bestandteile, Total den Abzug und was bleibt,
-         Invested sein Gewicht am Vermögen. */
+      /* Darunter je Reihe die zwei Größen, die sie einordnen. */
       function row(label, node) {
         tip.appendChild(U.make('div', { class: 'tip-row' }, [U.make('span', { text: label }), node]));
       }
@@ -419,10 +387,8 @@
         row('Assets', U.make('b', { text: U.eur0(d.assets) }));
         row('Liabilities', U.make('b', { class: 'neg', text: U.eur0(d.liabilities) }));
       }
-      /* Dieselbe Regel wie an der Kennzahl darüber (js/ui/position.js): der
-         Abstand steht in der Beschriftung, sobald er von zwölf Monaten
-         abweicht — sonst hiesse eine Elf-Monats-Lücke „vs. last year", und
-         das stimmt nicht. */
+      /* Dieselbe Regel wie in position.js: der Abstand steht in der
+         Beschriftung, sobald er von zwölf abweicht. */
       var yoyLabel = d.yearAgoSpan != null && d.yearAgoSpan !== 12
         ? 'vs. ' + d.yearAgoSpan + ' months ago' : 'vs. last year';
       tip.appendChild(U.make('div', { class: 'tip-row' }, [
@@ -455,11 +421,9 @@
     body.addEventListener('pointermove', onMove);
     body.addEventListener('pointerleave', onLeave);
 
-    /* Der Beobachter meldet sich einmal von selbst, sobald er zu beobachten
-       beginnt, mit derselben Grösse, die gerade gezeichnet wurde. Ein
-       Neubau bei unveränderter Fläche würde die Ankunft der Linie ohne Not
-       wiederholen, diesmal ohne Aufbau; deshalb wird nur neu gebaut, wenn
-       die Fläche sich wirklich geändert hat. */
+    /* Der Beobachter meldet sich beim Start einmal mit derselben Grösse;
+       ein Neubau dann wiederholte die Ankunft der Linie. Also nur bei
+       wirklich geänderter Fläche. */
     var ro = global.ResizeObserver ? new ResizeObserver(function () {
       var r = body.getBoundingClientRect();
       if (Math.round(r.width) === state.w && Math.round(r.height) === state.h) return;

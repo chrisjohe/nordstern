@@ -9,11 +9,9 @@
   var KEY_MODEL = 'nordstern.model.v1';
   var KEY_SETTINGS = 'nordstern.settings.v1';
 
-  /* Die eine Zahl, die die App nicht aus der Mappe lesen kann: was der
-     Haushalt im Monat kostet. Bei 0 lägen alle acht Ziele bei null, sichtbar
-     falsch, schlimmer als eine grobe Schätzung. 2.500 € ist eine Hausnummer,
-     niemandes echte Ausgabe; dauerhaft ändert diese Zeile (docs/CUSTOMISE.md),
-     einmalig Einstellungen → expenses. */
+  /* Die eine Zahl, die nicht aus der Mappe kommt. Bei 0 lägen alle Ziele
+     bei null; 2.500 € ist eine Hausnummer, niemandes echte Ausgabe
+     (docs/CUSTOMISE.md). */
   var DEFAULT_EXPENSES = 2500;
 
   var DEFAULT_SETTINGS = {
@@ -24,17 +22,14 @@
     currency: 'EUR'
   };
 
-  /* Eigene Liste statt NS.util.CURRENCIES als einziger Quelle — diese Datei
-     wird in Tests auch ohne geladenes util.js benutzt, und Ladereihenfolge
-     ist kein Vertrag, auf den sich store.js verlassen sollte. */
+  /* Eigene Liste, weil store.js in Tests ohne util.js läuft. */
   var FALLBACK_CURRENCIES = { EUR: 1, USD: 1, GBP: 1, CHF: 1 };
   function currencyCodes() {
     return (NS.util && NS.util.CURRENCIES) || FALLBACK_CURRENCIES;
   }
 
-  /* Der Zugriff auf localStorage kann schon beim Lesen der Eigenschaft werfen —
-     unter file:// gilt in manchen Browsern ein opakes Origin. Deshalb komplett
-     defensiv: ohne Speicher läuft die App weiter, nur ohne Merken. */
+  /* Schon das Lesen von localStorage kann werfen (opakes Origin unter
+     file://); ohne Speicher läuft die App weiter, nur ohne Merken. */
   var LS = null;
   try { LS = global.localStorage || null; } catch (e) { LS = null; }
 
@@ -50,14 +45,10 @@
 
   var ok = available();
 
-  /* Die Versionsnummer allein sagt nichts über den Inhalt: ein von Hand
-     abgeschnittener, halb überschriebener oder aus einer Bastelei stammender
-     Eintrag wie {"version":2} kommt durch und wirft dann beim ersten Zugriff,
-     und zwar nach dem Ausblenden des Leerzustands, also vor einem leeren
-     Bildschirm ohne Weg zurück. Geprüft wird deshalb, woran die Anwendung
-     tatsächlich hängt, kein Schema-Validator: die Frage ist nur, ob das
-     Modell benutzbar ist. Fällt es durch, ist es, als läge nichts da: „No
-     data yet", und die Mappe wird neu gezogen. */
+  /* Die Versionsnummer allein sagt nichts über den Inhalt; ein kaputter
+     Eintrag würfe sonst erst nach dem Ausblenden des Leerzustands, vor
+     einem leeren Bildschirm. Geprüft wird, woran die Anwendung hängt,
+     nicht mehr: kein Schema-Validator. */
   function usable(m) {
     if (!m || typeof m !== 'object') return false;
     if (m.version !== NS.importer.MODEL_VERSION) return false;
@@ -69,20 +60,15 @@
          sonst besteht auch '2026-99' die Prüfung. */
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mo.key)) return false;
       if (!num(mo.netWorth) || !num(mo.totalAssets) || !num(mo.liabilities)) return false;
-      /* Alle fünf Sektionen, nicht nur liquid/investment — sonst kommt ein
-         Monat durch, dem der Importer nie eine Zahl für „tangible" oder
-         „retirement" geschrieben hätte, und die Rechnung liest NaN. */
+      /* Alle fünf Sektionen, sonst liest die Rechnung NaN. */
       if (!num(mo.liquid) || !num(mo.receivables) || !num(mo.investment) ||
           !num(mo.tangible) || !num(mo.retirement)) return false;
     }
-    /* Ganzzahlig, nicht nur im Bereich: months[0.5] ist undefined, und der
-       Zugriff darauf wirft. `% 1` statt Number.isInteger — diese Datei bleibt
-       ES5, wie der Rest der Anwendung. */
+    /* Ganzzahlig: months[0.5] ist undefined. `% 1`, weil ES5. */
     if (!num(m.currentIndex) || m.currentIndex % 1 !== 0) return false;
     if (m.currentIndex < 0 || m.currentIndex >= m.months.length) return false;
-    /* Jede Kontenliste, nicht nur die aus sectionOrder: „liabilities" steht
-       nicht darin und wird trotzdem gelesen (js/calc.js, itemsOf). Ein
-       Schlüssel, den der Importer nie schreibt, gilt als beschädigt. */
+    /* Auch „liabilities", das nicht in sectionOrder steht und trotzdem
+       gelesen wird. */
     if (!m.accounts || typeof m.accounts !== 'object') return false;
     for (var k in m.accounts) {
       if (!Object.prototype.hasOwnProperty.call(m.accounts, k)) continue;

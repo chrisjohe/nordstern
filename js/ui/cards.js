@@ -8,16 +8,13 @@
 
   var STATUS_LABEL = { reached: 'reached', current: 'current', future: 'ahead' };
 
-  /* Woran sich die Station misst: sieben gegen das investierte Vermögen, die
-     Reserve gegen die liquiden Mittel, deshalb kann sie bei vollem Depot halb
-     leer stehen. „Now" führt, die Herkunft begleitet nur, sonst wüsste man
-     nicht mehr, welche Zahl das Ziel ist. */
+  /* Sieben Stationen messen gegen das Depot, die Reserve gegen liquide
+     Mittel. */
   var BASIS_LABEL = { liquid: 'liquid', investment: 'invested' };
   var BASIS_ARIA  = { liquid: 'from liquid assets', investment: 'from invested assets' };
 
-  /* Jede Card trägt einen eigenen atmosphärischen Verlauf statt eines Fotos:
-     alles auf dieser Fläche ist gerechnet, ein Stockfoto wäre das einzige,
-     was nichts über die Daten weiß. */
+  /* Gerechnete Verläufe statt Fotos; die Anwendung greift auf keine Datei
+     neben sich zu. */
   var WASH = {
     contingency: ['#1b2436', '#2a2419', '#3a2c14'],
     snowball:    ['#101b2e', '#1a2c48', '#2b4468'],
@@ -29,9 +26,6 @@
     fat:         ['#151527', '#2e2947', '#4a3f63']
   };
 
-  /* Das Vielfache, das die Station definiert: in Lebenszeit statt in
-     Monatszahlen. „of expenses" muss dabeistehen, sonst ist „25 years" eine
-     Frist oder ein Alter, nur nicht das Gemeinte. */
   function span(months) {
     if (months < 12) return months + ' months';
     var y = months / 12;
@@ -56,9 +50,8 @@
     return box;
   }
 
-  /* Das Kreuz ist reine Andeutung — die ganze Card schließt bei Klick, Enter,
-     Leertaste oder Escape. Ein echter Knopf im Knopf wäre für die Bedienung
-     mit Tastatur und Screenreader schlechter. */
+  /* Das Kreuz ist Andeutung, die ganze Card schliesst; ein Knopf im Knopf
+     wäre für Tastatur und Screenreader schlechter. */
   function closeMark() {
     return U.make('span', { class: 'card-x', 'aria-hidden': 'true' }, [
       U.svg('svg', { viewBox: '0 0 16 16', width: 11, height: 11, fill: 'none' }, [
@@ -152,8 +145,6 @@
         c.front.querySelector('.card-bar i').style.width = w;
         c.back.querySelector('.card-bar i').style.width = w;
         c.front.querySelector('.card-status').setAttribute('title', STATUS_LABEL[ms.status]);
-        /* Auf der Karte zählt der Blick, nicht der Cent: gerundete Beträge,
-           ganze Prozent. Die genauen Werte stehen in der Struktur-Legende. */
         c.back.querySelector('.f-target').textContent = U.eur0(ms.target);
         c.back.querySelector('.f-value').textContent = U.eur0(ms.value);
         /* Über 100 % hinaus sagt der Wert nichts mehr — gedeckelt. */
@@ -168,10 +159,8 @@
           ' ' + BASIS_ARIA[ms.basis]);
       });
 
-      /* Ankunft: die Balken laufen versetzt auf ihren Stand. Ab- und wieder
-         anhängen, weil eine Animation nicht neu startet, solange die Klasse
-         schon steht — und das Auslesen der Breite dazwischen erzwingt, dass
-         der Browser den Wechsel bemerkt. */
+      /* Klasse ab- und wieder anhängen, sonst startet die Animation nicht
+         neu; das Auslesen der Breite erzwingt den Reflow dazwischen. */
       root.classList.remove('is-arriving');
       if (arrive) {
         void root.offsetWidth;

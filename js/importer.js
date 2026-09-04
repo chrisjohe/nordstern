@@ -6,14 +6,11 @@
   'use strict';
 
   var NS = global.NORDSTERN || (global.NORDSTERN = {});
-  /* Wer die Form des Modells ändert, zählt hier hoch: ein Modell mit anderer
-     Nummer wirft store.js beim Laden fort, und die App bittet um einen neuen
-     Import statt mit einer alten Form weiterzurechnen. */
+  /* Wer die Form des Modells ändert, zählt hier hoch; store.js verwirft
+     Modelle mit anderer Nummer. */
   var MODEL_VERSION = 3;
-  /* Anzeigewährung für die Warnhinweise unten ("… 5.855,00 USD, …") — vom
-     Aufrufer über opts.currency gesetzt, je Lauf neu, wie `noted`. Betrifft
-     nur den Text der Warnung, nicht die Zahl: die Mappe wird nicht
-     umgerechnet, nur benannt. */
+  /* Anzeigewährung für den Text der Warnungen; die Mappe wird nicht
+     umgerechnet. */
   var dispCode = 'EUR';
 
   /* ------------------------------------------------------- Zellen-Zugriffe */
@@ -60,16 +57,11 @@
 
   /* ------------------------------------------------------------- Währung */
 
-  /* Erkennung der Währung aus dem Zahlenformat einer Zelle (c.z), nicht aus
-     ihrem Wert — der Wert ist eine reine Zahl, das Format trägt das Symbol.
-
-     Ein reiner Gebietsschema-Tag wie „[$-409]" trägt kein Symbol und wird
-     zuerst entfernt. Übrig bleiben entweder Symbol-Tags wie „[$€-407]",
-     „[$CHF-807]" oder „[$CHF]" (der Text zwischen „[$" und „-" bzw. „]" ist
-     das Symbol), oder ein blankes Symbol/Kürzel irgendwo im Format, auch in
-     Anführungszeichen wie „"CHF "". Alles, was auf keine der vier Währungen
-     passt (¥, kr, …), wird ignoriert — der Import kennt nur die vier, die
-     die Einstellungen auch anbieten. */
+  /* Währung aus dem Zahlenformat (c.z), nicht aus dem Wert. Gebietsschema-
+     Tags wie „[$-409]" tragen kein Symbol und fallen zuerst weg; dann
+     zählen Symbol-Tags („[$€-407]", „[$CHF]"), dann ein blankes Symbol
+     oder Kürzel im Format. Nur die vier Währungen der Einstellungen
+     zählen. */
   var LOCALE_ONLY_RE = /\[\$-[^\]]*\]/g;
   var BRACKET_TAG_RE = /\[\$([^\]-]*)(?:-[^\]]*)?\]/;
   var BRACKET_TAG_ALL_RE = /\[\$[^\]]*\]/g;
@@ -104,11 +96,8 @@
     return null;
   }
 
-  /* Zählung je Lauf, nicht je Aufruf von noteInit — erst parseWorkbook weiß,
-     ob eine oder mehrere Währungen vorkommen. `currencySeen` verhindert die
-     doppelte Zählung derselben Zelle: „Data Input" liest die Summenzeile
-     einer Sektion einmal für die Monatsreihe und ein zweites Mal für die
-     Gegenprobe. */
+  /* Zählung je Lauf; `currencySeen` verhindert, dass die Summenzeile einer
+     Sektion doppelt zählt (Monatsreihe und Gegenprobe). */
   var currencyTally = null;
   var currencySeen = null;
   function currencyTallyReset() { currencyTally = {}; }
@@ -131,9 +120,8 @@
     return null;
   }
 
-  /* Was beim Lesen eines Blattes an Textzellen auffiel. Nicht als Liste —
-     eine Mappe mit hundert Textspalten schriebe hundert Adressen mit. Die
-     Anzahl und die erste Adresse genügen, um nachzusehen. */
+  /* Anzahl und erste Adresse genügen; eine Liste trüge bei hundert
+     Textspalten hundert Adressen. */
   var noted = null;
   function noteInit(sheet) {
     noted = { sheet: sheet, textN: 0, textAt: null, badN: 0, badAt: null, errN: 0, errAt: null };
@@ -160,11 +148,8 @@
     }
   }
 
-  /* Reine Auswertung einer Zelle zu einer Zahl, ohne die Zähltabelle `noted`
-     zu berühren. hasData() unten braucht genau das: wissen, ob eine Zelle
-     eine Zahl trägt, ohne dass das Nachsehen selbst als Fund gezählt wird —
-     jede Kontozelle einer Spalte würde sonst doppelt in die Warnungen
-     einfliessen, einmal von hier und einmal von der echten Auswertung. */
+  /* Zelle → Zahl, ohne die Zähltabelle `noted` zu berühren; hasData()
+     braucht das, sonst zählte jede Kontozelle doppelt. */
   function numRaw(c) {
     if (!c || c.v == null || c.v === '') return null;
     if (c.t === 'e') return null;               // #N/A, #REF! & co. — kein Betrag
@@ -247,12 +232,8 @@
 
   /* ------------------------------------------------ Aufbau von "Data Input" */
 
-  /* Jede Sektion wird über zwei Beschriftungen in Spalte A verankert, nicht über
-     feste Zeilennummern — eingefügte Konten verschieben den Import damit nicht.
-
-     Eine Schreibweise je Anker, dieselbe wie in der Oberfläche. Zwei gültige
-     Namen für dieselbe Zeile helfen nur so lange, wie sich jemand an den
-     zweiten erinnert. */
+  /* Sektionen sind über zwei Beschriftungen in Spalte A verankert, nicht
+     über Zeilennummern; eine Schreibweise je Anker. */
   var SECTIONS = [
     { id: 'liquid',      head: 'liquid',      total: 'total liquid' },
     { id: 'receivables', head: 'claims',      total: 'total claims' },
@@ -266,10 +247,8 @@
   var ANCHOR_LIABILITIES = 'liabilities';          // exakt — "liabilities *(-1)" ist eine Hilfszeile
   var ANCHOR_LIAB_TOTAL  = 'total liabilities';
 
-  /* map trägt je Beschriftung die erste Zeile — für Kontonamen reicht das,
-     eine wiederholte Kontobezeichnung ist kein Fehler. Für Anker gilt das
-     nicht mehr: need() unten sieht in `rows` jedes Vorkommen und lehnt ab,
-     wenn ein Anker mehrfach auftaucht, statt eines davon still zu übergehen. */
+  /* map trägt je Beschriftung die erste Zeile, rows jedes Vorkommen:
+     Kontonamen dürfen sich wiederholen, Anker nicht (need()). */
   function labelRows(ws, range) {
     var map = {}, rows = {}, order = [];
     for (var r = range.r0; r <= range.r1; r++) {
@@ -312,10 +291,8 @@
     SECTIONS.forEach(function (s) { s._head = need(s.head); s._total = need(s.total); });
     if (errors.length) return null;
 
-    /* Kopf vor Summe, und die sechs Bereiche (fünf Sektionen plus
-       Verbindlichkeiten) ohne Überlappung — sonst kann eine Sektion, die in
-       eine andere hineinragt, deren Ankerzeilen als "Konten" einlesen, ohne
-       dass irgendeine Gegenprobe das je bemerkt. */
+    /* Kopf vor Summe, und die sechs Bereiche ohne Überlappung, sonst liest
+       eine Sektion fremde Ankerzeilen als Konten. */
     var spans = SECTIONS.map(function (s) { return { head: s.head, total: s.total, h: s._head, t: s._total }; });
     spans.push({ head: ANCHOR_LIABILITIES, total: ANCHOR_LIAB_TOTAL, h: rowLiab, t: rowLiabTot });
     spans.forEach(function (sp) {
@@ -349,10 +326,8 @@
     });
     if (errors.length) return null;
 
-    /* Monatsspalten aus der Kopfzeile. Eine Zelle, die etwas trägt, aber
-       weder Datum noch Seriennummer ist ("2026-08-01" als Text, ein
-       ungültiges Datum), wird mitgezählt — das unterscheidet eine leere
-       Kopfzeile von einer, die etwas Falsches enthält. */
+    /* Eine Kopfzelle mit Inhalt, der kein Datum ist, wird mitgezählt: das
+       unterscheidet eine leere Kopfzeile von einer falschen. */
     var cols = [], badDateN = 0, badDateAt = null;
     for (var c = range.c0 + 1; c <= range.c1; c++) {
       var d = readDate(ws, rowDates, c);
@@ -453,10 +428,9 @@
       return null;
     }
 
-    /* Ein Fehlerwert (#N/A & Co.) in einer der drei Summenzeilen der aktuellen
-       Spalte zählt anders als anderswo: dort fällt er sonst still auf 0, und
-       genau diese Zahl trägt den ganzen Kopfbereich des Dashboards. Kein
-       „zählt als leer" also, sondern ein Abbruch. */
+    /* Ein Fehlerwert in einer der drei Summenzeilen der aktuellen Spalte
+       bricht ab, statt still auf 0 zu fallen: diese Zahl trägt den
+       Kopfbereich. */
     var curCol = cols[lastIdx].col;
     var curTotals = [
       { row: rowTA, label: 'Total assets' },
@@ -472,29 +446,21 @@
       }
     }
 
-    /* `used` nimmt nur Spalten mit Daten bis lastIdx — eine leere Spalte
-       mitten in der Reihe (Februar ausgelassen, Januar und März stehen) wird
-       hier bereits ausgesiebt, statt später als Nullstand in die Monatsreihe
-       zu rutschen. Die Lückenerkennung unten sieht dann den Sprung von
-       Januar auf März und meldet ihn wie jede andere Lücke; eine eigene
-       Warnung sagt zusätzlich, dass es eine leere Spalte war. */
+    /* Leere Spalten innerhalb der Reihe werden hier ausgesiebt, nicht als
+       Nullstand geführt; die Lückenerkennung unten meldet den Sprung, eine
+       eigene Warnung nennt die leere Spalte. */
     var used = [], emptyInside = [];
     for (var i2 = 0; i2 <= lastIdx; i2++) {
       if (hasData(cols[i2].col)) used.push(cols[i2]); else emptyInside.push(cols[i2].key);
     }
-    /* Was rechts liegen bleibt, wird nicht still verworfen — die Einstellungen
-       sagen es unter „data source". Gezählt werden Spalten rechts von
-       lastIdx, nicht die Differenz der Längen — die trüge auch die innen
-       ausgesiebten leeren Spalten mit. */
+    /* Spalten rechts von lastIdx, nicht die Längendifferenz (die zählte
+       die innen ausgesiebten mit). */
     var skipped = cols.length - (lastIdx + 1);
 
-    /* Die Reihe muss Monat für Monat aufsteigen, sonst liest die Berechnung
-       die falsche Spalte als „Vormonat" oder „vor einem Jahr", ohne dass es
-       auffällt. Lücken und Doppelungen trägt das Programm: die Vergleiche
-       rechnen mit dem Monatsabstand und die Einstellungen nennen sie. Eine
-       verrutschte Spalte trägt es nicht: „zuletzt" wäre dann der falsche
-       Monat, aus dem alles Weitere folgt. Sortieren hiesse, eine kaputte
-       Mappe stillschweigend zu reparieren; stattdessen wird abgelehnt. */
+    /* Aufsteigend, sonst liest die Berechnung die falsche Spalte als
+       Vormonat. Lücken und Doppelungen trägt das Programm, eine verrutschte
+       Spalte nicht: „zuletzt" wäre der falsche Monat. Sortieren hiesse
+       raten, also wird abgelehnt. */
     var dups = [], jumps = [], missing = 0, firstGap = null;
     for (var g = 1; g < used.length; g++) {
       var step = monthNo(used[g].key) - monthNo(used[g - 1].key);
@@ -516,9 +482,6 @@
         ', the first gap after ' + firstGap +
         '. Comparisons across a gap say how far back they reach.');
     }
-    /* Zusatz zur Lückenwarnung oben: sagt, dass die Lücke keine fehlende
-       Spalte war, sondern eine vorhandene, leere — damit lässt sich das eine
-       vom anderen unterscheiden, ohne in die Mappe zu schauen. */
     if (emptyInside.length) {
       warnings.push(emptyInside.length + ' empty month column' + (emptyInside.length === 1 ? '' : 's') +
         ' inside the series ' + (emptyInside.length === 1 ? 'was' : 'were') +
@@ -550,12 +513,8 @@
       return { name: a.name, values: used.map(function (mc) { return num(ws, a.row, mc.col) || 0; }) };
     });
 
-    /* Einzelne Zellen sind endlich (num() wirft Infinity/NaN schon heraus),
-       aber ihre Summe muss es nicht bleiben — eine Sektion aus lauter
-       1e308-Beträgen läuft in der Addition über. Danach vergleicht keine der
-       Gegenproben mehr sinnvoll (NaN ist mit nichts gleich, auch nicht mit
-       sich selbst), also wird hier geprüft, bevor sie laufen. Die Konten
-       brauchen das nicht: ihre Werte sind Einzelzellen, nie Summen. */
+    /* Einzelzellen sind endlich, ihre Summe nicht unbedingt (fünf mal
+       1e308). NaN besteht danach keine Gegenprobe, also vorher prüfen. */
     for (var mo = 0; mo < months.length; mo++) {
       for (var mk in months[mo]) {
         if (mk === 'key' || mk === 'iso') continue;
@@ -606,21 +565,13 @@
 
   /* ------------------------------------------------------------------- API */
 
-  /* Erlaubte Blattnamen, in Vorrangreihenfolge: der erste Name dieser Liste,
-     der in der Mappe vorkommt, gewinnt — unabhängig davon, an welcher
-     Stelle er in der Mappe steht oder wie viele andere Blätter es noch
-     gibt. Fehlt jeder Name, aber die Mappe hat genau ein Blatt, wird dieses
-     genommen, wie auch immer es heißt (siehe chooseSheet). */
+  /* Vorrangreihenfolge: der erste Name der Liste, der vorkommt, gewinnt;
+     ein Einzelblatt braucht keinen (chooseSheet). */
   var SHEET_NAMES = ['Data Input', 'Data', 'Input', 'Snapshots', 'Net Worth',
     'Nordstern', 'Daten', 'Dateneingabe', 'Vermögen', 'Bilanz'];
 
-  /** Welches Blatt aus `sheetNames` gelesen wird: der erste Name aus
-      SHEET_NAMES, der vorkommt — Groß-/Kleinschreibung und Leerraum egal
-      (norm()). Kommt keiner vor, die Mappe hat aber nur ein Blatt, ist das
-      der Fallback: ein Einzelblatt braucht keinen passenden Namen. Sonst
-      null — bei zwei oder mehr unbekannten Blättern wird nicht geraten und
-      auch nicht in den Inhalt geschaut, das würde jedes Blatt dekodieren
-      und das Privacy-Versprechen brechen. */
+  /** Bei zwei oder mehr unbekannten Blättern wird nicht geraten und nicht
+      in den Inhalt geschaut: das würde jedes Blatt dekodieren. */
   function chooseSheet(sheetNames) {
     for (var i = 0; i < SHEET_NAMES.length; i++) {
       var n = norm(SHEET_NAMES[i]);
@@ -632,23 +583,18 @@
     return null;
   }
 
-  /** Öffnet die Mappe in zwei Durchgängen: erst das Inhaltsverzeichnis, dann
-      ausschließlich das eine Blatt, das chooseSheet auswählt. Der Umweg ist
-      der Preis dafür, dass SheetJS ohne `sheets` jedes Blatt parst, auch das,
-      auf dem jemand Persönliches notiert hat. `bookSheets: true` liest nur
-      die Namensliste. Für ods und numbers ignoriert SheetJS den Filter und
-      parst trotzdem alles, deshalb wird danach hart auf das eine Blatt
-      reduziert, mitsamt der Mappen-Eigenschaften. `available` trägt alle
-      Blattnamen aus dem ersten Durchgang für Fehlermeldungen, ohne sie zu
-      dekodieren. */
+  /** Zwei Durchgänge: erst die Namensliste (`bookSheets`), dann nur das
+      gewählte Blatt, weil SheetJS sonst jedes Blatt parst. Für ods und
+      numbers ignoriert SheetJS den Filter, deshalb wird danach hart auf das
+      eine Blatt reduziert, mitsamt Mappen-Eigenschaften. `available` nennt
+      alle Blattnamen für Fehlermeldungen. */
   function openWorkbook(X, bytes) {
     var toc = X.read(bytes, { type: 'array', bookSheets: true });
     var available = (toc.SheetNames || []).slice();
     var chosen = chooseSheet(available);
     if (!chosen) return { SheetNames: [], Sheets: {}, available: available };
-    /* cellNF: true — ohne das legt SheetJS das Zahlenformat einer Zelle
-       (c.z) gar nicht erst ab, und currencyOfFormat() liest immer null.
-       Die Erkennung der Währung hängt daran. */
+    /* Ohne cellNF legt SheetJS das Zahlenformat (c.z) nicht ab; die
+       Währungserkennung hängt daran. */
     var wb = X.read(bytes, {
       type: 'array', cellDates: true, cellNF: true, cellFormula: false, cellStyles: false, sheets: [chosen]
     });
@@ -661,10 +607,8 @@
     dispCode = (opts && opts.currency) || 'EUR';
     currencyTallyReset();
     var errors = [], warnings = [];
-    /* wb kann hier auch fehlerhaft ankommen — direkt aufgerufen aus einem
-       Test, oder aus einem künftigen Aufrufer, der die Rückgabe von
-       openWorkbook nicht kennt. Ein fehlendes Sheets/SheetNames ist derselbe
-       Befund wie ein Blatt, das nicht gefunden wurde, nicht ein Absturz. */
+    /* Ein fehlendes Sheets/SheetNames ist derselbe Befund wie ein nicht
+       gefundenes Blatt, kein Absturz. */
     var wsData = (wb && wb.Sheets && wb.SheetNames) ? wb.Sheets[wb.SheetNames[0]] : null;
     if (!wsData) {
       var have = ((wb && wb.available) || []).map(function (n) { return '"' + n + '"'; }).join(', ');
@@ -695,12 +639,8 @@
     };
   }
 
-  /* Meldungen, an denen SheetJS und die ZIP-Schicht darunter eine
-     beschädigte oder abgeschnittene Datei erkennen lassen — eine gekappte
-     .xlsx wirft "Unsupported ZIP file", eine mit falschen Größenangaben
-     "Bad compressed size: …". Trifft keine zu, bleibt die ursprüngliche
-     Meldung stehen; eine falsche Zuordnung wäre schlimmer als gar keine
-     Übersetzung. */
+  /* SheetJS meldet eine gekappte Datei als „Unsupported ZIP file", falsche
+     Größen als „Bad compressed size"; alles andere bleibt unübersetzt. */
   var CORRUPT_RE = /bad compressed size|corrupt|unexpected end|cannot find end of central directory|invalid zip|zip/i;
 
   function parseArrayBuffer(buf, fileName, opts) {

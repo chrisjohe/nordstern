@@ -7,12 +7,10 @@
   var NS = global.NORDSTERN || (global.NORDSTERN = {});
   var U = NS.util;
 
-  /* Die acht Meilensteine. `months` = Vielfaches der monatlichen Gesamtausgaben.
-     Contingency zählt gegen die liquiden Mittel, alle übrigen gegen das
-     investierte Vermögen. `t` ist die Position auf der Bergroute (0…1) und
-     entspricht dem Kontrollpunkt der Route in js/ui/mountain.js: die Werte
-     stehen deshalb als Bruch 'Kontrollpunkt / letzter Kontrollpunkt', damit
-     beide Seiten immer dasselbe meinen. */
+  /* `months` ist das Vielfache der monatlichen Ausgaben; Contingency zählt
+     gegen liquide Mittel, alle übrigen gegen das Depot. `t` ist die
+     Position auf der Route, als Bruch Kontrollpunkt/letzter Kontrollpunkt
+     aus js/ui/mountain.js. */
   var MILESTONES = [
     { id: 'contingency', name: 'Contingency',   term: 'Emergency fund', months: 3, basis: 'liquid',
       meaning: 'Three months of expenses, liquid. Room to breathe.',
@@ -40,12 +38,7 @@
       basisLabel: '33 × annual expenses (3 % rule), covered by investments' }
   ];
 
-  /* Die Namen der Sektionen in der Oberfläche — nicht die in der Mappe. Dort
-     heißen die Zeilen weiter „Liquid assets", „Receivables towards third
-     party" und „Tangible assets"; der Importer sucht danach, und diese Tabelle
-     hat damit nichts zu tun. Kurz und ohne „assets": In einer Spalte, die
-     „Structure" überschrieben ist und deren Summe „Total assets" heißt, ist
-     jede Zeile ohnehin ein Vermögensposten. */
+  /* Namen in der Oberfläche, nicht die Anker der Mappe. */
   var SECTION_LABELS = {
     liquid: 'Liquid',
     receivables: 'Claims',
@@ -54,13 +47,9 @@
     retirement: 'Retirement'
   };
 
-  /* Die Veränderung, bezogen auf den Betrag des Ausgangswerts.
-
-     Der Betrag im Nenner, nicht der Wert: von −100 auf −50 ist eine
-     Verbesserung um 50 %, nicht um −50 %. Der Zähler muss dann aber die
-     Differenz sein — `now / |before| − 1` ergäbe hier −150 % und drehte das
-     Vorzeichen um. Bei einem Net Worth im Minus, dem Fall, in dem die Zahl am
-     meisten sagt, wäre das genau verkehrt. */
+  /* Der Betrag im Nenner: von −100 auf −50 ist +50 %, nicht −50 %. Der
+     Zähler muss dann die Differenz sein; `now / |before| − 1` ergäbe
+     −150 % und drehte das Vorzeichen um. */
   function rel(now, before) {
     if (!U.isNum(now) || !U.isNum(before) || before === 0) return null;
     return (now - before) / Math.abs(before);
@@ -99,10 +88,8 @@
   function routePosition(stations, invested) {
     if (!stations.length) return 0;
     if (invested <= 0) return 0;
-    /* Ohne Ausgaben stehen alle Ziele auf null. Dann ist keines „erreicht" —
-       es gibt schlicht keine Route. Ohne diese Zeile fällt der Weg unten
-       durch jede Verzweigung und endet auf 1: die Figur stünde am Gipfel,
-       während unter dem Berg „no station reached" steht. */
+    /* Ohne Ausgaben stehen alle Ziele auf null; ohne diese Zeile endete der
+       Weg auf 1 und die Figur stünde am Gipfel. */
     if (!(stations[stations.length - 1].target > 0)) return 0;
     if (invested < stations[0].target) {
       return stations[0].t * (invested / stations[0].target);
@@ -197,8 +184,7 @@
     var nextStation = stations[reachedCount] || null;
     var routeT = routePosition(stations, current.investment);
 
-    /* --- Tempo: Depotveränderung pro Monat, über den tatsächlichen Abstand
-       zum Vorjahresvergleich — bei einer Lücke ist das nicht immer 12. ----- */
+    /* --- Tempo: Depotveränderung pro Monat über den tatsächlichen Abstand, bei einer Lücke nicht immer 12 ----- */
     var pace = null;
     if (yearAgo) pace = (current.investment - yearAgo.m.investment) / yearAgo.span;
     var etaMonths = null;
@@ -215,13 +201,11 @@
         assets: m.totalAssets, liabilities: m.liabilities,
         investment: m.investment, liquid: m.liquid,
         yearAgo: ya ? ya.m.netWorth : null,
-        /* Eigener Vorjahreswert je Reihe — die gestrichelte Spur muss dem
-           folgen, was gerade gezeichnet wird, sonst vergleicht sie Äpfel. */
+        /* Je Reihe ein eigener Vorjahreswert, damit die gestrichelte Spur
+           der gezeigten Reihe folgt. */
         assetsYearAgo: ya ? ya.m.totalAssets : null,
         investmentYearAgo: ya ? ya.m.investment : null,
-        /* Der tatsächliche Abstand — bei einer Lücke im Vorjahr nicht immer
-           zwölf. Der Chart braucht ihn für dieselbe Beschriftungsregel, die
-           js/ui/position.js schon für die Kennzahl darüber anwendet. */
+        /* Der tatsächliche Abstand, für die Beschriftung im Chart. */
         yearAgoSpan: ya ? ya.span : null,
         index: idx
       };
@@ -241,9 +225,8 @@
       expenses: {
         monthly: totalMonthly,
         annual: totalAnnual,
-        /* „Gesetzt" heisst: ein Mensch hat den Betrag angefasst — nicht,
-           dass einer dasteht. Die Vorgabe ist eine Schätzung, und solange
-           niemand sie bestätigt hat, sagt der Hinweis unter dem Berg das auch. */
+        /* „Gesetzt" heisst: ein Mensch hat den Betrag bestätigt; bis dahin
+           bleibt der Hinweis unter dem Berg. */
         set: !!settings.expensesSet
       },
       contingency: contingency,
@@ -266,9 +249,8 @@
     MILESTONES: MILESTONES,
     SECTION_LABELS: SECTION_LABELS,
     derive: derive,
-    /* Nach draussen, weil der Chart dieselbe Veränderung zeigt wie die
-       Kennzahlen darüber: eine Formel für eine Zahl, keine zweite, die
-       stillschweigend abweichen könnte. */
+    /* Nach draussen, damit der Chart dieselbe Formel nimmt wie die
+       Kennzahlen. */
     rel: rel,
     routePosition: routePosition
   };

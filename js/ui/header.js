@@ -6,14 +6,9 @@
   var NS = global.NORDSTERN || (global.NORDSTERN = {});
   var U = NS.util;
 
-  /* Der Stern ist gezeichnet wie ein echter: eine weite Korona, ein enger
-     Kern-Bloom, vier lange und vier kurze Beugungsspitzen, alles aus
-     Verläufen statt aus Filtern — das bleibt auch bei Dauerbewegung billig.
-     Die Spitzen sind schlanke Rauten durch die Mitte, die zur Spitze hin
-     ausblenden; dadurch entsteht das Kreuz, ohne dass ein Zackenstern
-     dasteht. `key` hält die Verlaufs-IDs auseinander: stehen zwei Sterne
-     gleichzeitig im Dokument, würden doppelte IDs beide auf denselben
-     Verlauf zeigen. */
+  /* Korona, Kern-Bloom und Beugungsspitzen aus Verläufen statt Filtern, das
+     bleibt bei Dauerbewegung billig. `key` hält die Verlaufs-IDs auseinander,
+     wenn mehrere Sterne im Dokument stehen. */
   function star(size, key) {
     function spike(len, w) {                      // Raute durch die Mitte
       return 'M50 ' + (50 - len) + ' L' + (50 + w) + ' 50 L50 ' + (50 + len) +
@@ -54,16 +49,12 @@
     ]);
   }
 
-  /* Der Stern steht allein auf der Mittelachse. Datenstand und Snapshot-Zahl
-     stehen als Kennzahlen links, der Speicherstatus in den Einstellungen. */
   function create(starRoot) {
     var starBox = U.make('div', { class: 'starbox' });
     starBox.appendChild(star(58, 'head'));
     starRoot.appendChild(starBox);
   }
 
-  /* Der Leerzustand bekommt denselben Stern, nur groß — er ist dort das
-     einzige Bild auf der Fläche. */
   function mount(root, size, key) {
     root.innerHTML = '';
     root.appendChild(star(size, key));

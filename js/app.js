@@ -51,9 +51,8 @@
   }
 
   /* -----------------------------------------------------------------  Gate
-     Der Vorhang deckt die Bühne ab, nicht den Kopf: ohne Daten gibt es nichts
-     zu sehen, aber es muss etwas zu tun geben. Einstellungen, Lizenzen und der
-     Aufbau der Mappe bleiben deshalb erreichbar. */
+     Der Vorhang deckt die Bühne ab, nicht den Kopf: Einstellungen und der
+     Aufbau der Mappe bleiben erreichbar. */
   function showGate(title, copy, errors) {
     var g = U.el('#gate');
     g.hidden = false;
@@ -64,15 +63,12 @@
     (errors || []).forEach(function (e) {
       box.appendChild(U.make('p', { class: 'gate-err', text: e }));
     });
-    /* Wer hier steht, hat eine Mappe, die nicht passt — der kürzeste Weg
-       weiter ist die Beschreibung dessen, was gesucht wird. */
     if (errors && errors.length) {
       box.appendChild(U.make('button', {
         type: 'button', class: 'btn btn-ghost gate-more', text: 'What the workbook needs'
       })).addEventListener('click', function () { ui.settings.open('workbook'); });
     }
-    /* `inert` nimmt die verdeckte Bühne zusätzlich aus der Tabreihenfolge —
-       sonst wanderte der Fokus hinter den Vorhang. */
+    /* `inert`, sonst wanderte der Fokus hinter den Vorhang. */
     U.el('#stage').setAttribute('aria-hidden', 'true');
     U.el('#stage').setAttribute('inert', '');
     document.body.classList.add('is-gated');
@@ -87,9 +83,8 @@
   /* ---------------------------------------------------------------- Import */
   function readFile(file) {
     if (!file) return;
-    /* SheetJS liest mehr als Excel: die ODF-Tabelle aus LibreOffice, das
-       Binärformat .xlsb und die Numbers-Datei vom Mac. Google Sheets hat kein
-       eigenes Format, dort exportiert man nach .xlsx und ist hier richtig. */
+    /* SheetJS liest auch .ods, .xlsb und .numbers; Google Sheets exportiert
+       nach .xlsx. */
     if (!/\.(xlsx|xlsm|xlsb|ods|numbers)$/i.test(file.name)) {
       toast('Not a spreadsheet nordstern can read (.xlsx, .xlsm, .xlsb, .ods, .numbers).', 'error');
       return;
@@ -107,10 +102,8 @@
       var res = NS.importer.parseArrayBuffer(fr.result, file.name, { currency: state.settings.currency });
       if (!res.ok) {
         ui.settings.setStatus('error', 'unknown structure');
-        /* Mit einem stehenden Modell bleibt die Bühne stehen: der Vorhang
-           verdeckte sonst ein funktionierendes Dashboard, ohne einen Weg
-           zurück ausser einem harten Neustart. Nur ohne Modell fehlt etwas
-           zu zeigen — dafür, und nur dafür, ist der Vorhang da. */
+        /* Mit einem stehenden Modell bleibt die Bühne stehen; der Vorhang
+           ist nur für den Fall, dass nichts zu zeigen ist. */
         if (state.model) {
           toast('The file does not match the expected layout. The current data stays.', 'error');
           return;
@@ -122,10 +115,8 @@
       }
       state.model = res.model;
       var saved = NS.store.saveModel(res.model);
-      /* Die Mappe sagt, in welcher Währung ihre Zellen formatiert sind — wenn
-         das von der bisherigen Einstellung abweicht, übernimmt nordstern es,
-         bevor überhaupt gerendert wird. So zeigt der erste Anblick schon die
-         richtige Schreibweise, statt erst EUR und dann, ruckartig, USD. */
+      /* Die erkannte Währung wird vor dem ersten Rendern übernommen, sonst
+         springt die Schreibweise nach dem ersten Bild um. */
       var switchedTo = null;
       if (res.currency && res.currency !== state.settings.currency) {
         switchedTo = res.currency;
@@ -182,9 +173,7 @@
 
   /* --------------------------------------------------------------- Refresh */
   function refresh() {
-    /* Ohne Modell gibt es nichts zu rechnen — die Schalter im Blatt zeigen
-       trotzdem ihren wahren Stand, sonst stünde dort „off", während der
-       Stern noch atmet. */
+    /* Ohne Modell zeigen die Schalter im Blatt trotzdem ihren Stand. */
     if (!state.model) { ui.settings.sync(null, null, state.settings); return; }
     var v = NS.calc.derive(state.model, state.settings);
     var arrive = state.arriving; state.arriving = false;
@@ -212,8 +201,6 @@
         ' · ' + U.eur0(v.nextStation.remaining) + ' to go' }));
     }
     var c = v.contingency;
-    /* Der Chip ist der zweite Ort, an dem die Reserve als Ausnahme auftaucht —
-       hier steht ausgeschrieben, woran sie sich misst. */
     var chip = U.make('span', {
       class: 'st-ring ' + (c.reached ? 'is-ok' : 'is-warn'),
       text: c.reached ? 'Reserve covered' : 'Reserve ' + U.pct(c.pct, 0),
@@ -223,7 +210,7 @@
     chip.addEventListener('pointerleave', function () { link(null); });
     box.appendChild(chip);
 
-    var lg = U.el('#ringLegend');       /* nur Farbschlüssel — die Zahl steht oben */
+    var lg = U.el('#ringLegend');
     lg.className = 'lg lg-ring ' + (c.reached ? 'is-ok' : 'is-warn');
     lg.textContent = 'Reserve ring';
 

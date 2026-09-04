@@ -4,11 +4,8 @@
 (function (global) {
   'use strict';
 
-  /* Die Leinwand kennt keine Marken, sie will eine fertige Zeichenkette.
-     Geholt wird sie trotzdem aus derselben Marke wie alles andere: ein
-     eigener Stapel hier hiesse, dass der Berg auf jedem Rechner ohne Avenir
-     in einer anderen Schrift schreibt als die Oberfläche daneben. Der
-     Rückfall gilt nur, wo Marken nicht aufgelöst werden. */
+  /* Die Schrift kommt aus der CSS-Variablen, weil die Leinwand keine Marken
+     auflöst; der Rückfall gilt nur ohne getComputedStyle. */
   var FONT = null;
   function displayFont() {
     if (FONT) return FONT;
@@ -569,10 +566,9 @@
     }
 
     /* -------------------------------------------------------- Größe/DPR */
-    /* Der Schein hinter der Hälfte folgt dem Berg: hier wird nur gemeldet, wo
-       sein Mittelpunkt in der Zone liegt und wie groß er ausfällt. Gerechnet
-       wird das aus dem bei resize() gemessenen Versatz — pro Bild wird nichts
-       aus dem Layout gelesen. */
+    /* Der Schein liegt hinter der ganzen Hälfte (CSS); hier werden nur
+       Mittelpunkt und Größe gemeldet, aus dem bei resize() gemessenen
+       Versatz. */
     var glowHost = null, glowKey = '';
     function publishGlow() {
       if (!glowHost) return;
@@ -613,10 +609,6 @@
 
     function drawPlate() {
       var i, p;
-      /* Der Grundschein liegt als CSS-Schein hinter der ganzen Hälfte, nicht in
-         der Leinwand — siehe publishGlow(). In der Leinwand bräche er an deren
-         Unterkante ab und legte einen dunklen Kasten unter die Karten. */
-
       /* Teilung — mit Lücken dort, wo die Himmelsrichtungen liegen */
       ctx.lineWidth = 1;
       ctx.strokeStyle = 'rgba(127,178,229,0.26)';
@@ -640,15 +632,11 @@
       drawCardinals();
     }
 
-    /* Die Himmelsrichtungen liegen flach in der Ebene des Tellers und drehen
-       sich mit ihm, wie die Rose eines echten Kompasses: Leserichtung entlang
-       der Teilung, Kopf nach außen. Dafür wird die Schrift über die
-       projizierten Basisvektoren der Ebene geschert, Tangente als
-       Leserichtung, Radius als Hochachse. Der Vorzeichenwechsel dabei ist kein
-       Schönheitsgriff: die Projektion bildet die Bodenebene seitenverkehrt ab
-       (+y zeigt zur Kamera, +x nach rechts), flach gelegte Schrift erbt das
-       und stünde gespiegelt da; beide Achsen umgedreht ergibt dieselbe Lage in
-       der Ebene, aber eine seitenrichtige Schrift auf dem Bildschirm. */
+    /* Die Himmelsrichtungen liegen in der Tellerebene und drehen mit: die
+       Schrift wird über die projizierten Basisvektoren geschert, Tangente
+       als Leserichtung, Radius als Hochachse. Der Vorzeichenwechsel ist
+       nötig, weil die Projektion die Bodenebene seitenverkehrt abbildet;
+       beide Achsen umgedreht ergibt seitenrichtige Schrift. */
     function drawCardinals() {
       ctx.font = '500 100px ' + displayFont();
       ctx.textAlign = 'center';

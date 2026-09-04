@@ -1,5 +1,4 @@
-/* NORDSTERN: Grundlagen: Namensraum, Formatierung, DOM- und Mathe-Helfer, Event-Bus.
-   Klassisches Script, keine Module — läuft unter file:// ohne Build. */
+/* NORDSTERN: Grundlagen. Namensraum, Formatierung, DOM- und Mathe-Helfer, Event-Bus. */
 (function (global) {
   'use strict';
 
@@ -7,9 +6,8 @@
 
   /* ---------------------------------------------------------------- Zahlen */
 
-  /* Welche Währungen wählbar sind, und mit welchem Locale jede formatiert
-     wird — die Schreibweise (Tausendertrennzeichen, Symbolposition) folgt der
-     Währung, nicht der Sprache der Oberfläche, die englisch bleibt. */
+  /* Locale je Währung: die Schreibweise folgt der Währung, nicht der
+     Sprache der Oberfläche. */
   var CURRENCIES = {
     EUR: { locale: 'de-DE' },
     USD: { locale: 'en-US' },
@@ -19,9 +17,8 @@
 
   var curCode, nfEur, nfEur0, nfNum, nfInt, pctCache, dtf;
 
-  /** Stellt alle Zahlen- und Datumsformatierer auf eine Währung um. Ein
-      unbekannter Code fällt auf EUR zurück, statt die App mit einer
-      werfenden Formatierung zu blockieren. */
+  /** Stellt alle Formatierer auf eine Währung um; ein unbekannter Code
+      fällt auf EUR zurück. */
   function setCurrency(code) {
     var c = Object.prototype.hasOwnProperty.call(CURRENCIES, code) ? code : 'EUR';
     var locale = CURRENCIES[c].locale;
@@ -38,9 +35,7 @@
       minimumFractionDigits: 2, maximumFractionDigits: 2
     });
     nfInt = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
-    /* Beide sind an das Locale gekoppelt — ohne Reset würden pct() und
-       dateTime() nach einem Währungswechsel weiter in der alten Sprache
-       formatieren. */
+    /* pct() und dateTime() hängen am Locale, deshalb hier zurückgesetzt. */
     pctCache = {};
     dtf = null;
     return curCode;
@@ -48,9 +43,7 @@
 
   function currency() { return curCode; }
 
-  /** Das Symbol, wie Intl es für die aktuelle Währung/Locale tatsächlich
-      rendert ('€', '$', '£', 'CHF') — kein fest verdrahtetes Mapping, das mit
-      einer neuen Währung veralten könnte. */
+  /** Das Symbol, wie Intl es rendert; kein festes Mapping. */
   function currencySymbol() {
     if (!nfEur.formatToParts) return curCode;
     var parts = nfEur.formatToParts(0);
@@ -62,21 +55,17 @@
 
   function isNum(v) { return typeof v === 'number' && isFinite(v); }
 
-  /** Vollständiger Betrag mit Cent, in der über setCurrency() gewählten
-      Währung — überall dort, wo Genauigkeit zählt. */
+  /** Betrag mit Cent. */
   function eur(v) { return isNum(v) ? nfEur.format(v) : '—'; }
 
   /** Gerundeter Betrag für Achsen, Marker und enge Flächen. */
   function eur0(v) { return isNum(v) ? nfEur0.format(v) : '—'; }
 
-  /** Kompakt (12,4k / 1,25M) — nur für Achsenbeschriftungen. Die Sprache ist
-      englisch, die Zahlenschreibweise folgt der gewählten Währung: es ist
-      dasselbe Geld. */
+  /** Kompakt (12k / 1,25M), nur für Achsen. */
   function eurShort(v) {
     if (!isNum(v)) return '—';
     var a = Math.abs(v), s = v < 0 ? '−' : '';
-    /* ',00' bei de-DE/de-CH, '.00' bei en-US/en-GB — welches Zeichen das
-       Locale als Dezimaltrenner nutzt, ist hier egal. */
+    /* ',00' oder '.00', je nach Locale. */
     if (a >= 1e6) return s + nfNum.format(a / 1e6).replace(/[.,]00$/, '') + 'M';
     if (a >= 1e3) return s + Math.round(a / 1e3) + 'k';
     return s + Math.round(a);
@@ -88,8 +77,7 @@
     return (v > 0 ? '+' : v < 0 ? '−' : '±') + nfEur.format(Math.abs(v));
   }
 
-  /** Dasselbe ohne Cent, für die Position, wo Stand, Veränderung und
-      Kennzahlen nebeneinander stehen und dieselbe Genauigkeit tragen sollen. */
+  /** Ohne Cent, für die Position. */
   function eurSigned0(v) {
     if (!isNum(v)) return '—';
     return (v > 0 ? '+' : v < 0 ? '−' : '±') + nfEur0.format(Math.abs(v));
@@ -104,8 +92,7 @@
     return f.format(v * 100) + ' %';
   }
 
-  /** Ein Vielfaches: „1,96×". Ab dem Zehnfachen ohne Nachkomma — wer dort
-      steht, dem sagt die zweite Stelle nichts mehr, und die Kachel ist eng. */
+  /** Ein Vielfaches: „1,96×", ab dem Zehnfachen ohne Nachkomma. */
   function mult(v) {
     if (!isNum(v)) return '—';
     return (Math.abs(v) >= 10 ? nfInt.format(v) : nfNum.format(v)) + '\u00d7';
@@ -129,14 +116,12 @@
     var p = key.split('-');
     return MONTHS[Number(p[1]) - 1] + ' ' + p[0];
   }
-  /** Zeitpunkt eines Imports: '23.08.2026, 18:30'. Ohne Sekunden — wann eine
-      Mappe gelesen wurde, ist eine Angabe für den Menschen, keine Messung. */
+  /** Importzeitpunkt: '23.08.2026, 18:30'. */
   function dateTime(iso) {
     if (!iso) return '—';
     var d = new Date(iso);
     if (isNaN(d.getTime())) return '—';
-    /* hourCycle: 'h23' fest verdrahtet — sonst wechselt en-US auf 12-Stunden
-       mit AM/PM, was die Spalte breiter macht und nichts beiträgt. */
+    /* hourCycle h23, sonst wechselt en-US auf AM/PM. */
     if (!dtf) dtf = new Intl.DateTimeFormat(CURRENCIES[curCode].locale, {
       day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
       hourCycle: 'h23'
@@ -144,8 +129,7 @@
     return dtf.format(d);
   }
 
-  /** 'YYYY-MM' → fortlaufende Monatszahl. Nur zum Rechnen mit Abständen:
-      der Unterschied zweier Werte ist die Anzahl Monate dazwischen. */
+  /** 'YYYY-MM' → fortlaufende Monatszahl, zum Rechnen mit Abständen. */
   function monthNo(key) {
     if (!key) return null;
     var p = String(key).split('-');
@@ -241,11 +225,10 @@
 
   /* Eine Fassung, an einer Stelle. Ohne Bauschritt kann nichts sie aus
      package.json holen, also steht sie hier. */
-  NS.VERSION = '1.1.8';
+  NS.VERSION = '1.1.9';
 
-  /* Formatierer müssen existieren, bevor irgendetwas eur()/pct()/dateTime()
-     aufruft — auch in Tests, die util.js allein ohne app.js laden. EUR ist
-     der Startwert, bis Einstellungen (js/store.js) etwas anderes laden. */
+  /* Formatierer müssen vor dem ersten eur()/pct()-Aufruf existieren, auch
+     wenn util.js allein geladen wird. */
   setCurrency('EUR');
 
   NS.util = {

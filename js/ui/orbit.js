@@ -61,15 +61,13 @@
     var wrap = U.make('div', { class: 'orbit-wrap' });
     var dial = U.make('div', { class: 'orbit-dial' });
     var legend = U.make('div', { class: 'orbit-legend' });
-    /* Legende links, Scheibe rechts: so bekommt die Scheibe die volle Höhe
-       der Spalte und darf in die Kapitelzeile hineinragen. */
     wrap.appendChild(legend); wrap.appendChild(dial);
     root.appendChild(wrap);
 
     var state = { view: null, hover: null, open: null, arrive: false };
 
-    /* Bogen und Legendenzeile sind dieselbe Sache in zwei Ansichten — wer eines
-       von beiden anfasst, hebt beide. Auch per Tastatur: Fokus zählt als Zeigen. */
+    /* Bogen und Legendenzeile heben sich gegenseitig; Fokus zählt als
+       Zeigen. */
     function linkHover(node, id) {
       node.addEventListener('pointerenter', function () { setHover(id); });
       node.addEventListener('pointerleave', function () { setHover(null); });
@@ -78,14 +76,10 @@
       return node;
     }
 
-    /* Ankunft: ein Bogen zeichnet sich, statt dazustehen.
-       `frac` und `off` sind Bruchteile einer vollen Umdrehung, keine Zeiten —
-       die Dauer steht als Marke im Stylesheet, damit sie nur an einer Stelle
-       lebt. Beide Ringe laufen dadurch mit derselben Winkelgeschwindigkeit:
-       der kürzere ist früher fertig, was er auch sein soll — es zeichnet ein
-       Stift, kein Balken füllt sich.
-       Aufgedeckt wird immer vom Pfadanfang her — deshalb beginnt jeder Bogen
-       dort, wo er auch beginnen soll: an der Zwölf. */
+    /* Bögen zeichnen sich bei der Ankunft. `frac` und `off` sind Bruchteile
+       einer Umdrehung, die Dauer steht im Stylesheet; beide Ringe laufen so
+       mit derselben Winkelgeschwindigkeit. Aufgedeckt wird vom Pfadanfang
+       her, deshalb beginnt jeder Bogen an der Zwölf. */
     function drawIn(node, len, frac, off) {
       if (!(len > 0)) return node;
       node.style.setProperty('--len', len.toFixed(1));
@@ -100,7 +94,6 @@
     /* ------------------------------------------------------------ Scheibe */
     function dialRoot(label) {
       var g = U.svg('svg', { viewBox: '-4 -4 276 276', class: 'orbit-svg', role: 'img', 'aria-label': label });
-      /* Ruhige Teilung im Hintergrund — Navigationsscheibe statt Diagrammrahmen */
       var grid = U.svg('g', { class: 'orbit-grid' });
       for (var i = 0; i < 72; i++) {
         var a = i / 72 * Math.PI * 2;
@@ -114,11 +107,9 @@
       return g;
     }
 
-    /* Ein Ring aus Anteilen. `open` macht die Bögen zu Schaltflächen.
-       `total` ist die Skala, auf der gezeichnet wird; `opts.pctOf` die Bezugs-
-       größe, gegen die der Anteil ausgesprochen wird. Normalerweise dasselbe —
-       auseinander gehen sie nur, wenn der Ring sich nicht mehr schliessen darf
-       (siehe renderOverview). */
+    /* Ein Ring aus Anteilen. `total` ist die Skala, `opts.pctOf` die
+       Bezugsgröße des ausgesprochenen Anteils; sie gehen nur auseinander,
+       wenn der Ring sich nicht schliessen darf (renderOverview). */
     function arcs(g, items, total, radius, width, opts) {
       var a0 = 0;
       var base = opts.pctOf || total;
@@ -154,8 +145,7 @@
     function core(g, label, value, back, neg) {
       var lab = U.svg('text', { x: C, y: C - 11, 'text-anchor': 'middle', class: 'orbit-core-lab' });
       lab.textContent = label;
-      /* Ein negativer Net Worth ist keine Zahl wie jede andere in dieser
-         Scheibe — er bekommt den Ton, den die Schulden auch aussen tragen. */
+      /* Negativer Net Worth im Schuldenton. */
       var val = U.svg('text', { x: C, y: C + 15, 'text-anchor': 'middle',
         class: 'orbit-core-val' + (neg ? ' is-neg' : '') });
       val.textContent = value;
@@ -187,8 +177,7 @@
       return linkHover(r, id);
     }
 
-    /* Zeilen, hinter denen eine Sektion steckt, sind Schaltflächen — und nur
-       die: eine Zeile ohne Einzelposten führt nirgendwohin. */
+    /* Nur Zeilen mit Einzelposten sind Schaltflächen. */
     function openable(r, id) {
       r.classList.add('is-open-able');
       r.setAttribute('role', 'button');
@@ -230,9 +219,8 @@
          seine Stelle, sonst läse eine einzelne Sektion über 100 %. */
       }), scale, R_OUT, W_OUT, { open: true, pctOf: Math.max(total, positive) });
 
-      /* Die offene Stelle im Vermögensring bleibt nicht leer: eine blasse
-         Spur im Schuldenton füllt sie. Eine Lücke allein läse sich als
-         „hier ist nichts", und es ist das Gegenteil. */
+      /* Die offene Stelle bekommt eine blasse Spur im Schuldenton; eine
+         Lücke allein läse sich als „nichts". */
       if (short > 0.005 && scale > 0) {
         var sh0 = (total / scale) * TURN + GAP / 2, sh1 = TURN - 0.004;
         var shp = U.svg('path', {
@@ -352,8 +340,6 @@
       dial.innerHTML = ''; legend.innerHTML = '';
       state.hover = null;
       root.classList.remove('has-hover');
-      /* Die Marke sagt nur „gerade jetzt": Kern und Legende blenden mit den
-         Ringen auf, und beim nächsten Rendern steht wieder alles still da. */
       root.classList.toggle('is-arriving', !!state.arrive);
       if (state.open && items(v, state.open).length) renderSection(v, state.open);
       else { state.open = null; renderOverview(v); }
