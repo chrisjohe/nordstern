@@ -7,6 +7,10 @@
 #
 # Every branch fails closed: a guard that cannot tell whether it applies has to
 # assume it does. tests/hook.mjs proves both locks bite.
+#
+# The privacy guard runs with --staged: a commit takes the index, not the
+# working tree, so it is asked about the index. A fix made only on disk has
+# to be staged again before the guard will see it.
 
 fail() {
   printf '\n\033[31m%s\033[0m\n' "$1"; shift
@@ -31,7 +35,7 @@ bad=$(printf '%s\n' "$staged" | grep -E '^(excel|backup)/' || true)
 # it prints a note and exits 0. So it is always run — no shell condition here
 # can get that wrong.
 if command -v node >/dev/null 2>&1; then
-  if ! node "$(git rev-parse --show-toplevel)/tests/privacy.mjs"; then
+  if ! node "$(git rev-parse --show-toplevel)/tests/privacy.mjs" --staged; then
     fail "The privacy guard found real data in files this commit would carry." \
       "" "It is listed above with file and line. Remove it before committing —" \
       "a later commit cannot take it back out of the history."

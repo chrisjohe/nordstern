@@ -343,6 +343,9 @@ Turn on the commit hook and it runs before every commit:
 git config core.hooksPath .githooks
 ```
 
+The hook checks the staged content, the index, since that is what the commit
+actually carries: a fix made only on disk has to be staged again to count.
+
 The application itself needs none of this.
 
 ## Licence

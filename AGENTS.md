@@ -35,7 +35,9 @@ It runs from `file://` with no server and no build step.
    figure and is still a leak; `tests/privacy.mjs` refuses it. Use
    `examples/nordstern-example.xlsx` or extend `tools/make-example.mjs`.
    `npm run privacy` scans everything a commit would carry against a real
-   workbook when one is present.
+   workbook when one is present. The pre-commit hook runs the same guard
+   against the staged content, the index, so a fix made only on disk has to
+   be staged again before it counts.
 6. **Do not read the user's workbook** beyond the one sheet the importer
    chooses (see `SHEET_NAMES` in `js/importer.js`), and do not print its
    contents. If you must inspect it, print labels from column A, never

@@ -46,18 +46,28 @@ function report(list) {
   console.log('eine neue History — ein Folge-Commit entfernt nichts, er legt nur etwas darüber.');
 }
 
-/* Zwei Reichweiten. Normal: was ein Commit mitnehmen würde — das ist die
-   Frage vor dem Veröffentlichen. Mit --all oder NORDSTERN_SCAN_ALL: alles,
-   was auf der Platte liegt, auch das von .gitignore Verborgene. Denn „nicht
-   im Repository" heisst nicht „nicht vorhanden", und die Frage, ob irgendwo
-   noch persönliche Daten liegen, ist eine andere als die, ob sie ins Netz
-   geraten. Nur excel/ selbst und node_modules bleiben aussen vor: das eine
-   ist die Quelle, das andere fremder Code. */
+/* Drei Reichweiten. Normal: die Dateien, die ein Commit mitnähme, gelesen
+   von der Platte — der Lauf von Hand. Mit --all oder NORDSTERN_SCAN_ALL:
+   alles, was auf der Platte liegt, auch das von .gitignore Verborgene. Denn
+   „nicht im Repository" heisst nicht „nicht vorhanden", und die Frage, ob
+   irgendwo noch persönliche Daten liegen, ist eine andere als die, ob sie
+   ins Netz geraten. Mit --staged oder NORDSTERN_SCAN_STAGED: der Index, so
+   läuft der pre-commit-Haken. Ein Commit nimmt den Index, nicht die Platte,
+   und beide weichen in zwei Richtungen voneinander ab: eine Zeile, auf der
+   Platte repariert und nicht nachgestaged, steht noch drin; eine gestagte
+   Datei, von der Platte gelöscht, auch. Nur excel/ und node_modules bleiben
+   überall aussen vor: das eine ist die Quelle, das andere fremder Code.
+   --all schlägt --staged. */
 const ALL = process.argv.indexOf('--all') >= 0 || !!process.env.NORDSTERN_SCAN_ALL;
+const STAGED = !ALL && (process.argv.indexOf('--staged') >= 0 || !!process.env.NORDSTERN_SCAN_STAGED);
 
 function listFiles() {
   try {
     if (ALL) throw new Error('walk');
+    if (STAGED) {
+      return execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z'],
+        { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
+    }
     return execFileSync('git', ['ls-files', '-co', '--exclude-standard'], { cwd: ROOT, encoding: 'utf8' })
       .split('\n').filter(Boolean);
   } catch (e) {
@@ -75,6 +85,29 @@ function listFiles() {
   }
 }
 const files = listFiles();
+
+/* Die eine Lesestelle für Bilder, Personen und Nadeln. --staged liest mit
+   `git show :<pfad>` aus dem Index; was dort fehlt, käme nicht in den Commit
+   und gilt als nicht vorhanden. */
+function bytesOf(rel) {
+  if (STAGED) {
+    try {
+      /* stderr stumm: „nicht im Index" ist hier ein Normalfall, kein Fehler. */
+      return execFileSync('git', ['show', ':' + rel],
+        { cwd: ROOT, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch (e) {
+      return null;
+    }
+  }
+  try {
+    const abs = path.join(ROOT, rel);
+    const st = fs.statSync(abs);
+    if (!st.isFile()) return null;
+    return fs.readFileSync(abs);
+  } catch (e) {
+    return null;
+  }
+}
 
 /* ------------------------------------------------ Bilder: der blinde Fleck */
 
@@ -95,30 +128,40 @@ const files = listFiles();
    überhaupt jemand hingesehen hat. */
 const IMAGE = /\.(png|jpe?g|webp|gif|avif|bmp|tiff?|pdf)$/i;
 
-const checked = new Map();                       // Pfad → { sum, why }
-const imgFile = path.join(ROOT, 'tests/privacy-images.txt');
-if (fs.existsSync(imgFile)) {
-  fs.readFileSync(imgFile, 'utf8').split('\n').forEach((raw) => {
-    const body = raw.replace(/\s*#.*$/, '').trim();
-    if (!body) return;
-    const m = body.match(/^([0-9a-f]{64})\s+(.+)$/i);
-    if (m) checked.set(m[2].trim(), { sum: m[1].toLowerCase(), why: raw.slice(raw.indexOf('#') + 1).trim() });
-  });
+/* Die eigenen Regeldateien: unter --staged aus dem Index, sonst oder wenn sie
+   dort fehlen (frisches Repository) von der Platte. Die Bilderliste, die der
+   Commit mitnimmt, muss für das Bild bürgen, das er mitnimmt. */
+function configBytes(rel) {
+  const staged = bytesOf(rel);
+  if (staged != null) return staged;
+  try { return fs.readFileSync(path.join(ROOT, rel)); } catch (e) { return null; }
 }
-const sha = (abs) => crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex');
+
+const checked = new Map();                       // Pfad → { sum, why }
+{
+  const buf = configBytes('tests/privacy-images.txt');
+  if (buf) {
+    buf.toString('utf8').split('\n').forEach((raw) => {
+      const body = raw.replace(/\s*#.*$/, '').trim();
+      if (!body) return;
+      const m = body.match(/^([0-9a-f]{64})\s+(.+)$/i);
+      if (m) checked.set(m[2].trim(), { sum: m[1].toLowerCase(), why: raw.slice(raw.indexOf('#') + 1).trim() });
+    });
+  }
+}
+const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 
 const imageHits = [];
 const images = files.filter((rel) => IMAGE.test(rel));
 for (const rel of images) {
-  const abs = path.join(ROOT, rel);
-  let st; try { st = fs.statSync(abs); } catch (e) { continue; }
-  if (!st.isFile()) continue;
+  const buf = bytesOf(rel);
+  if (!buf) continue;
   const entry = checked.get(rel);
   if (!entry) {
-    imageHits.push({ rel, line: 0, needle: sha(abs).slice(0, 16) + '…',
+    imageHits.push({ rel, line: 0, needle: sha256(buf).slice(0, 16) + '…',
       what: 'Bild ohne Eintrag in tests/privacy-images.txt — niemand hat hineingesehen' });
-  } else if (entry.sum !== sha(abs)) {
-    imageHits.push({ rel, line: 0, needle: sha(abs).slice(0, 16) + '…',
+  } else if (entry.sum !== sha256(buf)) {
+    imageHits.push({ rel, line: 0, needle: sha256(buf).slice(0, 16) + '…',
       what: 'Bild geändert seit der Prüfung — die Prüfsumme in tests/privacy-images.txt passt nicht mehr' });
   }
 }
@@ -127,12 +170,14 @@ for (const rel of images) {
    Treffer keine Preisgabe ist, braucht eine Zeile mit Begründung. Ein
    Wächter, den man still umgeht, ist keiner. */
 const ALLOW = new Map();
-const allowFile = path.join(ROOT, 'tests/privacy-allow.txt');
-if (fs.existsSync(allowFile)) {
-  fs.readFileSync(allowFile, 'utf8').split('\n').forEach((raw) => {
-    const line = raw.replace(/\s*#.*$/, '').trim();
-    if (line) ALLOW.set(line, raw.slice(raw.indexOf('#') + 1).trim());
-  });
+{
+  const buf = configBytes('tests/privacy-allow.txt');
+  if (buf) {
+    buf.toString('utf8').split('\n').forEach((raw) => {
+      const line = raw.replace(/\s*#.*$/, '').trim();
+      if (line) ALLOW.set(line, raw.slice(raw.indexOf('#') + 1).trim());
+    });
+  }
 }
 const waived = (rel, needle) => ALLOW.has(needle) || ALLOW.has(rel + ':' + needle);
 
@@ -155,7 +200,9 @@ const waived = (rel, needle) => ALLOW.has(needle) || ALLOW.has(rel + ':' + needl
    sondern um Sätze über Menschen. */
 const persons = new Map();
 try {
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const buf = configBytes('package.json');
+  if (!buf) throw new Error('kein package.json');
+  const pkg = JSON.parse(buf.toString('utf8'));
   const author = String(pkg.author || '').split(/[<(]/)[0].trim();
   if (author) {
     persons.set(author, 'Name des Autors');
@@ -182,10 +229,9 @@ const BINARY = /\.(xlsx|xlsm|xlsb|ods|numbers|png|jpe?g|webp|gif|pdf|zip|woff2?|
    selbst (die steht voller Nadeln, das ist ihr Zweck) bleiben draussen. */
 function textOf(rel) {
   if (BINARY.test(rel) || rel === 'tests/privacy-allow.txt') return null;
-  const abs = path.join(ROOT, rel);
-  let st; try { st = fs.statSync(abs); } catch (e) { return null; }
-  if (!st.isFile() || st.size > 8 * 1024 * 1024) return null;
-  return fs.readFileSync(abs, 'utf8');
+  const buf = bytesOf(rel);
+  if (!buf || buf.length > 8 * 1024 * 1024) return null;
+  return buf.toString('utf8');
 }
 
 const personHits = [];
@@ -287,9 +333,6 @@ const scanned = [];
 const hits = imageHits.concat(personHits);   // Bilder und Personenbezug zählen mit
 
 for (const rel of files) {
-  const abs = path.join(ROOT, rel);
-  let st; try { st = fs.statSync(abs); } catch (e) { continue; }
-  if (!st.isFile()) continue;
   if (BINARY.test(rel)) {
     /* Eine Tabelle im Repository ist ausschließlich die Beispielmappe. */
     if (/\.(xlsx|xlsm|xlsb|ods|numbers|csv)$/i.test(rel) && !rel.startsWith('examples/')) {
@@ -298,8 +341,9 @@ for (const rel of files) {
     continue;
   }
   if (rel === 'tests/privacy-allow.txt') continue;   // steht voller Nadeln, das ist ihr Zweck
-  if (st.size > 8 * 1024 * 1024) continue;
-  const text = fs.readFileSync(abs, 'utf8');
+  const buf = bytesOf(rel);
+  if (!buf || buf.length > 8 * 1024 * 1024) continue;
+  const text = buf.toString('utf8');
   scanned.push(rel);
   for (const [needle, what] of needles) {
     if (waived(rel, needle)) continue;
@@ -314,7 +358,8 @@ imageVerdict();
 console.log('\n== Wächter: ' + needles.size + ' Nadeln aus der Mappe in excel/ gegen ' +
             scanned.length + ' Dateien' + (ALLOW.size ? ', ' + ALLOW.size + ' Ausnahmen' : '') +
             (ALL ? '\n   Reichweite: ALLES auf der Platte, auch von .gitignore Verborgenes' :
-                   '\n   Reichweite: was ein Commit mitnehmen würde'));
+             STAGED ? '\n   Reichweite: der Index, was dieser Commit aufnimmt' :
+                      '\n   Reichweite: was ein Commit mitnehmen würde'));
 
 if (!hits.length) {
   console.log('\nnichts gefunden — kein Kontoname, kein Posten, kein Betrag, kein Blattname.');

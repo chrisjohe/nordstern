@@ -131,6 +131,44 @@ git('rm', '-q', 'notes.md');
 r = commit('drop notes');
 ok(r.status === 0, 'und danach ist wieder Ruhe');
 
+/* --- der Haken fragt den Index, nicht die Platte ----------------------- */
+/* Ein Commit nimmt das, was `git add` zuletzt gesehen hat — nicht das, was
+   gerade auf der Platte liegt. Die drei Fälle hier brauchen keine Mappe: der
+   Personen- und der Bild-Scan laufen auch ohne sie. */
+
+/* Repariert auf der Platte, aber nicht nachgestaged: der alte, belastete
+   Satz steht noch im Index, und der Commit nimmt den Index. */
+fs.writeFileSync(path.join(tmp, 'notes.md'), 'Die Mappe von ' + NAME + ' liegt in excel/.\n');
+git('add', 'notes.md');
+fs.writeFileSync(path.join(tmp, 'notes.md'), 'nothing to see here\n');
+r = commit('desk fixed, index not');
+ok(r.status !== 0, 'eine auf der Platte reparierte, aber nicht nachgestagte Zeile wird trotzdem abgewiesen: ' + r.status);
+ok(/Personenbezug|Name des Autors/.test(r.stdout + r.stderr), 'und nennt den Grund');
+git('reset', '-q');
+fs.unlinkSync(path.join(tmp, 'notes.md'));
+
+/* Gestaged, dann von der Platte gelöscht: das Bild steckt noch im Index,
+   und dorthin schaut der Wächter im Reach --staged. */
+fs.writeFileSync(path.join(tmp, 'docs/staged-only.png'), PNG);
+git('add', '-f', 'docs/staged-only.png');
+fs.unlinkSync(path.join(tmp, 'docs/staged-only.png'));
+r = commit('staged image, gone from disk');
+ok(r.status !== 0, 'ein gestagtes, von der Platte gelöschtes Bild wird trotzdem geprüft: ' + r.status);
+ok(/privacy-images/.test(r.stdout + r.stderr), 'und sagt, wo der Eintrag hingehört');
+git('reset', '-q');
+
+/* Die Gegenrichtung: eine belastete Datei liegt ungestaged auf der Platte,
+   der Commit selbst ist sauber. Der Haken beurteilt den Commit, nicht das
+   Arbeitsverzeichnis — sonst würde jeder halbfertige Entwurf im Verzeichnis
+   jeden Commit blockieren, auch einen, der ihn gar nicht mitnimmt. */
+fs.writeFileSync(path.join(tmp, 'notes.md'), 'Die Mappe von ' + NAME + ' liegt in excel/.\n');
+fs.appendFileSync(path.join(tmp, 'README.md'), '\nmore nothing\n');
+git('add', 'README.md');
+r = commit('untracked leak on disk, clean stage');
+ok(r.status === 0, 'ein ungestagter Satz auf der Platte hält einen sauberen Commit nicht auf: ' +
+  (r.stdout + r.stderr).trim().split('\n')[0]);
+fs.unlinkSync(path.join(tmp, 'notes.md'));
+
 /* --- eine echte Zahl muss scheitern ------------------------------------ */
 /* Der Wert wird aus der Mappe gelesen, nie getippt — er steht in keiner
    Quelldatei dieses Projekts, auch nicht in dieser. */
