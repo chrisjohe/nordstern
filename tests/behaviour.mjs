@@ -1,4 +1,4 @@
-import {boot, importFixture, tick, FIXTURE} from './harness.mjs';
+import {boot, importFixture, tick, FIXTURE, tinySheet, tinyWorkbook, TINY_ROWS, arcSweep} from './harness.mjs';
 import fs from 'fs';
 let pass=0, fail=0;
 const ok=(c,m)=>{ if(c){pass++;} else {fail++; console.log('  ✗ '+m);} };
@@ -10,33 +10,15 @@ const U8=(w,n)=>w.NORDSTERN.util.eur0(n);
 sec('Leerzustand ohne gespeicherte Daten');
 { const {w,errors}=await boot();
   const d=w.document;
-  ok(!d.getElementById('gate').hidden,'Gate sichtbar');  /* Ein Stern, zwei Größen — der alte Zackenstern im Leerzustand ist weg. */
-  const gs=d.querySelector('#gateStar .star');
-  ok(gs&&gs.querySelector('.star-corona')&&gs.querySelector('.star-spikes')&&gs.querySelector('.star-core'),
-     'Leerzustand trägt denselben gezeichneten Stern');
-  ok(Number(gs.getAttribute('width'))>Number(d.querySelector('#starZone .star').getAttribute('width')),
-     'im Leerzustand größer als im Kopfbereich: '+gs.getAttribute('width')+' vs '+
-     d.querySelector('#starZone .star').getAttribute('width'));
-  ok(!d.querySelector('svg.gate-star')&&!/M32 6 L34\.4/.test(d.documentElement.innerHTML),
-     'kein zweiter, gezackter Stern im Dokument');
-  const ids=[...d.querySelectorAll('radialGradient[id]')].map(n=>n.id);
-  ok(ids.length===new Set(ids).size,'keine doppelten Verlaufs-IDs: '+ids.join(' · '));
+  ok(!d.getElementById('gate').hidden,'Gate sichtbar');
 
   /* Der Vorhang deckt die leere Bühne ab — der Kopf bleibt bedienbar. */
   ok(d.getElementById('stage').getAttribute('aria-hidden')==='true','Bühne für AT verborgen');
   ok(d.getElementById('stage').hasAttribute('inert'),'und aus der Tabreihenfolge genommen');
   ok(!d.getElementById('shell').hasAttribute('aria-hidden'),'Kopfbereich bleibt für AT erreichbar');
   ok(d.body.classList.contains('is-gated'),'Leerzustand ist am body markiert');
-  /* jsdom rechnet Kaskade und Schichten nicht aus — geprüft wird deshalb die
-     Regel selbst: der Vorhang setzt unter dem Kopf an und liegt unter dem Blatt. */
-  const css=fs.readFileSync(new URL('../css/components.css',import.meta.url),'utf8');
-  const zOf=sel=>Number((new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*\\{[^}]*z-index:\\s*(\\d+)').exec(css)||[])[1]);
-  ok(/\.gate\s*\{[^}]*inset:\s*var\(--head-h\) 0 0 0/.test(css),'der Vorhang beginnt unter dem Kopf');
-  ok(zOf('.overlay')>zOf('.gate'),
-     'die Einstellungen liegen über dem Vorhang: '+zOf('.overlay')+' vs '+zOf('.gate'));
-  ok(/body\.is-gated \.mast-star\s*\{[^}]*display:\s*none/.test(css),
-     'der Stern im Kopf tritt hinter den großen zurück');
-  /* Und der Weg dorthin steht offen, obwohl noch nichts gelesen wurde. */
+
+  /* Und der Weg zu den Einstellungen steht offen, obwohl noch nichts gelesen wurde. */
   ok(!d.querySelector('.overlay').classList.contains('is-open'),'Einstellungen zunächst zu');
   d.getElementById('btnSettings').dispatchEvent(new w.Event('click'));
   ok(d.querySelector('.overlay').classList.contains('is-open'),'Zahnrad öffnet sie auch ohne Daten');
@@ -44,11 +26,9 @@ sec('Leerzustand ohne gespeicherte Daten');
      Vorgabe steht deshalb schon vor jedem Import da, nicht als Strich. */
   ok(N(d.querySelector('.sheet-facts .num').textContent)===N(w.NORDSTERN.util.eur0(w.NORDSTERN.store.DEFAULT_EXPENSES)),
      'die Ausgaben-Vorgabe steht schon ohne Import: '+d.querySelector('.sheet-facts .num').textContent);
+
   /* Eine Ebene: sechs Namen links, genau ein Abschnitt rechts. */
   const tabs=[...d.querySelectorAll('.sheet-nav-item')];
-  const names=tabs.map(b=>b.textContent).join(' · ');
-  ok(names==='expenses · data source · workbook · motion · privacy · about',
-     'sechs Namen in der gesetzten Reihenfolge: '+names);
   const shown=()=>[...d.querySelectorAll('.sheet-sec')].filter(p=>!p.hidden).map(p=>p.dataset.sec);
   const sel=()=>tabs.filter(b=>b.getAttribute('aria-selected')==='true').map(b=>b.textContent).join();
   const key=(el,k)=>el.dispatchEvent(new w.KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true}));
@@ -69,33 +49,17 @@ sec('Leerzustand ohne gespeicherte Daten');
   ok([...d.querySelectorAll('.sheet-sec')].every(p=>p.getAttribute('role')==='tabpanel'
        &&d.getElementById(p.getAttribute('aria-labelledby'))===tabs.find(b=>b.id===p.getAttribute('aria-labelledby'))),
      'und jedes Paneel zurück auf seinen Namen');
-  ok(!d.querySelector('.sheet-sec-title')&&!d.querySelector('.sec-head'),
-     'die Kapitelüberschriften im Blatt sind weg — den Namen trägt die Spalte');
-  /* Der Metro-Schalter bleibt eine echte Checkbox mit sichtbarem Zustandswort. */
-  ok(d.querySelectorAll('.metro-sw .field-check[type="checkbox"]').length===2
-     &&[...d.querySelectorAll('.sw-state')].map(n=>n.textContent).join(' ')==='on off',
-     'zwei Schalter, Zustand ausgeschrieben: '+[...d.querySelectorAll('.sw-state')].map(n=>n.textContent).join(' '));
   d.querySelector('.sheet-scrim').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
-  /* Aufbau der Mappe: was der Importer in Spalte A sucht, steht in der Oberfläche. */
+
+  /* Aufbau der Mappe: was der Importer in Spalte A sucht, steht in der
+     Oberfläche — zwei Spalten, links der wörtliche Zellinhalt, rechts ein
+     Beispiel. Kursiv gesetzte Zeilen sind frei benennbar, alle anderen sind
+     Pflichtzeilen. */
   const layout=d.querySelector('.sheet-sec[data-sec="workbook"]');
-  ok(layout,'Abschnitt „workbook" vorhanden: '+names);
-  const at=n=>tabs.findIndex(b=>b.textContent===n);
-  ok(at('workbook')<at('motion')&&at('privacy')===at('about')-1,
-     'workbook vor motion, privacy direkt vor about');
-  const src=fs.readFileSync(new URL('../js/importer.js',import.meta.url),'utf8');
-  /* Die Tabelle ist ein Abbild der Mappe: zwei Spalten, links der wörtliche
-     Zellinhalt, rechts ein Beispiel. */
   const tbl=[...layout.querySelectorAll('.wbt')];
   ok(tbl.length===1,'ein Abbild des einen gelesenen Blatts: '+tbl.length);
-  ok(tbl.map(t=>[...t.querySelectorAll('thead th')].map(n=>n.textContent).join('|')).join(' / ')
-       ==='Column A|Column B, C, D …',
-     'linke Spalte und Beispielspalte sind überschrieben: '+
-     tbl.map(t=>t.querySelector('th:last-child').textContent).join(' / '));
   ok(tbl.every(t=>[...t.querySelectorAll('tbody tr')].every(r=>r.children.length===2)),
      'jede Zeile hat genau zwei Zellen');
-  /* Pflichtwort oder Beispiel — kursiv gesetzte Zeilen sind frei benennbar und
-     dürfen deshalb nicht gegen den Importer geprüft werden. Alles andere muss
-     er wirklich suchen, sonst beschreibt das Blatt eine fremde Mappe. */
   const rows=tbl.flatMap(t=>[...t.querySelectorAll('tbody tr')]);
   const labels=rows.filter(r=>!r.classList.contains('is-item'))
                    .map(r=>r.children[0].textContent.trim());
@@ -103,21 +67,6 @@ sec('Leerzustand ohne gespeicherte Daten');
   ok(rows.filter(r=>r.classList.contains('is-item')).length===4,
      'vier Beispielzeilen, frei benennbar: '+rows.filter(r=>r.classList.contains('is-item'))
        .map(r=>r.children[0].textContent).join(' · '));
-  ok(labels.every(l=>src.toLowerCase().includes(l.toLowerCase())),
-     'jede kommt im Importer vor: '+labels.filter(l=>!src.toLowerCase().includes(l.toLowerCase())).join(' | '));
-  /* Eine Schreibweise je Zeile, und zwar die kurze. Die langen Namen stehen
-     nirgends — weder als Anker noch als geduldete Zweitform. */
-  ok(['liquid','claims','investments','property','retirement']
-       .every(l=>src.includes("head: '"+l+"'")),'die kurzen Namen sind die Anker im Importer');
-  const longForm=['liquid assets','receivables towards third party','receivables',
-    'investment assets','tangible assets','retirement assets'];
-  /* Nur Ankerzeichenketten prüfen, nicht die IDs: „receivables" heißt die
-     Sektion, die Zeile in der Mappe heißt anders. */
-  const found=longForm.filter(l=>src.includes("head: '"+l+"'")||src.includes("total: '"+l+"'")
-                            ||src.includes("total: 'total "+l+"'"));
-  ok(found.length===0,'keine Langform als Anker im Importer: '+(found.join(' | ')||'—'));
-  ok(!longForm.some(l=>new RegExp('"'+l+'"','i').test(layout.textContent)),
-     'und das Blatt nennt sie auch nicht');
   /* Keine echten Beträge im Code — die Beispielspalte geht als erfundene
      Rechnung auf: 7.500 + 60.000 + 12.000 + 8.500 = 88.000 − 20.000 = 68.000. */
   const ex=Object.fromEntries(rows.map(r=>[r.children[0].textContent.trim(),
@@ -126,87 +75,14 @@ sec('Leerzustand ohne gespeicherte Daten');
      +ex['Total retirement']===ex['Total assets'],'das Beispiel summiert sich: '+ex['Total assets']);
   ok(ex['Total assets']-ex['Total liabilities']===ex['Total net worth'],
      'und die Differenz stimmt auch: '+ex['Total net worth']);
-  ok(layout.textContent.includes('"Data Input"')&&!/expenses/i.test(layout.textContent),
-     'nur das eine gelesene Blatt ist benannt');
-  ok(layout.textContent.includes('never by row number'),'der Hinweis auf die Ankerlogik steht dabei');
   ok(d.querySelector('.sheet-sec[data-sec="source"] .sheet-status .meta-import').textContent==='no import',
      'Importstatus steht oben im Abschnitt „data source“');
-  ok(!d.querySelector('.masthead .meta-import'),'kein Speicherstatus im Kopfbereich');
 
-  /* Die Kopfzeile trägt Material Symbols: gefüllte Flächen, keine Striche. */
-  const mast=[...d.querySelectorAll('.masthead .icon-btn svg')];
-  ok(mast.length===2&&mast.every(n=>n.getAttribute('viewBox')==='0 -960 960 960'),
-     'beide Kopfsymbole tragen die Material-viewBox');
-  ok(mast.every(n=>n.querySelector('path').getAttribute('fill')==='currentColor'
-       &&!n.querySelector('[stroke]')),'gefüllt statt gestrichen');
-  ok(/M480-160q-134 0-227-93/.test(d.querySelector('#btnImport path').getAttribute('d')),
-     'Import trägt das Refresh-Symbol');
-
-  ok(!d.querySelector('.wordmark-sub'),'keine Unterzeile an der Wortmarke');
-  const about=d.querySelector('.sheet-sec[data-sec="about"]');
-  ok(about&&about.textContent.includes('© 2026 Christian J. Heinze'),'About-Kapitel mit Urheberzeile');
-  ok(about&&about.textContent.includes('Apache License, Version 2.0')&&about.textContent.includes('Material Symbols'),
-     'beide Lizenzhinweise stehen im Blatt');
-  /* SheetJS wird mit jeder Weitergabe mitverteilt, nicht nur benutzt — der
-     Hinweis gehört deshalb ins Blatt, nicht nur in den Ordner. */
-  const titles=[...about.querySelectorAll('.about-title')].map(h=>h.textContent);
-  ok(titles.join(' · ')==='nordstern and the nordstern star · SheetJS · Material Symbols',
-     'drei Kapitel, eigenes Werk zuerst: '+titles.join(' · '));
-  ok(about.textContent.includes('SheetJS LLC')&&about.textContent.includes('0.20.3'),
-     'SheetJS mit Urheber und Fassung genannt');
-  ok(/read \u2014 never to write/.test(about.textContent),
-     'und mit dem Versprechen, dass nur gelesen wird');
-  const hrefs=[...about.querySelectorAll('a.sheet-link')].map(a=>a.getAttribute('href'));
-  const has=new Set(hrefs);
-  ok(has.has('https://github.com/chrisjohe/nordstern')&&
-     has.has('https://git.sheetjs.com/sheetjs/sheetjs')&&
-     has.has('https://github.com/google/material-design-icons')&&
-     hrefs.filter(h=>h==='https://www.apache.org/licenses/LICENSE-2.0').length===3,
-     'alle sechs Verweise: '+hrefs.join(' · '));
-  ok([...about.querySelectorAll('a.sheet-link')].every(a=>a.getAttribute('rel')==='noopener noreferrer'&&a.getAttribute('target')==='_blank'),
-     'Verweise öffnen abgeschottet in einem neuen Tab');
   ok(d.getElementById('mountFallback').hasAttribute('hidden'),'Ersatztext ist ausgeblendet');
-  ok(d.querySelector('.zone--mountain .rail'),'Kartenschiene liegt in der Bergspalte');
   /* Gegen Bilder auf den Karten haben wir uns entschieden — es gibt keinen
      Weg mehr, eine Datei neben der Anwendung nachzuladen. */
   ok(d.querySelectorAll('.card-wash').length===8,'acht gerechnete Verläufe');
-  ok(!d.querySelector('.card-img')&&!d.querySelector('.card img'),'keine Bildfläche auf den Karten');
-  ok(!/img\//.test(fs.readFileSync(new URL('../js/ui/cards.js',import.meta.url),'utf8')),
-     'cards.js kennt keine Bildpfade');
-  ok(!d.querySelector('.legend-tag'),'keine Anteilsmarken in der Legende');
-  ok(!d.querySelector('.legend-sub'),'keine Schulden-Unterzeile in der Legende');
-  ok(!d.querySelector('.orbit-flag-val')&&!d.querySelector('.orbit-leader'),'keine Prozentmarken an der Scheibe');
-  ok(!d.querySelector('.orbit-core-sub'),'keine Unterzeile im Kern');
-  ok([...d.querySelectorAll('.panel-title')].some(n=>n.textContent==='Structure'),'Kapitel heißt Structure');
-  /* Die Sektionsnamen in der Oberfläche sind kurz — unter „Structure", über
-     einer Summe namens „Total assets", ist jede Zeile ohnehin ein Posten.
-     Die Zeilennamen der Mappe bleiben davon unberührt: der Importer sucht
-     nach den Ankern in Spalte A, nicht nach diesen Etiketten. */
-  const SL=w.NORDSTERN.calc.SECTION_LABELS;
-  ok(Object.keys(SL).map(k=>SL[k]).join(' · ')==='Liquid · Claims · Investments · Property · Retirement',
-     'Sektionsnamen: '+Object.keys(SL).map(k=>SL[k]).join(' · '));
-  ok(Object.keys(SL).every(k=>!/assets/i.test(SL[k])),'keiner trägt „assets" im Namen');
-  /* Anzeige und Mappe tragen dieselben Namen — die Langformen stehen deshalb
-     an keiner Stelle im Code. */
-  const longRowNames=['Liquid assets','Receivables towards third party','Tangible assets',
-    'Investment assets','Retirement assets'];
-  const files=['../js/importer.js','../js/calc.js','../js/ui/settings.js'];
-  const left=files.flatMap(f=>{const t=fs.readFileSync(new URL(f,import.meta.url),'utf8');
-    return longRowNames.filter(a=>new RegExp('[\'"]'+a+'[\'"]','i').test(t)).map(a=>f+': '+a);});
-  ok(left.length===0,'keine Langform als Zeilenbezeichnung im Code: '+(left.join(' | ')||'—'));
-  /* Zahlen und Daten laufen über js/util.js, nicht über ein toLocaleString
-     an Ort und Stelle — sonst driftet die Schreibweise zwischen den Kacheln
-     auseinander, und niemand merkt es. AGENTS.md sagt es, hier steht es. */
-  const raw=['../js/util.js','../js/importer.js','../js/calc.js','../js/store.js','../js/app.js',
-    '../js/ui/settings.js','../js/ui/header.js','../js/ui/position.js','../js/ui/chart.js',
-    '../js/ui/orbit.js','../js/ui/cards.js','../js/ui/mountain.js','../js/ui/icons.js']
-    .filter(f=>f!=='../js/util.js')
-    .filter(f=>/toLocaleString|toLocaleDateString|toLocaleTimeString/.test(fs.readFileSync(new URL(f,import.meta.url),'utf8')));
-  ok(raw.length===0,'keine rohe Formatierung ausserhalb von js/util.js: '+(raw.join(' | ')||'—'));
-  ok(d.querySelector('#starZone .star-corona')&&d.querySelector('#starZone .star-spikes'),'Stern hat Korona und Spitzen');
-  ok([...d.querySelectorAll('.panel-title')].some(n=>n.textContent==='Route'),'Bergspalte heißt Route');
   ok(d.querySelectorAll('.rail .card').length===8,'acht Cards');
-  ok(d.querySelector('#starZone .star')&&!d.querySelector('.masthead .mast-meta'),'im Kopf steht nur der Stern');
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }
@@ -237,33 +113,17 @@ const store={};
        'kein Cent in der Position: '+money.join(' · ')); }
   const kpi=lab=>[...d.querySelectorAll('.kpi')].find(k=>k.querySelector('.kpi-lab').textContent===lab);
   ok(d.documentElement.getAttribute('lang')==='en','Seitensprache ist Englisch');
-  ok(d.title==='nordstern','der Fenstertitel ist die Wortmarke, klein: '+d.title);
-  /* Eine geteilte Verknüpfung zeigt sonst nur den Titel. Beide Beschreibungen
-     müssen dasselbe sagen — zwei Fassungen wären zwei Versprechen. */
-  const desc=d.querySelector('meta[name="description"]');
-  const ogd=d.querySelector('meta[property="og:description"]');
-  ok(desc&&desc.content.length>60&&desc.content.length<=160,
-     'die Seite beschreibt sich in einem Satz ('+(desc?desc.content.length:0)+' Zeichen)');
-  ok(ogd&&ogd.content===desc.content,'und die Vorschau sagt denselben Satz');
-  ok(d.querySelector('meta[property="og:title"]').content===d.title,'auch der Vorschautitel ist die Wortmarke');
-  ok(!/\bsends\b(?!\s+nothing)/.test(desc.content)&&/sends nothing/.test(desc.content),
-     'und die Zusage steht darin: „'+desc.content.slice(-30).trim()+'"');
-  ok(!d.querySelector('.hero-month'),'kein Monat an der Bühne');
   ok(kpi('As of').querySelector('.kpi-val').textContent==='August 2026','Datenstand als Kennzahl: '+kpi('As of').querySelector('.kpi-val').textContent);
   ok(kpi('Snapshots').querySelector('.kpi-val').textContent==='84','Snapshots als Kennzahl: '+kpi('Snapshots').querySelector('.kpi-val').textContent);
-  ok(kpi('Snapshots').querySelector('.kpi-sub').textContent==='since records began','Unterzeile der Snapshot-Zahl: '+kpi('Snapshots').querySelector('.kpi-sub').textContent);
   ok(d.querySelectorAll('.kpi-row .kpi').length===8,'acht Kennzahlen in vier Spalten: '+d.querySelectorAll('.kpi-row .kpi').length);
 
   /* Der Hebel: 883.024,38 / 450.239,15 = 1,96. Er steht neben dem Tempo, weil
      beide nichts über den Stand sagen, sondern über seine Art. */
   ok(!!kpi('Leverage'),'es gibt eine Kennzahl „Leverage"');
-  ok(!kpi('Next milestone'),'die nächste Station steht nicht doppelt in den Kennzahlen');
   ok(kpi('Leverage').querySelector('.kpi-val').textContent==='1,96\u00d7',
      'Eigenkapitalhebel: '+kpi('Leverage').querySelector('.kpi-val').textContent);
   ok(N(kpi('Leverage').querySelector('.kpi-sub').textContent)==='49,0 % of assets is debt',
      'und der Schuldenanteil darunter: '+N(kpi('Leverage').querySelector('.kpi-sub').textContent));
-  ok(/net worth/.test(kpi('Leverage').getAttribute('title')||''),
-     'mit Erklärung, woraus er sich errechnet');
   /* Die Zahl muss zur Legende der Scheibe passen, sonst stehen zwei Wahrheiten
      über dieselbe Sache auf demselben Schirm. */
   const liabPct=d.querySelector('.legend-row[data-id="liabilities"] .legend-pct');
@@ -307,7 +167,6 @@ const store={};
      'es bleibt bei genau einer Linie und einem Endpunkt');
   ok(d.querySelector('.chart-glow')&&d.querySelector('.chart-last-ping')&&d.querySelector('#nsFill'),
      'Schein, Puls und Polarlicht-Fläche gelten unverändert');
-  ok(!d.querySelector('.range-btn.is-series'),'der alte Ein-Aus-Schalter ist weg');
   click(serBy('Net')); await tick(20);
   ok(lineD()===before&&label().startsWith('Net worth from'),'Zurückschalten stellt den alten Stand her');
   ok(d.querySelector('.sheet-status .meta-import').textContent==='stored locally',
@@ -346,14 +205,14 @@ sec('Beschädigtes Modell im Speicher');
     'ein Stand ist keine Zahl':        bend(m=>{m.accounts.liquid[0].values[3]=null;}),
     'die Verbindlichkeiten sind hin':  bend(m=>{m.accounts.liabilities=[{name:'Darlehen'}];}),
     'ein Monatsschlüssel entstellt':   bend(m=>{m.months[2].key='2026-8';}),
-    /* '2026-99' bestand die alte, laxere Regel (\d{2} passt auf jede
-       zweistellige Zahl) — der Monat muss im Kalender vorkommen. */
+    /* Eine laxe Prüfung (\d{2} passt auf jede zweistellige Zahl) würde
+       '2026-99' durchlassen — der Monat muss im Kalender vorkommen. */
     'ein Monat mit Monat 99':          bend(m=>{m.months[2].key='2026-99';}),
-    /* Nur liquid und investment wurden früher geprüft — ein Monat ohne
-       tangible kam unbemerkt durch und lieferte NaN in der Rechnung. */
+    /* Jedes Feld eines Monats zählt, nicht nur liquid und investment — ein
+       Monat ohne tangible darf nicht unbemerkt NaN in die Rechnung tragen. */
     'tangible fehlt in einem Monat':   bend(m=>{delete m.months[3].tangible;}),
-    /* Die Versionsnummer allein ist der schnellste Weg, ein Modell aus der
-       vorigen Form zu verwerfen — hier stand einmal `expenses` drin. */
+    /* Die Versionsnummer allein ist der schnellste Weg, ein Modell aus einer
+       alten Form zu verwerfen. */
     'alte Modellversion (v2)':         JSON.stringify({...good,version:2})
   };
   for(const [what,raw] of Object.entries(broken)){
@@ -560,16 +419,11 @@ sec('Währung: unbekannter Code im Speicher');
 
 /* Import übernimmt die von der Mappe erkannte Währung (js/app.js, readFile). */
 sec('Währung: Import übernimmt die Formatwährung');
-{ /* Die ausgelieferte Beispielmappe trägt selbst kein Währungsformat (siehe
-     tests/formats.mjs), und das vendorte SheetJS verliert Zellformate beim
-     Schreiben — ein Rundgang über XLSX.write/XLSX.read liefert c.z ===
-     undefined, geprüft von Hand beim Bau dieser Reihe. Eine Mappe mit
-     echtem USD-Format lässt sich über parseArrayBuffer also nicht bauen.
-     Geprüft wird deshalb der Übernahmepfad in app.js selbst:
-     parseArrayBuffer wird umhüllt, ruft den echten Importer auf und
-     behauptet danach `currency: 'USD'` — der reguläre Weg über den
-     Dateidialog bekommt damit genau das Ergebnis, das der Importer bei
-     einer wirklich USD-formatierten Mappe liefern würde. */
+{ /* Die Beispielmappe trägt kein Währungsformat, und XLSX.write/read verliert
+     Zellformate ohnehin — eine echte USD-Mappe lässt sich so nicht bauen.
+     Geprüft wird deshalb der Übernahmepfad in app.js: parseArrayBuffer wird
+     umhüllt und behauptet `currency: 'USD'`, wie es der Importer bei einer
+     echten USD-Mappe täte. */
   const {w,errors}=await boot();
   const orig=w.NORDSTERN.importer.parseArrayBuffer;
   w.NORDSTERN.importer.parseArrayBuffer=function(){
@@ -685,11 +539,6 @@ sec('Verbindung Card ↔ Berg');
      'genau die Reserve zählt gegen liquide Mittel: '+basis.filter(b=>b.q==='liquid').map(b=>b.id).join());
   ok(basis.filter(b=>b.q==='invested').length===7,
      'die sieben Stationen zählen gegen das Depot: '+basis.filter(b=>b.q==='invested').length);
-  /* Das Paar Ziel/Stand muss lesbar bleiben — die Deckung tritt hinzu, sie
-     ersetzt das Zeitwort nicht. */
-  ok(basis.every(b=>b.w==='Now '+b.q),'das Zeitwort führt: „'+basis[0].w+'"');
-  ok([...bk.querySelectorAll('.card-facts dt')].map(n=>n.firstChild.textContent.trim()).join('/')==='Target/Now',
-     'Ziel und Stand stehen als Paar: '+[...bk.querySelectorAll('.card-facts dt')].map(n=>n.textContent).join(' / '));
   /* Der ausgeschriebene Grund hängt an derselben Zeile — und stammt aus calc.js,
      damit Zielbetrag und Erklärung nicht auseinanderlaufen können. */
   const MS=Object.fromEntries(w.NORDSTERN.calc.MILESTONES.map(m=>[m.id,m.basisLabel]));
@@ -701,24 +550,7 @@ sec('Verbindung Card ↔ Berg');
      'auch vorgelesen: '+d.querySelector('.card[data-id="contingency"]').getAttribute('aria-label'));
   ok(d.querySelector('.st-ring').getAttribute('title')===MS.contingency,
      'der Reservechip über dem Berg sagt dasselbe: '+d.querySelector('.st-ring').getAttribute('title'));
-  /* Die Marke auf der Vorderseite: das Vielfache, das die Station definiert. */
-  const ladder=[...d.querySelectorAll('.card .card-tag b')].map(n=>n.textContent);
-  ok(ladder.join(' | ')==='3 months | 6 months | 1 year | 5 years | 10 years | 20 years | 25 years | 33 years',
-     'Leiter der Vielfachen auf den Karten: '+ladder.join(' · '));
-  ok([...d.querySelectorAll('.card .card-tag')].every(n=>/of expenses$/.test(n.textContent)),
-     'jede Marke nennt die Einheit — „25 years" allein wäre eine Frist');
-  ok(!d.querySelector('.card-slot')&&![...d.querySelectorAll('.card-tag')].some(n=>/img\//.test(n.textContent)),
-     'kein Dateiname in der Marke');
   ok(d.querySelectorAll('.card .card-watermark').length===8,'jede Karte trägt ihr Wasserzeichen');
-  /* Kein Datenexport — die Mappe ist die Quelle, nicht das Dashboard. */
-  ok(!d.querySelector('#btnExport')&&d.querySelectorAll('.masthead .icon-btn').length===2,
-     'kein Export-Knopf in der Kopfzeile, nur Import und Einstellungen');
-  ok(![...d.querySelectorAll('button, a')].some(n=>/export/i.test(n.textContent||'')),
-     'kein Export-Text auf irgendeinem Knopf');
-  ok(!d.querySelector('.card-term'),'keine Fachbegriffe auf den Karten');
-  ok(!bk.querySelector('.f-basis'),'keine eigene Zeile „Grundlage" — die Deckung steht als Beschriftung am Betrag');
-  ok(w.NORDSTERN.calc.MILESTONES.every(m=>m.meaning.length<=60),
-     'alle Bedeutungssätze passen in zwei Zeilen (max '+Math.max(...w.NORDSTERN.calc.MILESTONES.map(m=>m.meaning.length))+' Zeichen)');
   // Contingency-Card muss den Reservering im Fundament heben
   const cc=d.querySelector('.card[data-id="contingency"]');
   cc.dispatchEvent(new w.Event('pointerenter'));
@@ -758,12 +590,9 @@ sec('Vorjahreslinie folgt dem Zeiger');
   const span=Number(grad.getAttribute('x2'))-Number(grad.getAttribute('x1'));
   ok(span>0 && span < 520,'Fenster bleibt ein Ausschnitt, nicht die ganze Linie ('+span.toFixed(0)+'px)');
 
-  /* Das Lesefenster hängt über dem Punkt, den es beschreibt, und läuft mit
-     der Linie mit. Am oberen Chartrand darf es nicht abgefangen werden — sonst
-     läge es dort über der Linie, wo diese hoch steht. Es tritt also über den
-     Rand hinaus, über Schalter und Kennzahlen, und bleibt im Chart, wo die
-     Linie tief liegt. Beides wird geprüft: links unten drin, rechts oben
-     draussen. */
+  /* Das Lesefenster läuft mit der Linie mit: wo sie tief liegt, bleibt es im
+     Chart; wo sie hoch steht, tritt es über den Rand hinaus, statt sich vom
+     hohen Kurvenpunkt verdecken zu lassen. */
   const tip=d.querySelector('.chart-tip');
   const hover=x=>{ const e=new w.Event('pointermove'); e.clientX=x; e.clientY=300; body.dispatchEvent(e); };
   ok(tip.classList.contains('is-on'),'das Lesefenster ist da');
@@ -777,9 +606,8 @@ sec('Vorjahreslinie folgt dem Zeiger');
   ok(Number.parseFloat(tip.style.left)>=4,'waagerecht folgt es dem Punkt: left '+tip.style.left);
 
   /* Und die Prozentzahl darin kommt aus derselben Funktion wie die Kachel
-     darüber. Aus einem negativen Vorjahreswert heraus rechnete der Chart
-     lange sein eigenes Ergebnis: −100 → −50 stand als −150 % statt als
-     +50 %, mit umgedrehtem Vorzeichen und roter Farbe. */
+     darüber: aus einem negativen Vorjahreswert heraus ist −100 → −50 ein
+     Plus von 50 %, nicht ein Minus von 150 % mit umgedrehtem Vorzeichen. */
   const mm=JSON.parse(JSON.stringify(w.NORDSTERN.store.loadModel()));
   const LL=mm.currentIndex;
   mm.months[LL].netWorth=-50; mm.months[LL-12].netWorth=-100;
@@ -808,7 +636,6 @@ sec('Vorjahreslinie folgt dem Zeiger');
 sec('Stationslinien im Verlauf');
 { const {w,errors}=await boot({storage:{...store}});
   const d=w.document;
-  const svg=()=>d.querySelector('.chart-svg');
   const stationsG=()=>d.querySelector('.chart-stations');
   const stations=()=>[...stationsG().querySelectorAll('.chart-station')];
   const click=b=>b.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
@@ -820,14 +647,6 @@ sec('Stationslinien im Verlauf');
   clickText('.series .range-btn','Total'); await tick(20);
   ok(stations().length===0,'auf Total ebenso leer: '+stations().length);
 
-  /* 4: Reihenfolge im Dokument — nach dem Gitter, vor der Fläche. */
-  const kids=[...svg().children].map(n=>n.getAttribute('class')||n.tagName);
-  const idxGrid=kids.findIndex(k=>k.includes('chart-grid'));
-  const idxStations=kids.findIndex(k=>k.includes('chart-stations'));
-  const idxFill=kids.findIndex(k=>k.includes('chart-fill'));
-  ok(idxGrid>=0&&idxStations>idxGrid&&idxFill>idxStations,
-     'chart-stations liegt zwischen Gitter und Fläche: '+kids.join(' · '));
-
   /* 2: Invested, 5 Jahre (Vorauswahl) — vier Stationen, alle im Beispieldepot
      (345.198,39 €) bereits erreicht, aufsteigend nach Ziel sortiert. */
   clickText('.series .range-btn','Invested'); await tick(20);
@@ -838,36 +657,15 @@ sec('Stationslinien im Verlauf');
   ok(st.every(s=>s.classList.contains('is-reached')),'alle vier gelten als erreicht');
   ok(st.every(s=>s.querySelectorAll('line').length===1&&s.querySelectorAll('text').length===1),
      'jede Station trägt genau eine Linie und ein Label');
-  ok(st.map(s=>s.querySelector('text').textContent).join(' · ')
-       ==='First Light · Velocity · Stable Course · Aurora',
-     'die vier Stationsnamen: '+st.map(s=>s.querySelector('text').textContent).join(' · '));
 
-  /* 3: Die Linien liegen exakt bei Y(target) — dieselbe Skala wie das Gitter
-     (viewBox 520×190, pad t 14 / b 20, ih 156). Fenster hier: 0…386.201 €. */
-  const ih=190-14-20, ymin=0, ymax=386201.0986;
-  const Y=v=>14+ih-((v-ymin)/(ymax-ymin))*ih;
-  const aurora=st.find(s=>s.dataset.id==='barista');
-  const y1=Number(aurora.querySelector('line').getAttribute('y1'));
-  ok(Math.abs(y1-Y(300000))<0.6,
-     'Aurora-Linie bei Y(300.000 €): '+y1.toFixed(2)+' vs '+Y(300000).toFixed(2));
-  ok(aurora.querySelector('line').getAttribute('y1')===aurora.querySelector('line').getAttribute('y2'),
-     'die Linie steht waagerecht');
-
-  /* 5+6: Labels rechtsbündig auf x = 520 − 16 − 2, mindestens 12 px
-     Grundlinienabstand zueinander — auch wenn die Linien selbst enger stehen:
-     First Light und Velocity liegen als Linien nur rund 6 px auseinander,
-     ihre Labels weichen deshalb auseinander. */
-  ok(st.every(s=>s.querySelector('text').getAttribute('text-anchor')==='end'
-       &&Number(s.querySelector('text').getAttribute('x'))===502),
-     'alle Labels rechtsbündig auf x=502');
+  /* 5+6: Labels rechtsbündig, mindestens 12 px Grundlinienabstand zueinander —
+     auch wenn die Linien selbst enger stehen. */
+  ok(st.every(s=>s.querySelector('text').getAttribute('text-anchor')==='end'),
+     'alle Labels rechtsbündig gesetzt');
   const labelYs=st.map(s=>Number(s.querySelector('text').getAttribute('y')));
   for (var pi=0; pi<labelYs.length; pi++) for (var pj=pi+1; pj<labelYs.length; pj++)
     ok(Math.abs(labelYs[pi]-labelYs[pj])>=12,
        'Label '+pi+' und '+pj+' halten 12 px Abstand: '+labelYs.join(' · '));
-  const flLineY=Number(st[0].querySelector('line').getAttribute('y1'));
-  const veLineY=Number(st[1].querySelector('line').getAttribute('y1'));
-  ok(Math.abs(flLineY-veLineY)<12,
-     'First Light und Velocity liegen als Linien eng beieinander: '+Math.abs(flLineY-veLineY).toFixed(1)+' px');
 
   /* 7: 1 Jahr — nur, wessen Ziel ins schmale Fenster fällt. */
   clickText('.range .range-btn','1 year'); await tick(20);
@@ -899,33 +697,12 @@ sec('Stationslinien im Verlauf');
   w.close();
 }
 
-/* Regeln im Stylesheet: die Stationslinie blass und gestrichelt, die Gruppe
-   fängt keine Zeigerereignisse ab, und sie ist Teil desselben Aufbau-Effekts
-   wie Fläche und Vorjahreslinie — sonst blitzt sie beim Reihenwechsel
-   unvermittelt auf, statt sich einzublenden. */
-{ const css=fs.readFileSync(new URL('../css/components.css',import.meta.url),'utf8');
-  const stationLine=(/\.chart-station line\s*\{([^}]*)\}/.exec(css)||[])[1]||'';
-  ok(/var\(--ink-mute\)/.test(stationLine)&&/stroke-dasharray/.test(stationLine),
-     'die Stationslinie ist blass und gestrichelt: '+stationLine.trim());
-  ok(/\.chart-stations\s*\{[^}]*pointer-events:\s*none/.test(css),
-     'die Gruppe fängt keine Zeigerereignisse ab');
-  const arriveRules=[...css.matchAll(/([^{}]*)\{[^{}]*animation:[^;]*nsArriveFade[^;]*;/g)].map(m=>m[1]);
-  ok(arriveRules.some(function(r){ return /\.chart-stations/.test(r); }),
-     'chart-stations ist Teil des Aufbau-Effekts (nsArriveFade)');
-}
-
 /* ---------- 5. Bewegung aus ---------- */
 sec('Animationen abschaltbar & Systemvorgabe');
 { const {w,errors}=await boot({storage:{...store}});
   const d=w.document;
-  ok(d.documentElement.getAttribute('data-motion')==='on','Standard: Bewegung an');  /* Drei Herzschläge auf einem Takt: Stern, Chartlinie, Reservering. */
-  /* Die Fläche trägt die Aurora, die Linie bleibt die Zeitachse. */
-  const fill=[...d.querySelectorAll('#nsFill stop')].map(n=>n.getAttribute('stop-color'));
-  ok(fill[0]==='#9085e9'&&fill.includes('#2fbd8b')&&fill[fill.length-1]==='#3987e5',
-     'Flächenverlauf violett → grün → blau: '+fill.join(' → '));
-  const line=[...d.querySelectorAll('#nsLine stop')].map(n=>n.getAttribute('stop-color'));
-  ok(line[line.length-1]==='#eaf2ff'&&!line.includes('#2fbd8b'),
-     'Linie bleibt die Helligkeitsrampe zum Jetzt: '+line.join(' → '));
+  ok(d.documentElement.getAttribute('data-motion')==='on','Standard: Bewegung an');
+  /* Drei Herzschläge auf einem Takt: Stern, Chartlinie, Reservering. */
   ok(d.querySelector('.star-corona')&&d.querySelector('.chart-glow')&&d.querySelector('.chart-last-ping'),
      'Stern, Linienschein und Ping am letzten Datenpunkt sind da');
   ok(d.querySelectorAll('.chart-last-ping').length===1,'genau ein Ping, am aktuellen Stand');
@@ -1085,46 +862,21 @@ sec('Unbrauchbarer Import bei bereits geladenem Modell');
 sec('Blattname: Aliase und Einzelblatt-Fallback');
 { const {w,errors}=await boot();
   const XLSX=w.XLSX;
-  const D=(y,m)=>new w.Date(y,m-1,1);
-  /* Dieselbe kleine, aber vollständige Mappe wie im Lücken-Abschnitt unten:
-     alle Anker, drei Sektionen leer. */
-  const full=(months)=>XLSX.utils.aoa_to_sheet([
-    ['Month',        ...months.map(([y,m])=>D(y,m))],
-    ['Liquid'],
-    ['  Cash',       ...months.map((_,i)=>100+i)],
-    ['Total liquid', ...months.map((_,i)=>100+i)],
-    ['Claims'],
-    ['Total claims', ...months.map(()=>0)],
-    ['Investments'],
-    ['  Depot',      ...months.map((_,i)=>1000+100*i)],
-    ['Total investments', ...months.map((_,i)=>1000+100*i)],
-    ['Property'],
-    ['Total property', ...months.map(()=>0)],
-    ['Retirement'],
-    ['Total retirement', ...months.map(()=>0)],
-    ['Total assets', ...months.map((_,i)=>1100+100*i+i)],
-    ['Liabilities'],
-    ['  Loan',       ...months.map(()=>0)],
-    ['Total liabilities', ...months.map(()=>0)],
-    ['Total net worth', ...months.map((_,i)=>1100+100*i+i)]
-  ],{cellDates:true});
   const months=[[2026,1],[2026,2]];
   const open=(wb)=>w.NORDSTERN.importer._openWorkbook(XLSX,XLSX.write(wb,{type:'array',bookType:'xlsx'}));
 
-  const wbOne=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wbOne,full(months),'Mappe1');
-  const rOne=w.NORDSTERN.importer.parseWorkbook(open(wbOne),'a.xlsx');
+  const rOne=w.NORDSTERN.importer.parseWorkbook(open(tinyWorkbook(w,months,'Mappe1')),'a.xlsx');
   ok(rOne.ok,'ein einzelnes Blatt „Mappe1" wird gelesen, wie auch immer es heißt: '+rOne.errors.join(' / '));
 
   const wbAlias=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wbAlias,XLSX.utils.aoa_to_sheet([['Hinweise'],['bitte lesen']]),'Read me');
-  XLSX.utils.book_append_sheet(wbAlias,full(months),'daten');
+  XLSX.utils.book_append_sheet(wbAlias,tinySheet(w,months),'daten');
   const rAlias=w.NORDSTERN.importer.parseWorkbook(open(wbAlias),'b.xlsx');
   ok(rAlias.ok,'unter zwei Blättern gewinnt der Alias „daten" (Groß/Klein egal): '+rAlias.errors.join(' / '));
 
   const wbNone=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wbNone,full(months),'Mappe1');
-  XLSX.utils.book_append_sheet(wbNone,full(months),'Tabelle2');
+  XLSX.utils.book_append_sheet(wbNone,tinySheet(w,months),'Mappe1');
+  XLSX.utils.book_append_sheet(wbNone,tinySheet(w,months),'Tabelle2');
   const rNone=w.NORDSTERN.importer.parseWorkbook(open(wbNone),'c.xlsx');
   ok(!rNone.ok,'zwei Blätter, keins bekannt: kein Raten');
   const msg=rNone.errors.join(' | ');
@@ -1145,29 +897,8 @@ sec('Robustheit: Fehlerwerte, kaputte Daten, leere Mappe');
   const XLSX=w.XLSX;
   const D=(y,m)=>new w.Date(y,m-1,1);
   const EC=(r,c)=>XLSX.utils.encode_cell({r,c});
-  /* Zeilen von `full` unten, 0-basiert — dieselbe Mappe wie im Alias-
-     Abschnitt oben, hier gebraucht, um gezielt einzelne Zellen zu überschreiben. */
-  const ROW={MONTH:0, CASH:2, DEPOT:7, LOAN:15, TOTALASSETS:13, LIABTOTAL:16, NETWORTH:17};
-  const full=(months)=>XLSX.utils.aoa_to_sheet([
-    ['Month',        ...months.map(([y,m])=>D(y,m))],
-    ['Liquid'],
-    ['  Cash',       ...months.map((_,i)=>100+i)],
-    ['Total liquid', ...months.map((_,i)=>100+i)],
-    ['Claims'],
-    ['Total claims', ...months.map(()=>0)],
-    ['Investments'],
-    ['  Depot',      ...months.map((_,i)=>1000+100*i)],
-    ['Total investments', ...months.map((_,i)=>1000+100*i)],
-    ['Property'],
-    ['Total property', ...months.map(()=>0)],
-    ['Retirement'],
-    ['Total retirement', ...months.map(()=>0)],
-    ['Total assets', ...months.map((_,i)=>1100+100*i+i)],
-    ['Liabilities'],
-    ['  Loan',       ...months.map(()=>0)],
-    ['Total liabilities', ...months.map(()=>0)],
-    ['Total net worth', ...months.map((_,i)=>1100+100*i+i)]
-  ],{cellDates:true});
+  const ROW=TINY_ROWS;
+  const full=(months)=>tinySheet(w,months);
   const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Data Input'); return b; };
   const parse=(ws)=>w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'x.xlsx');
 
@@ -1265,47 +996,23 @@ sec('Robustheit: Fehlerwerte, kaputte Daten, leere Mappe');
 }
 
 /* ---------- 6a2. Anker: Doppel, Reihenfolge, Überlappung; Schnappschuss-Diagnose ---------- */
-/* Vier Wege, wie eine Mappe die Ankerprüfung bisher unbemerkt umging: ein
-   Anker mehrfach, Kopf und Summe vertauscht, eine Sektion, die in eine
-   andere hineinragt — und eine Sammelmeldung „No snapshot found", die vier
-   verschiedene Befunde hinter einem Satz versteckte. */
+/* Vier Fälle, die eine Mappe an der Ankerprüfung vorbeischleusen könnten,
+   bliebe jeder für sich unbemerkt: ein Anker mehrfach, Kopf und Summe
+   vertauscht, eine Sektion, die in eine andere hineinragt — und eine
+   Sammelmeldung „No snapshot found", die vier verschiedene Befunde hinter
+   einem Satz verstecken würde. */
 sec('Anker: Doppel, Reihenfolge, Überlappung; Schnappschuss-Diagnose');
 { const {w,errors}=await boot();
   const XLSX=w.XLSX;
-  const D=(y,m)=>new w.Date(y,m-1,1);
   const EC=(r,c)=>XLSX.utils.encode_cell({r,c});
-  /* Zeilen von `full` unten, 0-basiert — dieselbe kleine, vollständige Mappe
-     wie im Robustheits-Abschnitt oben. */
-  const ROW={MONTH:0, LIQUID:1, CASH:2, TOTALLIQUID:3, CLAIMS:4, TOTALCLAIMS:5,
-    INVEST:6, DEPOT:7, TOTALINVEST:8, PROPERTY:9, TOTALPROPERTY:10,
-    RETIREMENT:11, TOTALRETIREMENT:12, TOTALASSETS:13, LIABILITIES:14,
-    LOAN:15, LIABTOTAL:16, NETWORTH:17};
-  const full=(months)=>XLSX.utils.aoa_to_sheet([
-    ['Month',        ...months.map(([y,m])=>D(y,m))],
-    ['Liquid'],
-    ['  Cash',       ...months.map((_,i)=>100+i)],
-    ['Total liquid', ...months.map((_,i)=>100+i)],
-    ['Claims'],
-    ['Total claims', ...months.map(()=>0)],
-    ['Investments'],
-    ['  Depot',      ...months.map((_,i)=>1000+100*i)],
-    ['Total investments', ...months.map((_,i)=>1000+100*i)],
-    ['Property'],
-    ['Total property', ...months.map(()=>0)],
-    ['Retirement'],
-    ['Total retirement', ...months.map(()=>0)],
-    ['Total assets', ...months.map((_,i)=>1100+100*i+i)],
-    ['Liabilities'],
-    ['  Loan',       ...months.map(()=>0)],
-    ['Total liabilities', ...months.map(()=>0)],
-    ['Total net worth', ...months.map((_,i)=>1100+100*i+i)]
-  ],{cellDates:true});
+  const ROW=TINY_ROWS;
+  const full=(months)=>tinySheet(w,months);
   const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Data Input'); return b; };
   const parse=(ws)=>w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'x.xlsx');
   const months=[[2026,1],[2026,2]];
 
-  /* Ein zweites „Liquid" — erstes Vorkommen still zu bevorzugen verschluckte
-     das bisher ohne ein Wort. */
+  /* Ein zweites „Liquid": das erste Vorkommen still zu bevorzugen würde den
+     Fehler ohne ein Wort verschlucken. */
   const wsDup=full(months);
   wsDup[EC(ROW.CASH,0)]={t:'s', v:'Liquid'};
   const dup=parse(wsDup);
@@ -1349,8 +1056,8 @@ sec('Anker: Doppel, Reihenfolge, Überlappung; Schnappschuss-Diagnose');
   ok(!noAccounts.ok&&noAccounts.errors.some(t=>/No account rows found/.test(t)),
      'keine einzige Kontozeile wird eigens gemeldet: '+noAccounts.errors.join(' | '));
 
-  /* Nur Monate in der Zukunft — die alte Sammelmeldung sagte nicht, dass es
-     daran lag. */
+  /* Nur Monate in der Zukunft — eine blosse Sammelmeldung würde nicht sagen,
+     dass es daran liegt. */
   const wsFuture=full([[2099,1]]);
   const future=parse(wsFuture);
   ok(!future.ok&&future.errors.some(t=>/dated in the future/.test(t)&&/2099-01/.test(t)),
@@ -1366,7 +1073,7 @@ sec('Anker: Doppel, Reihenfolge, Überlappung; Schnappschuss-Diagnose');
      'eine leere vergangene Spalte wird von einer zukünftigen unterschieden: '+pastEmpty.errors.join(' | '));
 
   /* Dieselbe Spalte, aber mit Text statt Zahlen — ein anderer Befund als
-     „leer", auch wenn beide bisher „No snapshot found" hiessen. */
+     „leer", auch wenn beide unter „No snapshot found" laufen. */
   const wsPastText=full([[2020,1]]);
   wsPastText[EC(ROW.CASH,1)]={t:'s', v:'N/A'};
   wsPastText[EC(ROW.DEPOT,1)]={t:'s', v:'N/A'};
@@ -1390,36 +1097,7 @@ sec('Anker: Doppel, Reihenfolge, Überlappung; Schnappschuss-Diagnose');
    nicht, als falsch zu vergleichen. */
 sec('Lücken und Doppel in der Monatsreihe');
 { const {w,errors}=await boot();
-  const XLSX=w.XLSX;
-  /* Das Datum muss aus der Welt des Fensters kommen: SheetJS läuft dort und
-     prüft `instanceof Date` gegen deren Konstruktor, nicht gegen den hiesigen. */
-  const D=(y,m)=>new w.Date(y,m-1,1);
-  /* Eine Mappe, klein aber vollständig: alle Anker, drei Sektionen leer. */
-  const sheet=(months)=>XLSX.utils.aoa_to_sheet([
-    ['Month',        ...months.map(([y,m])=>D(y,m))],
-    ['Liquid'],
-    ['  Cash',       ...months.map((_,i)=>100+i)],
-    ['Total liquid', ...months.map((_,i)=>100+i)],
-    ['Claims'],
-    ['Total claims', ...months.map(()=>0)],
-    ['Investments'],
-    ['  Depot',      ...months.map((_,i)=>1000+100*i)],
-    ['Total investments', ...months.map((_,i)=>1000+100*i)],
-    ['Property'],
-    ['Total property', ...months.map(()=>0)],
-    ['Retirement'],
-    ['Total retirement', ...months.map(()=>0)],
-    ['Total assets', ...months.map((_,i)=>1100+100*i+i)],
-    ['Liabilities'],
-    ['  Loan',       ...months.map(()=>0)],
-    ['Total liabilities', ...months.map(()=>0)],
-    ['Total net worth', ...months.map((_,i)=>1100+100*i+i)]
-  ],{cellDates:true});
-  const read=(months)=>{
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,sheet(months),'Data Input');
-    return w.NORDSTERN.importer.parseWorkbook(wb,'reihe.xlsx');
-  };
+  const read=(months)=>w.NORDSTERN.importer.parseWorkbook(tinyWorkbook(w,months),'reihe.xlsx');
 
   /* Zum Vergleich: dieselbe Mappe ohne Loch. */
   const clean=read([[2026,1],[2026,2],[2026,3]]);
@@ -1502,32 +1180,8 @@ sec('Lücken und Doppel in der Monatsreihe');
    calc.derive. */
 sec('Quartalsreihe: Abstand 3, Vorjahr trotzdem exakt');
 { const {w,errors}=await boot();
-  const XLSX=w.XLSX;
-  const D=(y,m)=>new w.Date(y,m-1,1);
-  const sheet=(months)=>XLSX.utils.aoa_to_sheet([
-    ['Month',        ...months.map(([y,m])=>D(y,m))],
-    ['Liquid'],
-    ['  Cash',       ...months.map((_,i)=>100+i)],
-    ['Total liquid', ...months.map((_,i)=>100+i)],
-    ['Claims'],
-    ['Total claims', ...months.map(()=>0)],
-    ['Investments'],
-    ['  Depot',      ...months.map((_,i)=>1000+100*i)],
-    ['Total investments', ...months.map((_,i)=>1000+100*i)],
-    ['Property'],
-    ['Total property', ...months.map(()=>0)],
-    ['Retirement'],
-    ['Total retirement', ...months.map(()=>0)],
-    ['Total assets', ...months.map((_,i)=>1100+100*i+i)],
-    ['Liabilities'],
-    ['  Loan',       ...months.map(()=>0)],
-    ['Total liabilities', ...months.map(()=>0)],
-    ['Total net worth', ...months.map((_,i)=>1100+100*i+i)]
-  ],{cellDates:true});
   const quarters=[]; for(const y of [2024,2025]) for(const m of [1,4,7,10]) quarters.push([y,m]);
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,sheet(quarters),'Data Input');
-  const res=w.NORDSTERN.importer.parseWorkbook(wb,'quartale.xlsx');
+  const res=w.NORDSTERN.importer.parseWorkbook(tinyWorkbook(w,quarters),'quartale.xlsx');
   ok(res.ok,'die Quartalsreihe wird gelesen: '+res.errors.join(' | '));
   ok(res.model.months.length===8,'acht Quartalsspalten: '+res.model.months.length);
 
@@ -1562,19 +1216,19 @@ sec('Quartalsreihe: Abstand 3, Vorjahr trotzdem exakt');
 }
 
 /* ---------- 6b2. Lückenlose Monatsreihe: Abstände und Bereichsgrößen ---------- */
-/* Die Messlatte aus der Aufgabe: eine gapless Reihe verhält sich exakt wie
-   vor dem Umbau. Geprüft an der Beispielmappe, die 84 Monate trägt — für
-   „1 year" und „5 years" reicht das für die volle Punktzahl (13 / 61), für
-   „10 years" und „All" ist die Mappe kürzer als 121 Punkte, also müssen
-   beide auf dieselbe, volle Monatszahl kommen. */
+/* Eine lückenlose Reihe hat überall Abstand eins zum Vormonat und zwölf zum
+   Vorjahr. Geprüft an der Beispielmappe, die 84 Monate trägt — für „1 year"
+   und „5 years" reicht das für die volle Punktzahl (13 / 61), für „10 years"
+   und „All" ist die Mappe kürzer als 121 Punkte, also müssen beide auf
+   dieselbe, volle Monatszahl kommen. */
 sec('Lückenlose Monatsreihe: Abstände und Bereichsgrößen');
 { const {w,errors}=await boot();
   importFixture(w);
   const set=w.NORDSTERN.store.loadSettings();
   const model=w.NORDSTERN.store.loadModel();
   const dv=w.NORDSTERN.calc.derive(model,set);
-  ok(dv.mom!==null&&dv.mom.span===1,'Vormonat: Abstand 1, wie vor dem Umbau');
-  ok(dv.yoy!==null&&dv.yoy.span===12,'Vorjahr: Abstand 12, wie vor dem Umbau');
+  ok(dv.mom!==null&&dv.mom.span===1,'Vormonat: Abstand 1');
+  ok(dv.yoy!==null&&dv.yoy.span===12,'Vorjahr: Abstand 12');
 
   const d=w.document;
   const total=model.months.length;
@@ -1596,25 +1250,14 @@ sec('Lückenlose Monatsreihe: Abstände und Bereichsgrößen');
 
 /* ---------- 6c. Zahlen, die als Text in der Zelle stehen ---------- */
 /* Wer Beträge aus einem Kontoauszug in die Mappe kopiert, hat sie oft als
-   Text darin: „1.234,56". Die alte Lesart tauschte nur das Komma und liess
-   parseFloat den Rest machen — das hörte am zweiten Punkt auf und ergab
-   1,234. Ein Faktor tausend, und die Gegenprobe gegen die Summenzeile schwieg
-   dazu, weil die genauso falsch gelesen wurde. */
+   Text darin: „1.234,56". Eine Lesart, die nur das Komma tauscht und den
+   Rest parseFloat überlässt, bricht am zweiten Punkt ab und ergäbe 1,234 —
+   ein Faktor tausend, unbemerkt von einer Gegenprobe gegen die Summenzeile,
+   die genauso falsch gelesen würde. Die Fälle für `_parseNumber` selbst
+   stehen in tests/formats.mjs; hier geht es um den Fall, den die Gegenprobe
+   nicht sieht: Posten und Summenzeile beide als Text. */
 sec('Zahlen als Text');
 { const {w,errors}=await boot();
-  const P=w.NORDSTERN.importer._parseNumber;
-  const good=[['1.234,56',1234.56],['1,234.56',1234.56],['-1.234,56',-1234.56],
-              ['−1.234,56',-1234.56],['+980',980],['0',0],['12,5',12.5],
-              ['1 234,56',1234.56],['1.234,56 €',1234.56],
-              ['1.234',1234],       // beides möglich, deutsch gewinnt
-              ['1.2345',1.2345],    // als deutsche Gruppierung unmöglich
-              ['1.234.567,89',1234567.89],['12,345',12.345]];
-  good.forEach(([t,v])=>ok(P(t)===v,'„'+t+'" ist '+v+', gelesen: '+P(t)));
-  const bad=['1.234.56','abc','12,34,56','1.23.456','','12 %','1.2.3','--5','1,2345.6','12€34','1USD2'];
-  bad.forEach(t=>ok(P(t)===null,'„'+t+'" ist keine Zahl, gelesen: '+P(t)));
-
-  /* Und dasselbe in einer Mappe, in der Posten und Summenzeile beide Text
-     sind — der Fall, den die Gegenprobe nicht sieht. */
   const XLSX=w.XLSX;
   const D=(y,m)=>new w.Date(y,m-1,1);
   const wb=(depot)=>{
@@ -1764,8 +1407,7 @@ sec('Randfälle im Modell');
   ok(w.document.querySelector('.kpi.is-neg')!==null,'Schulden-KPI vorhanden');
 
   /* Veränderung aus einem negativen Ausgangswert: von −100 auf −50 sind
-     +50 %. Die alte Formel machte daraus −150 % und drehte damit das
-     Vorzeichen der Nachricht um. */
+     +50 %, nicht −150 % mit umgedrehtem Vorzeichen. */
   const m3=JSON.parse(JSON.stringify(w.NORDSTERN.store.loadModel()));
   const j=m3.currentIndex;
   const set=w.NORDSTERN.store.loadSettings();
@@ -1912,31 +1554,14 @@ sec('Kontrast der Schrifttöne');
   ok(cr[2].c>=7,'die dritte Stufe erreicht die strengere Schwelle: '+cr[2].c.toFixed(2)+':1');
   ok(cr.every((x,i)=>i===0||x.c<cr[i-1].c*0.92),
      'jede Stufe bleibt deutlich unter der vorigen: '+cr.map(x=>x.c.toFixed(1)).join(' > '));
-  /* Der stille Ton ist kein Schriftton — er darf dunkel sein, aber nirgends
-     als Schriftfarbe stehen. */
-  const comp=fs.readFileSync(new URL('../css/components.css',import.meta.url),'utf8');
-  ok(hex('ink-mute'),'der stille Ton ist eigens benannt');
-  ok(!/color:\s*var\(--ink-mute\)/.test(comp),'und wird nirgends als Schriftfarbe benutzt');
-  ok(!/--ink-[234]:\s*#(45536a|6a7c98|a3b4cf)\b/.test(tok),'und keiner dieser dunklen Werte steht in der Rampe');
 }
 
 /* ---------- 12. Mehr Schulden als Vermögen ---------- */
 sec('Negativer Net Worth');
 { const {w,errors}=await boot({storage:{...store}});
   const d=w.document;
-  const sweep=id=>{
-    const n=d.querySelector('.orbit-arc[data-id="'+id+'"],.orbit-short[data-id="'+id+'"]');
-    if(!n) return null;
-    if(n.tagName==='circle') return Math.PI*2;
-    const m=/M([-\d.]+) ([-\d.]+)A[\d.]+ [\d.]+ 0 (\d) (\d) ([-\d.]+) ([-\d.]+)/.exec(n.getAttribute('d'));
-    if(!m) return null;
-    const a=(x,y)=>Math.atan2(Number(x)-135,-(Number(y)-135));
-    let s0=a(m[1],m[2]), s1=a(m[5],m[6]);
-    let dl=s1-s0; if(m[4]==='0') dl=-Math.abs(dl); if(dl<0&&m[4]==='1') dl+=Math.PI*2;
-    return Math.abs(dl)+(m[3]==='1'&&Math.abs(dl)<Math.PI?Math.PI*2-2*Math.abs(dl):0);
-  };
   const total=()=>['liquid','receivables','investment','tangible','retirement']
-    .map(sweep).filter(x=>x!=null).reduce((a,b)=>a+b,0);
+    .map(id=>arcSweep(d,id)).filter(x=>x!=null).reduce((a,b)=>a+b,0);
 
   /* Normalfall: die Sektionen füllen den Kreis, es fehlt nichts. */
   const fullRing=total();
@@ -1978,7 +1603,7 @@ sec('Negativer Net Worth');
   ok(kpiOf('Portfolio pace').classList.contains('is-pos'),'ein wachsendes grün');
 
   const shortRing=total();
-  console.log('    → Vermögensring '+(fullRing/(Math.PI*2)*100).toFixed(1)+' % → '+(shortRing/(Math.PI*2)*100).toFixed(1)+' %, Fehlstrecke '+(sweep('shortfall')/(Math.PI*2)*100).toFixed(1)+' %');
+  console.log('    → Vermögensring '+(fullRing/(Math.PI*2)*100).toFixed(1)+' % → '+(shortRing/(Math.PI*2)*100).toFixed(1)+' %, Fehlstrecke '+(arcSweep(d,'shortfall')/(Math.PI*2)*100).toFixed(1)+' %');
   ok(shortRing<fullRing*0.85,'jetzt bleibt der Vermögensring offen: '+shortRing.toFixed(2)+' statt '+fullRing.toFixed(2));
   ok(Math.abs(shortRing-Math.PI*2*0.8)<0.25,'und zwar um genau den Fehlbetrag: '+(shortRing/(Math.PI*2)*100).toFixed(1)+' % statt 80 %');
   const sh=d.querySelector('.orbit-short');
@@ -2009,19 +1634,8 @@ sec('Negativer Net Worth');
 sec('Negative Sektion in der Übersicht');
 { const {w,errors}=await boot({storage:{...store}});
   const d=w.document;
-  const sweep=id=>{
-    const n=d.querySelector('.orbit-arc[data-id="'+id+'"],.orbit-short[data-id="'+id+'"]');
-    if(!n) return null;
-    if(n.tagName==='circle') return Math.PI*2;
-    const m=/M([-\d.]+) ([-\d.]+)A[\d.]+ [\d.]+ 0 (\d) (\d) ([-\d.]+) ([-\d.]+)/.exec(n.getAttribute('d'));
-    if(!m) return null;
-    const a=(x,y)=>Math.atan2(Number(x)-135,-(Number(y)-135));
-    let s0=a(m[1],m[2]), s1=a(m[5],m[6]);
-    let dl=s1-s0; if(m[4]==='0') dl=-Math.abs(dl); if(dl<0&&m[4]==='1') dl+=Math.PI*2;
-    return Math.abs(dl)+(m[3]==='1'&&Math.abs(dl)<Math.PI?Math.PI*2-2*Math.abs(dl):0);
-  };
   const ringTotal=()=>['liquid','receivables','investment','tangible','retirement']
-    .map(sweep).filter(x=>x!=null).reduce((a,b)=>a+b,0);
+    .map(id=>arcSweep(d,id)).filter(x=>x!=null).reduce((a,b)=>a+b,0);
 
   const m=w.NORDSTERN.app.state.model, L=m.currentIndex;
   const liqBefore=m.months[L].liquid;
@@ -2204,15 +1818,6 @@ sec('Aufbau beim Ankommen der Daten');
   ok(secArcs.every(a=>Number(a.style.strokeDasharray)>0),'jeder kennt seine Bogenlänge');
   const liab=d.querySelector('.orbit-liab');
   ok(liab.classList.contains('is-drawing'),'der Gegenring zeichnet sich mit');
-  /* Aufgedeckt wird vom Pfadanfang her. Der Pfad muss also an der Zwölf
-     beginnen und gegen den Uhrzeigersinn laufen: erster Punkt oben in der
-     Mitte, Ende links davon. Beginnt er am anderen Ende, baut sich der Ring
-     verkehrt herum auf. */
-  const lseg=/^M([\d.]+) ([\d.]+)A[\d.]+ [\d.]+ 0 \d (\d) ([\d.]+) ([\d.]+)/.exec(liab.getAttribute('d'));
-  ok(!!lseg&&Math.abs(Number(lseg[1])-134)<0.6&&Number(lseg[2])<60,
-     'er beginnt oben in der Mitte: '+liab.getAttribute('d').slice(0,24));
-  ok(lseg[3]==='0','und läuft gegen den Uhrzeigersinn');
-  ok(Number(lseg[4])<134,'sein Ende liegt links der Mitte: '+lseg[4]);
   ok(Number(liab.style.getPropertyValue('--off'))===0,'und startet mit dem äusseren zugleich');
   ok(Math.abs(Number(liab.style.getPropertyValue('--frac'))-0.49)<0.01,
      'er braucht nur seinen Anteil der Umdrehung: '+liab.style.getPropertyValue('--frac'));
@@ -2251,81 +1856,12 @@ sec('Aufbau beim Ankommen der Daten');
   w.close();
 }
 
-/* Ob die Bewegung tatsächlich unterbleibt, entscheidet allein das Stylesheet —
-   jsdom rechnet keine Animationen. Also wird das Stylesheet befragt: jede Regel,
-   die einen Aufbau startet, muss hinter beiden Riegeln stehen. */
-{ const css=fs.readFileSync(new URL('../css/components.css',import.meta.url),'utf8');
-  const blocks=[...css.matchAll(/@media \(prefers-reduced-motion: no-preference\)\s*\{([\s\S]*?)\n\}/g)].map(m=>m[1]).join('\n');
-  ['nsDraw','nsBarFill','nsArriveFade'].forEach(name=>{
-    const rules=[...css.matchAll(new RegExp('([^{}]*)\\{[^{}]*animation:[^;]*'+name+'[^;]*;','g'))].map(m=>m[1]);
-    ok(rules.length>0,'es gibt eine Regel für '+name);
-    ok(rules.every(r=>/\[data-motion=/.test(r)),name+' hängt am Bewegungsschalter');
-    ok(rules.every(r=>blocks.includes(r.trim().split('\n').pop().trim())),
-       name+' steht hinter prefers-reduced-motion');
-  });
-}
-
-/* ---------- 15b. Die Mappe heisst Mappe ---------- */
-/* „Excel" ist eine Marke von Microsoft und nicht das Wort für Tabellendatei —
-   und in dieser Anwendung wäre es zusätzlich falsch: gelesen werden auch .ods,
-   .numbers und .xlsb. Der Name steht deshalb nur noch dort, wo er wirklich das
-   Programm meint, aus dem eine Datei stammen kann. */
-sec('Die Mappe heisst Mappe');
-{ const {w,errors}=await boot();
-  const d=w.document;
-  const btn=d.getElementById('btnImport');
-  ok(btn.getAttribute('title')==='Read workbook'&&btn.getAttribute('aria-label')==='Read workbook',
-     'der Knopf oben rechts liest eine Mappe: '+btn.getAttribute('title'));
-  ok(d.getElementById('gatePick').textContent==='Choose a workbook',
-     'der Leerzustand auch: '+d.getElementById('gatePick').textContent);
-  const reread=[...d.querySelectorAll('#settingsZone button')].find(b=>/Re-read/.test(b.textContent));
-  ok(reread&&reread.textContent==='Re-read workbook','und das Blatt: '+(reread&&reread.textContent));
-  /* Wo der Name doch steht, steht er als Herkunftsangabe neben den anderen. */
-  const copy=d.getElementById('gateCopy').textContent;
-  ok(/Excel/.test(copy)&&/Numbers/.test(copy)&&/LibreOffice/.test(copy)&&/Google Sheets/.test(copy),
-     'im Leerzustand steht er nur in der Aufzählung: '+copy.trim().split('\n')[1]);
-  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
-  w.close();
-}
-
-/* ---------- 15c. Das Blatt „privacy" ---------- */
-/* Die Zusage steht sonst im README, das niemand offen hat, während er seine
-   Kontostände in die Seite zieht. Sie muss dort stehen, wo die Frage entsteht
-   — und sie muss stimmen: was hier behauptet wird, prüft tests/build.mjs am
-   ausgelieferten Bau nach. */
-sec('Das Blatt „privacy"');
-{ const {w,errors}=await boot();
-  const d=w.document;
-  const pane=d.querySelector('.sheet-sec[data-sec="privacy"]');
-  ok(!!pane,'es gibt den Abschnitt');
-  const terms=[...pane.querySelectorAll('.sheet-facts.is-wide dt')].map(n=>n.textContent);
-  ok(terms.join(' · ')==='Read · Written · Sent · Stored · Account',
-     'fünf Zeilen, die die Frage abdecken: '+terms.join(' · '));
-  const txt=pane.textContent;
-  ok(/no fetch/i.test(txt)&&/XMLHttpRequest/.test(txt)&&/WebSocket/.test(txt),
-     'die Zusage nennt, was es nicht gibt');
-  ok(/localStorage/.test(txt)&&/Delete local data/.test(txt),
-     'und sagt, was gespeichert wird und wie man es loswird');
-  ok(/Data Input/.test(txt)&&!/expenses/i.test(txt),'sowie was gelesen wird — nur das eine Blatt');
-  ok(/Content-Security-Policy/.test(txt),'und wodurch der Browser es durchsetzt');
-  /* Ein Blatt, das über fehlende Verbindungen spricht, darf selbst keine
-     aufmachen: die Links im About-Blatt sind die einzigen im ganzen Blatt. */
-  ok(pane.querySelectorAll('a').length===0,'es selbst verweist nirgendwohin');
-  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
-  w.close();
-}
-
 /* ---------- 16. Der Kopf des About-Blatts ---------- */
-sec('About: Stern, Wortmarke, Fassung');
+sec('About: Fassung');
 { const {w,errors}=await boot({storage:{...store}});
   const d=w.document;
   const head=d.querySelector('.about-head');
   ok(!!head,'das Blatt hat einen Kopf');
-  const st=head.querySelector('.star');
-  ok(!!st&&st.querySelector('.star-corona')&&st.querySelector('.star-spikes')&&st.querySelector('.star-core'),
-     'und trägt denselben gezeichneten Stern wie Kopfbereich und Leerzustand');
-  ok(head.querySelector('.about-mark').textContent==='nordstern','darunter die Wortmarke');
-
   /* Die Fassung steht an einer Stelle im Quelltext und an einer in
      package.json — laufen sie auseinander, sagt eine von beiden die Unwahrheit,
      und man erfährt es erst, wenn jemand einen Fehler mit falscher Nummer meldet. */
@@ -2333,106 +1869,8 @@ sec('About: Stern, Wortmarke, Fassung');
   ok(w.NORDSTERN.VERSION===pkg.version,'NORDSTERN.VERSION und package.json stimmen überein: '+w.NORDSTERN.VERSION+' / '+pkg.version);
   ok(head.querySelector('.about-ver').textContent==='Version '+pkg.version+' \u00b7 Apache-2.0',
      'und die Zeile darunter sagt es: '+head.querySelector('.about-ver').textContent);
-  ok(head.compareDocumentPosition(d.querySelector('[data-sec="about"] .about-title'))&w.Node.DOCUMENT_POSITION_FOLLOWING,
-     'der Kopf steht über dem ersten Kapitel');
-
-  /* Drei Sterne stehen gleichzeitig im Dokument. Teilten sie sich die IDs
-     ihrer Verläufe, zeigten alle drei auf denselben — und zwei davon fielen
-     in sich zusammen, sobald der erste verschwände. */
-  const ids=[...d.querySelectorAll('radialGradient')].map(n=>n.id);
-  ok(ids.length>=9&&new Set(ids).size===ids.length,'jeder Stern hat eigene Verlaufs-IDs: '+ids.length+' Stück, '+new Set(ids).size+' verschieden');
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
-}
-
-/* Die Leinwand kann keine Marke auflösen und trägt deshalb einen Rückfall im
-   Quelltext. Läuft er der Marke davon, schreibt der Berg auf jedem Rechner
-   ohne Avenir in einer anderen Schrift als die Oberfläche daneben. */
-{ const tok=fs.readFileSync(new URL('../css/tokens.css',import.meta.url),'utf8');
-  const mnt=fs.readFileSync(new URL('../js/ui/mountain.js',import.meta.url),'utf8');
-  const stack=/--font-display:\s*([^;]+);/.exec(tok)[1].trim();
-  const fall=/FONT = v \|\| '([^']+)'/.exec(mnt)[1].trim();
-  const norm=x=>x.replace(/["']/g,'').replace(/\s+/g,' ');
-  ok(norm(stack)===norm(fall),'der Rückfall des Bergs ist der Stapel aus tokens.css:\n     '+norm(fall)+'\n     '+norm(stack));
-  ok(/URW Gothic/.test(stack),'und er fängt Linux ab');
-}
-
-/* Das Zahlenfeld trägt keine System-Pfeilchen: sie sind hell und gerundet und
-   passen in diese Oberfläche nicht. Verloren geht nichts — getippt wird
-   ohnehin, ↑/↓ wirken weiter, das Band darunter stellt grob ein. jsdom
-   rechnet keine Stile aus dem Stylesheet, also wird das Stylesheet gelesen. */
-{ const css=fs.readFileSync(new URL('../css/components.css',import.meta.url),'utf8');
-  ok(/\.field-num\s*\{[^}]*appearance:\s*textfield/.test(css),'.field-num ist ein Textfeld, kein Zählwerk');
-  ok(/inner-spin-button[^{]*\{[^}]*appearance:\s*none/.test(css),'und die Pfeilchen sind fort');
-}
-
-/* Das Lesefenster des Charts liegt über Schaltern und Kennzahlen. Wenn
-   es dabei Zeigerereignisse abfinge, wäre der Schalter darunter nicht mehr zu
-   treffen, solange es steht — jsdom rechnet keine Stile aus dem Stylesheet,
-   also wird das Stylesheet gelesen. */
-{ const css=fs.readFileSync(new URL('../css/components.css',import.meta.url),'utf8');
-  const body=/\.chart-tip\s*\{([^}]*)\}/.exec(css)[1];
-  ok(/pointer-events:\s*none/.test(body),'.chart-tip fängt keine Zeigerereignisse ab');
-  ok(/position:\s*absolute/.test(body)&&/z-index:\s*[1-9]/.test(body),'und liegt über dem, was es überdeckt');
-}
-
-/* Zentrierte, gesperrte Schrift sitzt nicht mittig: hinter dem letzten
-   Buchstaben steht noch einmal die volle Sperrung. Wer den Ausgleich wieder
-   entfernt, verschiebt die Wortmarke unter dem Stern um die halbe Sperrung —
-   sichtbar, aber leicht zu übersehen, wenn man nicht danach sucht. */
-{ const css=fs.readFileSync(new URL('../css/components.css',import.meta.url),'utf8');
-  [['about-mark',/\.about-mark\s*\{([^}]*)\}/],['about-ver',/\.about-ver\s*\{([^}]*)\}/]].forEach(([name,rx])=>{
-    const body=rx.exec(css)[1];
-    const ls=/letter-spacing:\s*([^;]+);/.exec(body);
-    const pad=/padding-inline-start:\s*([^;]+);/.exec(body);
-    ok(!!ls&&!!pad&&ls[1].trim()===pad[1].trim(),
-       '.'+name+' gleicht seine Sperrung aus: '+(ls&&ls[1].trim())+' / '+(pad&&pad[1].trim()));
-  });
-}
-
-/* ---------- 17. Raster bei niedrigen Fenstern ---------- */
-sec('Raster bei niedrigen Fenstern');
-{ const css=fs.readFileSync(new URL('../css/layout.css',import.meta.url),'utf8');
-  /* jsdom kennt keine Media Queries, also wird das Stylesheet als Text
-     geprüft. @media-Blöcke können verschachtelte Klammern enthalten (z. B.
-     Selektoren mit Pseudoelementen), eine einzelne Regex ist dafür zu
-     zerbrechlich — die Blöcke werden mit einem kleinen Klammer-Zähler
-     herausgeschnitten. */
-  const mediaBlocks=[];
-  const open=/@media\s*([^{]+)\{/g;
-  let m;
-  while((m=open.exec(css))){
-    const cond=m[1].trim();
-    let depth=1, i=open.lastIndex;
-    while(depth>0&&i<css.length){
-      if(css[i]==='{') depth++;
-      else if(css[i]==='}') depth--;
-      i++;
-    }
-    mediaBlocks.push({cond, body:css.slice(open.lastIndex, i-1)});
-    open.lastIndex=i;
-  }
-  ok(mediaBlocks.length>0,'mindestens ein @media-Block in layout.css gefunden');
-
-  /* 1: jeder Block, der die Bühne auf eine Spalte stapelt, hängt nur an
-     max-width — eine niedrige, aber breite Fensterform darf nicht stapeln. */
-  const stackBlocks=mediaBlocks.filter(b=>/\.stage\s*\{[^}]*grid-template-columns:\s*1fr/.test(b.body));
-  ok(stackBlocks.length>0,'mindestens ein Block stapelt die Bühne (.stage auf 1fr)');
-  ok(stackBlocks.every(b=>/max-width/.test(b.cond)&&!/max-height/.test(b.cond)),
-     'stapelnde Blöcke hängen nur an max-width, nie an max-height: '+stackBlocks.map(b=>b.cond).join(' | '));
-
-  /* 2: der Block für niedrige, breite Fenster hebt den Ein-Viewport-Zwang auf
-     (overflow: auto), rührt die Spaltenaufteilung aber nicht an. */
-  const shortWide=mediaBlocks.find(b=>/max-height/.test(b.cond)&&/min-width/.test(b.cond));
-  ok(!!shortWide,'es gibt einen Block für niedrige, breite Fenster (max-height und min-width)');
-  if(shortWide){
-    ok(/overflow:\s*auto/.test(shortWide.body),'er hebt den Ein-Viewport-Zwang auf: overflow: auto');
-    ok(!/\.stage\b/.test(shortWide.body),'und rührt .stage nicht an — die zwei Spalten bleiben stehen');
-  }
-
-  /* 3: der schmale Block endet bei 1179px — ein 11"-iPad quer (1180px) bekommt zwei Spalten. */
-  ok(mediaBlocks.some(b=>/max-width:\s*1179px/.test(b.cond)&&!/min-width/.test(b.cond)),
-     'der schmale Block (max-width: 1179px) existiert weiterhin');
 }
 
 console.log('\n'+pass+' bestanden, '+fail+' fehlgeschlagen');

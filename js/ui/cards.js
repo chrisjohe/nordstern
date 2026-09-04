@@ -1,4 +1,4 @@
-/* NORDSTERN — Meilenstein-Cards.
+/* NORDSTERN: Meilenstein-Cards.
    Acht Karten als zusammengehörige Sammlung. Vorderseite: Verlauf mit Marke,
    Name, schmaler Fortschrittsbalken. Rückseite: die Zahlen. Bedienbar per Maus, Touch, Tastatur. */
 (function (global) {
@@ -8,25 +8,16 @@
 
   var STATUS_LABEL = { reached: 'reached', current: 'current', future: 'ahead' };
 
-  /* Woran sich die Station misst. Sieben zählen gegen das investierte Vermögen,
-     die Reserve gegen die liquiden Mittel — das ist der einzige Unterschied
-     zwischen ihnen und zugleich der Grund, warum die Reserve bei vollem Depot
-     halb leer stehen kann.
-
-     Die Angabe steht dort, wo der Betrag steht, aber sie ersetzt „Now" nicht:
-     „Target" und „Invested" wären kein Paar mehr — das eine nennt eine Rolle,
-     das andere eine Quelle, und auf den ersten Blick wüsste man nicht, welche
-     Zahl das Ziel ist. Also führt weiter das Zeitwort, die Deckung begleitet
-     es — dieselbe Teilung wie in der Marke auf der Vorderseite, wo „3 months"
-     trägt und „of expenses" begleitet. */
+  /* Woran sich die Station misst: sieben gegen das investierte Vermögen, die
+     Reserve gegen die liquiden Mittel, deshalb kann sie bei vollem Depot halb
+     leer stehen. „Now" führt, die Herkunft begleitet nur, sonst wüsste man
+     nicht mehr, welche Zahl das Ziel ist. */
   var BASIS_LABEL = { liquid: 'liquid', investment: 'invested' };
   var BASIS_ARIA  = { liquid: 'from liquid assets', investment: 'from invested assets' };
 
-  /* Jede Card trägt einen eigenen atmosphärischen Verlauf statt eines Fotos.
-     Bewusst: alles auf dieser Fläche ist gerechnet, ein Stockfoto wäre das
-     einzige, was nichts über die Daten weiß. Es gibt deshalb auch keinen Weg,
-     eins unterzulegen — die Fläche kommt aus diesen Farben und sonst nirgendwo
-     her, und die Anwendung greift auf keine Datei neben sich zu. */
+  /* Jede Card trägt einen eigenen atmosphärischen Verlauf statt eines Fotos:
+     alles auf dieser Fläche ist gerechnet, ein Stockfoto wäre das einzige,
+     was nichts über die Daten weiß. */
   var WASH = {
     contingency: ['#1b2436', '#2a2419', '#3a2c14'],
     snowball:    ['#101b2e', '#1a2c48', '#2b4468'],
@@ -38,14 +29,9 @@
     fat:         ['#151527', '#2e2947', '#4a3f63']
   };
 
-  /* Das Vielfache, das die Station überhaupt definiert — in Lebenszeit statt
-     in Monatszahlen. Steht sonst nirgends in der Oberfläche, obwohl es der
-     Grund für jeden Zielbetrag ist: die Vorderseite stellt die Frage, die
-     Rückseite nennt den Betrag.
-
-     „of expenses" muss dabeistehen, sonst ist „25 years" eine Frist, ein Alter
-     oder eine Haltedauer — nur nicht das, was gemeint ist. Damit die Wiederholung
-     über acht Karten nicht stört, tritt sie farblich zurück statt zu fehlen. */
+  /* Das Vielfache, das die Station definiert: in Lebenszeit statt in
+     Monatszahlen. „of expenses" muss dabeistehen, sonst ist „25 years" eine
+     Frist oder ein Alter, nur nicht das Gemeinte. */
   function span(months) {
     if (months < 12) return months + ' months';
     var y = months / 12;
@@ -188,7 +174,7 @@
          der Browser den Wechsel bemerkt. */
       root.classList.remove('is-arriving');
       if (arrive) {
-        void root.offsetWidth;               // erzwingt, dass der Wechsel bemerkt wird
+        void root.offsetWidth;
         root.classList.add('is-arriving');
       }
     }

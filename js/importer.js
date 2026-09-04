@@ -1,10 +1,7 @@
-/* NORDSTERN — Importer.
+/* NORDSTERN: Importer.
    SÄMTLICHES Wissen über den Aufbau der Arbeitsmappe lebt in dieser Datei.
-   Ausgewertet, behalten und gespeichert wird ausschließlich das eine Blatt,
-   das chooseSheet auswählt (SHEET_NAMES unten); für xlsx, xlsm und xlsb wird
-   kein anderes überhaupt dekodiert (siehe openWorkbook, wo auch steht,
-   warum ods und numbers das nicht können).
-   Die Datei wird nur gelesen — nie geschrieben, nie ergänzt. */
+   Ausgewertet und gespeichert wird ausschließlich das eine Blatt, das
+   chooseSheet auswählt; die Datei wird nur gelesen, nie geschrieben. */
 (function (global) {
   'use strict';
 
@@ -36,29 +33,13 @@
 
      parseFloat wäre hier falsch, und leise falsch: „1.234,56" wird, wenn man
      nur das Komma tauscht, zu „1.234.56", und parseFloat hört am zweiten Punkt
-     auf — 1,234 statt 1.234,56. Ein Faktor tausend, ohne ein Zeichen davon im
-     Programm. Auch die Gegenprobe gegen die Summenzeile fängt es nicht, wenn
-     die Summe ebenfalls Text ist: dann ist sie genauso falsch.
-
-     Gelesen wird deshalb nur, was einer der beiden Schreibweisen ganz
-     entspricht — deutsch (Punkt gruppiert, Komma trennt ab) oder englisch
-     (umgekehrt). Was auf keine passt, ist keine Zahl.
-
-     Wo beide passen — „1.234" ist deutsch tausendzweihundert und englisch
-     eins Komma zwei — gilt die deutsche Lesart: die Mappe schreibt ihre Daten
-     deutsch, und das Programm zeigt sie so. Dass überhaupt Text statt einer
-     Zahl in der Zelle stand, sagen die Einstellungen; dann kann man nachsehen.
-
-     Eine dritte Schreibweise kommt aus der Schweiz: Gruppen durch Apostroph
-     getrennt, der Punkt bleibt Dezimaltrennzeichen — „1'234.56". Ein
-     Apostroph steht in keiner der beiden anderen Schreibweisen, die Lesart
-     ist also nie mehrdeutig.
-
-     Ein Währungszeichen zählt nur am Rand — einmal, vor oder direkt nach
-     dem Vorzeichen oder ganz am Ende. Mitten in den Ziffern („12€34") ist
-     es keine Schreibweise, sondern eine kaputte Zelle; wer es dort entfernt,
-     macht aus einem Betrag leise einen anderen, und die Summenzeile merkt
-     es nicht, wenn sie genauso kaputt ist. */
+     auf, 1,234 statt 1.234,56, ein Faktor tausend ohne ein Zeichen davon im
+     Programm. Gelesen wird deshalb nur, was einer Schreibweise ganz entspricht:
+     deutsch, englisch oder schweizerisch (Apostroph als Gruppentrenner, nie
+     mehrdeutig). Passen beide, deutsch und englisch, gewinnt deutsch: die
+     Mappe schreibt ihre Daten deutsch. Ein Währungszeichen zählt nur am Rand,
+     vor oder nach dem Vorzeichen oder am Ende; mitten in den Ziffern ist es
+     keine Schreibweise, sondern eine kaputte Zelle. */
   var DE_NUM = /^\d{1,3}(\.\d{3})+(,\d+)?$|^\d+(,\d+)?$/;
   var EN_NUM = /^\d{1,3}(,\d{3})+(\.\d+)?$|^\d+(\.\d+)?$/;
   var CH_NUM = /^\d{1,3}(['’]\d{3})+(\.\d+)?$/;
@@ -230,8 +211,8 @@
   }
 
   /** 'YYYY-MM' → fortlaufende Monatszahl; die Differenz zweier Werte ist der
-      Abstand in Monaten. Eigene Zeile statt js/util.js: diese Datei kommt seit
-      jeher ohne den Rest der Anwendung aus. */
+      Abstand in Monaten. Eigene Zeile statt js/util.js: diese Datei kommt
+      ohne den Rest der Anwendung aus. */
   function monthNo(key) {
     var p = String(key).split('-');
     return Number(p[0]) * 12 + (Number(p[1]) - 1);
@@ -406,28 +387,15 @@
       if (rawL) liabRows.push({ row: r2, name: rawL });
     }
 
-    /* Welche Spalte „jetzt" ist.
-
-       Mappen tragen rechts vom letzten echten Snapshot oft fortgeschriebene
-       Spalten: ein Auto, das planmäßig abschreibt, ein Darlehen, das bis ins
-       übernächste Jahr tilgt.
-
-       Die Grenze am Betrag zu ziehen — „die letzte Spalte mit Total liquid
-       oder Total investments über null" — geht nicht: liquide Mittel dürfen
-       negativ sein (wer seine Dispositionskredite oben führt), und ein Depot
-       darf 0 sein (wer noch keins hat). Beides wäre ein echter Monat, der aus
-       der Reihe fiele.
-
-       Jetzt zählt der Kalender: ein Snapshot ist ein Monat, der stattgefunden
-       hat. Dazu muss in der Spalte überhaupt etwas stehen — leere Spalten für
-       den Rest des Jahres legt man sich gern im Voraus an. Das gilt nicht nur
-       rechts vom letzten Snapshot: eine leere Spalte mitten in der Reihe ist
-       ebenso wenig ein Monat, der stattgefunden hat — sie wird als Lücke
-       behandelt, nicht als Nullstand.
-
-       Der Füllgrad taugt nicht als Kriterium: eine Fortschreibung füllt fast
-       so viele Kontozeilen wie ein gelebter Monat, und ein paar Prozentpunkte
-       tragen keine Schwelle. */
+    /* Welche Spalte „jetzt" ist. Mappen tragen rechts vom letzten echten
+       Snapshot oft fortgeschriebene Spalten (ein Auto, das planmäßig
+       abschreibt; ein Darlehen, das weiter tilgt). Die Grenze am Betrag zu
+       ziehen geht nicht: liquide Mittel dürfen negativ sein, ein Depot darf 0
+       sein, beides wäre trotzdem ein echter Monat. Also zählt der Kalender:
+       ein Snapshot ist ein Monat, in dessen Spalte etwas steht; eine leere
+       Spalte, ob am Rand oder mittendrin, ist eine Lücke, kein Nullstand. Der
+       Füllgrad taugt nicht als Kriterium, weil eine Fortschreibung fast so
+       viele Kontozeilen füllt wie ein gelebter Monat. */
     var accountRows = [];
     SECTIONS.forEach(function (s) { s._rows.forEach(function (a) { accountRows.push(a.row); }); });
     liabRows.forEach(function (a) { accountRows.push(a.row); });
@@ -520,22 +488,13 @@
        ausgesiebten leeren Spalten mit. */
     var skipped = cols.length - (lastIdx + 1);
 
-    /* Die Reihe muss Monat für Monat aufsteigen. Sie tut es fast immer — und
-       wenn nicht, fällt es nirgends auf: die Berechnung liest die Spalte
-       links vom aktuellen Monat als „Vormonat" und die zwölfte als „vor einem
-       Jahr". Eine ausgelassene, doppelte oder verrutschte Spalte macht daraus
-       eine falsche Zahl, die aussieht wie jede andere.
-
-       Lücken und Doppelungen trägt das Programm: die Vergleiche rechnen mit
-       dem Monatsabstand und bleiben leer, wo keiner passt (calc.back), der
-       Verlauf zeichnet die Lücke als Lücke, und die Einstellungen sagen es
-       unter „notes while reading".
-
-       Eine verrutschte Spalte trägt es nicht. „Zuletzt" ist die Spalte ganz
-       rechts, und wenn die Reihe Januar, März, Februar heisst, ist das der
-       Februar — ein falscher aktueller Stand, aus dem alles Weitere folgt.
-       Sortieren wäre möglich, hiesse aber, eine kaputte Mappe stillschweigend
-       zu reparieren und dabei zu raten. Also abgelehnt und gesagt, wo. */
+    /* Die Reihe muss Monat für Monat aufsteigen, sonst liest die Berechnung
+       die falsche Spalte als „Vormonat" oder „vor einem Jahr", ohne dass es
+       auffällt. Lücken und Doppelungen trägt das Programm: die Vergleiche
+       rechnen mit dem Monatsabstand und die Einstellungen nennen sie. Eine
+       verrutschte Spalte trägt es nicht: „zuletzt" wäre dann der falsche
+       Monat, aus dem alles Weitere folgt. Sortieren hiesse, eine kaputte
+       Mappe stillschweigend zu reparieren; stattdessen wird abgelehnt. */
     var dups = [], jumps = [], missing = 0, firstGap = null;
     for (var g = 1; g < used.length; g++) {
       var step = monthNo(used[g].key) - monthNo(used[g - 1].key);
@@ -674,21 +633,14 @@
   }
 
   /** Öffnet die Mappe in zwei Durchgängen: erst das Inhaltsverzeichnis, dann
-      ausschließlich das eine Blatt, das chooseSheet auswählt.
-
-      Der Umweg ist der Preis dafür, dass SheetJS ohne `sheets` jedes Blatt
-      parst — auch das, auf dem jemand seine Gehaltsverhandlung notiert hat.
-      `bookSheets: true` liest nur die Namensliste und keinen Blattinhalt.
-
-      Für ods und numbers ignoriert SheetJS den Filter und parst trotzdem
-      alles. Deshalb wird danach hart auf das eine Blatt reduziert: was
-      nicht dazugehört, kommt nicht über diese Funktion hinaus. Mit derselben
-      Bewegung fallen die Mappen-Eigenschaften weg — dort steht sonst der
-      Name dessen, der die Datei angelegt hat.
-
-      `available` trägt alle Blattnamen aus dem ersten Durchgang, damit eine
-      Fehlermeldung sie nennen kann, ohne sie zu dekodieren; SheetNames und
-      Sheets enthalten weiterhin nie mehr als das eine gewählte Blatt. */
+      ausschließlich das eine Blatt, das chooseSheet auswählt. Der Umweg ist
+      der Preis dafür, dass SheetJS ohne `sheets` jedes Blatt parst, auch das,
+      auf dem jemand Persönliches notiert hat. `bookSheets: true` liest nur
+      die Namensliste. Für ods und numbers ignoriert SheetJS den Filter und
+      parst trotzdem alles, deshalb wird danach hart auf das eine Blatt
+      reduziert, mitsamt der Mappen-Eigenschaften. `available` trägt alle
+      Blattnamen aus dem ersten Durchgang für Fehlermeldungen, ohne sie zu
+      dekodieren. */
   function openWorkbook(X, bytes) {
     var toc = X.read(bytes, { type: 'array', bookSheets: true });
     var available = (toc.SheetNames || []).slice();

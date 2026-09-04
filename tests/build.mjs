@@ -1,4 +1,4 @@
-/* NORDSTERN — Prüfung des Einzeldatei-Baus.
+/* NORDSTERN: Prüfung des Einzeldatei-Baus.
    Baut frisch und stellt drei Fragen: Ist die Datei wirklich geschlossen?
    Steht darin Zeichen für Zeichen der Quelltext aus dem Ordner? Und läuft
    die Anwendung daraus genauso — bis hin zur eingelesenen Mappe? */

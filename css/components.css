@@ -1,4 +1,4 @@
-/* NORDSTERN — Bausteine. Flächen statt Kästen, Kanten statt Rahmen. */
+/* NORDSTERN: Bausteine. Flächen statt Kästen, Kanten statt Rahmen. */
 
 /* ============================================================ Grundlagen == */
 h1, h2, h3, p, dl, dd, dt, figure { margin: 0; }
@@ -24,10 +24,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
    beim Skalieren aus. */
 .star-corona, .star-bloom, .star-spikes { transform-box: fill-box; transform-origin: center; }
 
-/* Drei Takte mit unrunden Verhältnissen. Ihre Überlagerung wabert, statt zu
-   blinken: die Korona atmet im Grundtakt (auf den auch Chartlinie und
-   Reservering hören), der Kern schneller, die Spitzen träger. Dazu selten
-   ein Funkeln — ein Stern steht nie ganz still. */
+/* Drei Takte mit unrunden Verhältnissen wabern statt zu blinken: die Korona
+   atmet im Grundtakt (auf den auch Chartlinie und Reservering hören), der
+   Kern schneller, die Spitzen träger. */
 @media (prefers-reduced-motion: no-preference) {
   :root[data-motion="on"] .star-corona,
   :root[data-motion="calm"] .star-corona { animation: nsCorona var(--pulse-dur) var(--ease-soft) infinite; }
@@ -42,12 +41,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 @keyframes nsSpikes { 0%, 100% { opacity: .58; transform: scale(.95); } 50% { opacity: 1; transform: scale(1.05); } }
 @keyframes nsTwinkle { 0%, 90%, 100% { filter: none; } 95% { filter: drop-shadow(0 0 6px var(--star)); } }
 
-/* Ankunft der Scheibe: beide Ringe laufen gleichzeitig los und gegenläufig —
-   das Vermögen im Uhrzeigersinn, die Schulden dagegen —, mit derselben
-   Winkelgeschwindigkeit. Der kürzere Ring ist deshalb früher fertig; es
-   zeichnet ein Stift, es füllt sich kein Balken. Die Abschnitte des äusseren
-   Rings setzen nacheinander an, jeder dort, wo der vorige aufhört, sodass die
-   fünf Bögen zusammen eine einzige Umdrehung ergeben. Linear, weil eine
+/* Ankunft der Scheibe: beide Ringe laufen gleichzeitig los und gegenläufig,
+   mit derselben Winkelgeschwindigkeit, der kürzere ist deshalb früher
+   fertig, es zeichnet ein Stift, es füllt sich kein Balken. Linear, weil eine
    Beschleunigung an jeder Abschnittsgrenze als Stocken zu sehen wäre. */
 @media (prefers-reduced-motion: no-preference) {
   :root[data-motion="on"] .orbit-svg .is-drawing,
@@ -67,7 +63,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   }
 }
 
-/* Quadrat, kein Punkt: im Blatt gibt es keine runden Formen. */
 .status-dot::before {
   content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px;
   background: var(--ink-mute); vertical-align: 0;
@@ -192,8 +187,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .chart-cross circle { fill: var(--star); stroke: rgba(4,7,14,.8); stroke-width: 2; }
 
 /* Ankunft der Linie: sie zeichnet sich von links nach rechts, Fläche und
-   Randwerk blenden dahinter auf. Läuft einmal je neuer Linie — neue Mappe,
-   anderer Zeitraum, andere Reihe —, danach steht sie still. `both` hält den
+   Randwerk blenden dahinter auf, einmal je neuer Linie. `both` hält den
    Anfangszustand vor dem ersten Bild, sonst blitzt die fertige Linie auf. */
 @media (prefers-reduced-motion: no-preference) {
   :root[data-motion="on"] .chart-line.is-drawing,
@@ -279,7 +273,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   display: flex; gap: clamp(12px, 1.8vw, 26px); align-items: center;
   flex: 1; min-height: 0;
 }
-/* Die Legende bleibt senkrecht mittig neben der größeren Scheibe. */
 .orbit-legend { align-self: center; }
 /* Die Scheibe steht rechts und nimmt die volle Höhe der Spalte: sie ragt oben
    in die Kapitelzeile hinein — dort ist neben dem Wort „structure“ ohnehin
@@ -449,8 +442,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   text-transform: uppercase;
   border: 1px solid rgba(233,239,249,.16); padding: 2px 5px;
 }
-/* Die Zahl trägt, die Einheit steht nur dabei — aber „dabei" heisst lesbar:
-   unter 54 % Deckkraft über der Kartenfläche wird es zu wenig. */
 .card-tag b { font-weight: 400; color: rgba(233,239,249,.80); }
 .card-tag i { font-style: normal; color: rgba(233,239,249,.54); }
 .card-scrim {
@@ -478,9 +469,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 
 /* Ankunft der Karten: die Balken laufen nacheinander auf ihren Stand, in der
-   Reihenfolge der Leiter — Contingency zuerst, Apex zuletzt. Skaliert wird,
-   nicht die Breite bewegt: die Breite ist schon gesetzt, der Balken wächst
-   nur in sie hinein, und am Ende steht exakt der normale Zustand da. */
+   Reihenfolge der Leiter. Skaliert wird, nicht die Breite bewegt: die Breite
+   ist schon gesetzt, der Balken wächst nur in sie hinein. */
 @media (prefers-reduced-motion: no-preference) {
   :root[data-motion="on"] .rail.is-arriving .card-bar i,
   :root[data-motion="calm"] .rail.is-arriving .card-bar i {
@@ -556,7 +546,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 .overlay.is-open .sheet { transform: none; }
 .sheet-head { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; }
-/* Der Name der Anwendung bleibt klein. Groß sind die Abschnitte. */
 .sheet-head h2 {
   font-family: var(--font-display); font-size: 10px; font-weight: 500;
   letter-spacing: var(--track-label); text-transform: uppercase; color: var(--ink-3);
@@ -564,8 +553,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 /* --- Die fünf Namen -------------------------------------------------------
    Der aktive Name ist die Überschrift des Blattes; im Paneel steht er kein
-   zweites Mal. Kleingeschrieben wie die Wortmarke, hell nur dort, wo man
-   gerade ist — der Block links ist die einzige Fläche, die Farbe trägt. */
+   zweites Mal. */
 .sheet-nav { display: flex; flex-direction: column; gap: 2px; align-self: start; }
 .sheet-nav-item {
   font-family: var(--font-display); font-size: 19px; font-weight: 300;
@@ -585,9 +573,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 /* Das Paneel ist rollbar und deshalb anspringbar — der Ring gehört aber der
    Tastatur, nicht der Maus. */
 .sheet-sec:focus:not(:focus-visible) { outline: none; }
-/* Der Wechsel wird erzählt, nicht geschnitten: die Zeilen laufen versetzt von
-   rechts herein. Die Staffel bricht nach der sechsten Zeile ab — was danach
-   kommt, ist ohnehin schon unter der Kante. */
+/* Die Zeilen laufen versetzt von rechts herein; die Staffel bricht nach der
+   sechsten Zeile ab, was danach kommt ist ohnehin schon unter der Kante. */
 @media (prefers-reduced-motion: no-preference) {
   :root:not([data-motion="off"]) .sheet-sec > * { animation: sheetIn .3s var(--ease-out) both; }
   :root:not([data-motion="off"]) .sheet-sec > :nth-child(2) { animation-delay: .045s; }
@@ -623,15 +610,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   padding: 2px 0 10px;
 }
 .about-head .star { margin-bottom: -2px; }
-/* Rechtshinweise: kleiner als der Rest, aber lesbar — nicht als Kleingedrucktes
-   getarnt. Die Werktitel bleiben in Gemischtschreibung: „nordstern" ist eine
-   Marke, keine Versalzeile.
-
-   Sperrung wirkt auch hinter dem letzten Buchstaben. Zentriert man den Kasten,
-   sitzt die Schrift darin um die halbe Sperrung nach links versetzt — bei
-   0,26 em auf 19 px sind das 2,5 px, und über einem 52 px grossen Stern sieht
-   man das sofort. Ein Innenabstand links in derselben Grösse legt links
-   dieselbe Luft an wie rechts, und die Buchstaben stehen wirklich mittig. */
+/* Sperrung wirkt auch hinter dem letzten Buchstaben: zentriert sässe die
+   Schrift um die halbe Sperrung nach links versetzt. Ein Innenabstand links
+   in derselben Grösse legt links dieselbe Luft an wie rechts. */
 .about-mark {
   font-family: var(--font-display);
   font-size: 19px; font-weight: 500; letter-spacing: var(--track-label);
@@ -653,10 +634,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 .about-note { font-size: 10px; color: var(--ink-4); font-style: italic; padding-top: 2px; }
 /* Aufbau der Mappe als Abbild der Mappe: links wörtlich der Zellinhalt in
-   Schreibmaschine, rechts ein Beispiel. Vier Tonlagen tragen die Struktur —
-   Kopfzeile eines Abschnitts in Eisblau, Summenzeile hell, die beiden
-   Gesamtzeilen im Sternton, und die frei benennbaren Kontozeilen kursiv in der
-   Textschrift: Was kursiv steht, ist ein Beispiel und kein Pflichtwort. */
+   Schreibmaschine, rechts ein Beispiel. Die frei benennbaren Kontozeilen
+   stehen kursiv in der Textschrift: was kursiv steht, ist ein Beispiel und
+   kein Pflichtwort. */
 .wbt { width: 100%; border-collapse: collapse; font-size: 10.5px; }
 .wbt th {
   font-size: 9px; font-weight: 500; letter-spacing: var(--track-label);
@@ -727,10 +707,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   transition: border-color .16s var(--ease-out);
 }
 .field-num:hover, .field-num:focus { border-bottom-color: var(--ice); }
-/* Die Pfeilchen des Zahlenfelds sind Systemzubehör: hell, gerundet, mit
-   eigenem Farbklang — auf dieser Fläche ein Fremdkörper. Sie fallen weg, ohne
-   dass etwas verlorengeht: getippt wird ohnehin, ↑/↓ auf der Tastatur wirken
-   weiter, und für das grobe Einstellen liegt das Band direkt darunter. */
+/* Die Pfeilchen des Zahlenfelds sind Systemzubehör und auf dieser Fläche ein
+   Fremdkörper. Sie fallen weg, ohne dass etwas verlorengeht: ↑/↓ auf der
+   Tastatur wirken weiter, das Band darunter deckt das grobe Einstellen ab. */
 .field-num { appearance: textfield; -moz-appearance: textfield; }
 .field-num::-webkit-outer-spin-button,
 .field-num::-webkit-inner-spin-button { appearance: none; -webkit-appearance: none; margin: 0; }
@@ -745,7 +724,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   transition: border-color .16s var(--ease-out);
 }
 .field-select:hover, .field-select:focus { border-bottom-color: var(--ice); }
-/* Flaches Band, rechteckiger Griff — keine Pille, kein Verlauf. */
 .field-range { width: 100%; height: 18px; background: transparent; appearance: none; -webkit-appearance: none; }
 .field-range::-webkit-slider-runnable-track { height: 2px; background: var(--line-soft); }
 .field-range::-webkit-slider-thumb {

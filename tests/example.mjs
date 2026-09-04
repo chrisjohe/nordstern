@@ -1,4 +1,4 @@
-/* NORDSTERN — die ausgelieferte Beispielmappe gegen ihren Erzeuger.
+/* NORDSTERN: die ausgelieferte Beispielmappe gegen ihren Erzeuger.
    Die Mappe in examples/ stammt aus tools/make-example.mjs, ist danach aber
    von Hand formatiert worden: Spaltenbreiten, Zahlenformate, abgesetzte
    Summenzeilen. Wer sie öffnet, soll sofort sehen, wie sie gebaut ist.

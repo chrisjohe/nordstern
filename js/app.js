@@ -1,4 +1,4 @@
-/* NORDSTERN — Verdrahtung.
+/* NORDSTERN: Verdrahtung.
    Hält den Zustand, verteilt das abgeleitete Modell an die Module und verbindet
    Cards, Route, Marker und Reservering miteinander. */
 (function (global) {
@@ -53,9 +53,7 @@
   /* -----------------------------------------------------------------  Gate
      Der Vorhang deckt die Bühne ab, nicht den Kopf: ohne Daten gibt es nichts
      zu sehen, aber es muss etwas zu tun geben. Einstellungen, Lizenzen und der
-     Aufbau der Mappe bleiben deshalb erreichbar — gerade dann, wenn die Mappe
-     noch nicht passt. Verborgen wird nur die leere Bühne, und der Stern im
-     Kopf tritt zurück, solange der große im Vorhang steht. */
+     Aufbau der Mappe bleiben deshalb erreichbar. */
   function showGate(title, copy, errors) {
     var g = U.el('#gate');
     g.hidden = false;
@@ -91,9 +89,7 @@
     if (!file) return;
     /* SheetJS liest mehr als Excel: die ODF-Tabelle aus LibreOffice, das
        Binärformat .xlsb und die Numbers-Datei vom Mac. Google Sheets hat kein
-       eigenes Format — dort exportiert man nach .xlsx und ist hier richtig.
-       Der Filter stand lange auf .xlsx/.xlsm allein und hat damit Dateien
-       abgewiesen, die der Importer längst lesen konnte. */
+       eigenes Format, dort exportiert man nach .xlsx und ist hier richtig. */
     if (!/\.(xlsx|xlsm|xlsb|ods|numbers)$/i.test(file.name)) {
       toast('Not a spreadsheet nordstern can read (.xlsx, .xlsm, .xlsb, .ods, .numbers).', 'error');
       return;
@@ -156,10 +152,7 @@
 
   /* Vergessen ist mehr als den Vorhang zuziehen: die Module haben ihr Bild
      schon gezeichnet und rendern bei `null` gar nicht erst neu, blieben also
-     dahinter sichtbar. Und der monatliche Ausgabenbetrag ist die einzige
-     Zahl, die von Hand eingegeben wird — er muss genauso aus dem Speicher wie
-     das Modell. Was hier passiert, ist deshalb dasselbe wie ein Neustart ohne
-     Mappe: Speicher leer, Zustand zurück auf Werk, jedes Modul leergeräumt. */
+     dahinter sichtbar, jedes Modul muss deshalb einzeln leergeräumt werden. */
   function forget() {
     NS.store.clearAll();
     state.model = null; state.view = null;
@@ -318,11 +311,9 @@
       if (ev.key === 'Escape' && ui.cards.openId()) ui.cards.close();
     });
 
-    /* Der zweite Boden unter der Strukturprüfung in js/store.js. Die prüft,
-       woran die Anwendung bekanntermaßen hängt; hier fängt der Start alles
-       ab, woran sie es unbekannterweise tut. Der Preis eines Fehlschlags ist
-       sonst hoch: der Vorhang ist beim Werfen schon fort, und zurück führt
-       kein Weg — ein leerer Bildschirm ohne Knopf. */
+    /* Zweiter Boden unter der Strukturprüfung in js/store.js: die prüft nur,
+       woran die Anwendung bekanntermaßen hängt. Ohne diesen Fang wäre der
+       Vorhang beim Werfen schon fort, ein leerer Bildschirm ohne Knopf. */
     var stored = NS.store.loadModel();
     var standing = false;
     if (stored) {

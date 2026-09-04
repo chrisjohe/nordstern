@@ -1,4 +1,4 @@
-/* NORDSTERN — der Wächter.
+/* NORDSTERN: der Wächter.
    Die .gitignore schützt die Datei, nicht die Zahlen. Wer beim Schreiben einen
    echten Wert abschreibt — in eine Reihe, ins README, in den DATA_CONTRACT —,
    trägt ihn mit dem nächsten Commit für immer in die History.

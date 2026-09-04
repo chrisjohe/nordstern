@@ -113,10 +113,15 @@ size for small and large — the same shape, simplified for the small one. If
 `card` is missing, the card falls back to `pin`.
 
 To swap one: download the SVG you want (any source, any icon set), open it in
-a text editor, and copy the `viewBox` into `box` and the `d` attribute of the
-path into `d`. The glyph is filled with `currentColor`, so ignore any colour
-in the file. Multi-path icons need to be merged into one `d` first — most
-editors will do that under "combine paths".
+a text editor, and copy two values only: the `viewBox` into `box` and the
+`d` attribute of the path into `d`. The pixel size in the file name (e.g.
+"24px") is not the `box`; the actual size lives in the path data itself and
+the glyph scales losslessly to whatever size the mountain or card needs. The
+glyph is filled with `currentColor`, so ignore any colour in the file. A file
+with multiple `<path>` elements can be combined by concatenating their `d`
+values with a space, or by using an editor's "combine paths" feature. The
+Material Symbols SVGs this app ships with live unmodified in `sprites/`,
+which is the source; `GLYPHS` is the extract.
 
 **`js/ui/cards.js`**, the table `WASH`, also keyed by `id`: three hex colours
 per station, from which the card's gradient is built (deep base, mid, and a

@@ -1,4 +1,4 @@
-/* NORDSTERN — Einstellungen als ruhiges Overlay, keine eigene Seite.
+/* NORDSTERN: Einstellungen als ruhiges Overlay, keine eigene Seite.
    Eine Ebene: links die Namen, rechts genau ein Abschnitt. Der aktive Name
    ist die Überschrift — er wird im Blatt nicht noch einmal wiederholt. */
 (function (global) {
@@ -19,11 +19,9 @@
   ];
 
   function create(root, bus, api) {
-    /* `aria-modal` gilt nur, solange das Blatt offen ist. Steht es dauerhaft
-       am Knoten, behauptet es auch im geschlossenen Zustand einen Dialog, der
-       den Rest der Seite verdeckt — und der geschlossene Dialog steht mit all
-       seinen Schaltern weiter in der Tabreihenfolge. Deshalb hier nichts
-       davon; open() und close() setzen es. */
+    /* `aria-modal` gilt nur, solange das Blatt offen ist: dauerhaft am
+       Knoten behauptete es auch geschlossen einen Dialog, der den Rest der
+       Seite verdeckt. open() und close() setzen es deshalb selbst. */
     var panel = U.make('div', { class: 'sheet', role: 'dialog',
       'aria-label': 'Settings', tabindex: '-1' });
     var scrim = U.make('div', { class: 'sheet-scrim' });
@@ -188,16 +186,11 @@
 
       /* --- Aufbau der Mappe ------------------------------------------------
          Steht hier und nicht nur in der README: scheitert der Import, ist die
-         Oberfläche das Einzige, was offen ist.
-
-         Ein Abbild der Mappe, keine Beschreibung davon — links wörtlich, was
-         in Spalte A stehen muss, rechts ein Beispiel. Zeile für Zeile mit der
-         eigenen Datei vergleichbar; das kann kein Fließtext. Die Zahlen sind
-         erfunden und gehen glatt auf (7.500 + 60.000 + 12.000 + 8.500 =
-         88.000 − 20.000 = 68.000): im Code steht kein echter Betrag.
-
-         Ändert sich js/importer.js, ändert sich diese Tabelle mit;
-         tests/behaviour.mjs prüft jede Beschriftung gegen den Importer. */
+         Oberfläche das Einzige, was offen ist. Ein Abbild der Mappe, keine
+         Beschreibung davon: links wörtlich, was in Spalte A stehen muss,
+         rechts ein Beispiel, Zeile für Zeile mit der eigenen Datei
+         vergleichbar. Die Zahlen sind erfunden und gehen glatt auf: im Code
+         steht kein echter Betrag. */
       function wbRow(r) {
         return U.make('tr', { class: r[2] || '' }, [
           U.make('td', { text: r[0] }),
@@ -281,9 +274,8 @@
       ]));
 
       /* --- Datenschutz -----------------------------------------------------
-         Die Zusage steht sonst im README, das niemand offen hat, während er
-         seine Kontostände hineinzieht. Hier steht sie dort, wo die Frage
-         entsteht — und zwar als Liste prüfbarer Tatsachen, nicht als
+         Die Zusage steht hier, wo die Frage entsteht, während jemand seine
+         Kontostände hineinzieht, als Liste prüfbarer Tatsachen, nicht als
          Beteuerung: jede Zeile sagt, woran man sie nachsehen kann. */
       function fact(term, detail) {
         return [U.make('dt', { text: term }), U.make('dd', { text: detail })];
@@ -320,9 +312,7 @@
       /* --- About ----------------------------------------------------------
          Die Lizenztexte stehen wortgleich so da, wie sie der Urheber gesetzt
          hat. Links werden in den Fließtext eingesetzt, statt darunter zu
-         stehen — ein Rechtshinweis liest sich als ein Absatz. Die Werktitel
-         bleiben in Gemischtschreibung: „nordstern" ist eine Marke, keine
-         Versalzeile. */
+         stehen: ein Rechtshinweis liest sich als ein Absatz. */
       function link(href, label) {
         return U.make('a', { class: 'sheet-link', href: href,
           target: '_blank', rel: 'noopener noreferrer', text: label });

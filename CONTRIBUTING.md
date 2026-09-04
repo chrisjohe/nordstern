@@ -61,11 +61,10 @@ There is no dev server and nothing to watch. Edit a file, reload the page.
 
 ## Tests
 
-`npm test` runs seven suites and they must all be green:
+`npm test` runs six suites and they must all be green:
 
 | Suite | What it holds down |
 |---|---|
-| `tests/smoke.mjs` | the whole page against a DOM, with a real import |
 | `tests/behaviour.mjs` | empty state, import, persistence, every control |
 | `tests/geometry.mjs` | the mountain: contours, route, framing, marker spacing |
 | `tests/formats.mjs` | every format the file dialog offers actually parses |
@@ -75,6 +74,11 @@ There is no dev server and nothing to watch. Edit a file, reload the page.
 
 `tests/privacy.mjs` runs separately (`npm run privacy`) because it needs a
 real workbook to be useful. It skips cleanly when there isn't one.
+
+`tests/smoke.mjs` runs separately too (`npm run smoke`), by hand: it asserts
+nothing and instead prints a masked walk-through of the whole page against a
+DOM, with a real import — point `NORDSTERN_WORKBOOK=…` at a real workbook to
+see it render without ever printing a figure.
 
 Turn the commit hook on once, and it will run that guard for you:
 

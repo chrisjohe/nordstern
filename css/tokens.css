@@ -1,4 +1,4 @@
-/* NORDSTERN — visuelles System.
+/* NORDSTERN: visuelles System.
    Farben, Typografie, Raster, Bewegung. Nichts hiervon ist inhaltsspezifisch. */
 
 :root {
@@ -14,12 +14,9 @@
   --line-firm:    rgba(146, 180, 228, 0.28);
 
   /* --- Schrift ----------------------------------------------------------- */
-  /* Vier Stufen, jede rund anderthalbmal so hell wie die nächste — gemessen
-     als Kontrast gegen --bg-void, nicht nach Augenmaß: 17 · 11 · 7 · 4,9 : 1.
-     Die unteren beiden tragen die kleinen Versaletiketten, die Achsen und die
-     Zeitraumschalter; unter 4,5 : 1 sind die auf einem dunklen Schirm zwar
-     noch da, aber nicht mehr lesbar. tests/behaviour.mjs rechnet die Rampe
-     nach. */
+  /* Vier Stufen im Kontrastverhältnis 17 · 11 · 7 · 4,9 : 1 gegen --bg-void:
+     unter 4,5 : 1 sind die unteren beiden, die die kleinen Versaletiketten
+     tragen, auf einem dunklen Schirm zwar noch da, aber nicht mehr lesbar. */
   --ink:          #e9eff9;
   --ink-2:        #b3c2da;
   --ink-3:        #869ab9;
@@ -44,13 +41,11 @@
   --aurora-veil:  rgba(47, 189, 139, 0.14);
 
   /* --- Ember/Amber: Schulden und Vorbehalt -------------------------------
-     Zwei Töne, zwei Bedeutungen, eine Familie. Ember ist die Aussage über
-     einen Bestand — Schulden, Negatives. Amber ist die Aussage über einen
-     Zustand — noch nicht gedeckt, Hinweis, kein Fehler. Auf der Contingency-
-     Card liegen beide dicht beieinander, deshalb dürfen sie nicht derselbe
-     Ton werden: „noch nicht genug" sieht sonst aus wie „du schuldest".
-     Sie liegen aber nah genug (Farbton ~2° und ~22°), dass sie als gewollt
-     lesbar sind und nicht wie zwei zufällig gewählte Warmtöne. */
+     Ember ist die Aussage über einen Bestand (Schulden, Negatives), Amber
+     über einen Zustand (noch nicht gedeckt, kein Fehler): auf der
+     Contingency-Card liegen beide dicht beieinander und dürfen deshalb nicht
+     denselben Ton tragen, sonst sähe „noch nicht genug" aus wie „du
+     schuldest". Farbton ~2° und ~22° hält sie trotzdem als Familie lesbar. */
   --ember:        #c9352f;
   --ember-pale:   #f0574f;
   --ember-veil:   rgba(201, 53, 47, 0.16);

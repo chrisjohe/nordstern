@@ -1,4 +1,4 @@
-/* NORDSTERN — lokale Persistenz.
+/* NORDSTERN: lokale Persistenz.
    Modell und Einstellungen liegen ausschließlich im localStorage dieses Rechners.
    Es verlässt nichts das Gerät. */
 (function (global) {
@@ -10,12 +10,10 @@
   var KEY_SETTINGS = 'nordstern.settings.v1';
 
   /* Die eine Zahl, die die App nicht aus der Mappe lesen kann: was der
-     Haushalt im Monat kostet, Fixkosten und Leben zusammen. Bei 0 lägen alle
-     acht Ziele bei null — sichtbar falsch, und schlimmer als eine grobe
-     Schätzung. Deshalb steht hier eine: 2.500 € im Monat. Das ist eine
-     Hausnummer und niemandes echte Ausgabe; wer sie dauerhaft anders haben
-     will, ändert diese Zeile (siehe docs/CUSTOMISE.md), wer sie einmal anders
-     haben will, tippt sie in Einstellungen → expenses. */
+     Haushalt im Monat kostet. Bei 0 lägen alle acht Ziele bei null, sichtbar
+     falsch, schlimmer als eine grobe Schätzung. 2.500 € ist eine Hausnummer,
+     niemandes echte Ausgabe; dauerhaft ändert diese Zeile (docs/CUSTOMISE.md),
+     einmalig Einstellungen → expenses. */
   var DEFAULT_EXPENSES = 2500;
 
   var DEFAULT_SETTINGS = {
@@ -54,14 +52,12 @@
 
   /* Die Versionsnummer allein sagt nichts über den Inhalt: ein von Hand
      abgeschnittener, halb überschriebener oder aus einer Bastelei stammender
-     Eintrag wie {"version":2} kommt durch und wirft dann beim ersten Zugriff
-     — und zwar nach dem Ausblenden des Leerzustands, also vor einem leeren
-     Bildschirm ohne Weg zurück.
-
-     Geprüft wird deshalb, woran die Anwendung tatsächlich hängt. Nicht mehr:
-     das hier ist kein Schema-Validator, sondern die Frage, ob das Modell
-     benutzbar ist. Fällt es durch, ist es, als läge nichts da — „No data
-     yet", und die Mappe wird neu gezogen. */
+     Eintrag wie {"version":2} kommt durch und wirft dann beim ersten Zugriff,
+     und zwar nach dem Ausblenden des Leerzustands, also vor einem leeren
+     Bildschirm ohne Weg zurück. Geprüft wird deshalb, woran die Anwendung
+     tatsächlich hängt, kein Schema-Validator: die Frage ist nur, ob das
+     Modell benutzbar ist. Fällt es durch, ist es, als läge nichts da: „No
+     data yet", und die Mappe wird neu gezogen. */
   function usable(m) {
     if (!m || typeof m !== 'object') return false;
     if (m.version !== NS.importer.MODEL_VERSION) return false;
@@ -69,8 +65,8 @@
     for (var i = 0; i < m.months.length; i++) {
       var mo = m.months[i];
       if (!mo || typeof mo !== 'object') return false;
-      /* '2026-99' bestand die alte, laxere Prüfung — der Monat selbst muss
-         im Kalender vorkommen, nicht nur zweistellig sein. */
+      /* Der Monat muss im Kalender vorkommen, nicht nur zweistellig sein,
+         sonst besteht auch '2026-99' die Prüfung. */
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mo.key)) return false;
       if (!num(mo.netWorth) || !num(mo.totalAssets) || !num(mo.liabilities)) return false;
       /* Alle fünf Sektionen, nicht nur liquid/investment — sonst kommt ein
@@ -100,8 +96,6 @@
   }
   function num(v) { return typeof v === 'number' && isFinite(v); }
 
-  /* Ein Konto trägt einen Namen und für jeden Monat einen Stand — eine kürzere
-     Reihe fällt genau dann auf, wenn jemand den letzten Monat ansieht. */
   function accountList(rows, monthCount) {
     if (!Array.isArray(rows)) return false;
     for (var i = 0; i < rows.length; i++) {
@@ -134,13 +128,10 @@
     }
   }
 
-  /* „Delete local data" heisst alles, nicht das Modell allein. In den
-     Einstellungen steht der monatliche Ausgabenbetrag — eine von Hand
-     eingetippte Zahl, also genauso persönlich wie jeder Kontostand.
-     Wer den Knopf drückt, will nichts zurücklassen; deshalb wird hier über
-     alle Schlüssel gegangen und jeder entfernt, der uns gehört. Erst
-     sammeln, dann löschen: entfernt man während des Durchlaufs, rutscht der
-     Index weiter und überspringt Einträge. */
+  /* „Delete local data" heisst alles, nicht das Modell allein: die
+     Ausgaben sind eine von Hand eingetippte Zahl, genauso persönlich wie
+     jeder Kontostand. Erst sammeln, dann löschen: wer während des
+     Durchlaufs entfernt, überspringt Einträge, weil der Index weiterrutscht. */
   function clearAll() {
     if (!ok) return 0;
     var mine = [];

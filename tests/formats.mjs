@@ -1,4 +1,4 @@
-/* NORDSTERN — welche Tabellen gelesen werden.
+/* NORDSTERN: welche Tabellen gelesen werden.
    Der Dateidialog nennt fünf Formate. Diese Reihe schreibt die Beispielmappe
    in jedes davon und liest sie mit dem echten Importer zurück: gleiche
    Monatszahl, gleiche Beträge, keine Warnung. Was der Dialog verspricht, ist
@@ -126,6 +126,22 @@ console.log('\n== Währung');
   ok(P('EUR12USD') === null, 'EUR12USD ist keine Zahl, gelesen: ' + P('EUR12USD'));
   ok(P('-€-5') === null, '-€-5 ist keine Zahl, gelesen: ' + P('-€-5'));
   ok(P('€') === null, '€ allein ist keine Zahl, gelesen: ' + P('€'));
+
+  /* Die übrigen Grundformen: Vorzeichen (auch das echte Minuszeichen U+2212,
+     nicht nur der Bindestrich), Leerzeichen als Gruppierung, die deutsch/
+     englische Mehrdeutigkeit bei einem einzelnen Trennzeichen, und was keine
+     Zahl ergibt. */
+  const good = [
+    ['1.234,56', 1234.56], ['1,234.56', 1234.56], ['-1.234,56', -1234.56],
+    ['−1.234,56', -1234.56], ['+980', 980], ['0', 0], ['12,5', 12.5],
+    ['1 234,56', 1234.56], ['1.234,56 €', 1234.56],
+    ['1.234', 1234],       // beides möglich, deutsch gewinnt
+    ['1.2345', 1.2345],    // als deutsche Gruppierung unmöglich
+    ['1.234.567,89', 1234567.89], ['12,345', 12.345]
+  ];
+  good.forEach(([t, v]) => ok(P(t) === v, '„' + t + '" ist ' + v + ', gelesen: ' + P(t)));
+  const bad = ['1.234.56', 'abc', '12,34,56', '1.23.456', '', '12 %', '1.2.3', '--5', '1,2345.6'];
+  bad.forEach((t) => ok(P(t) === null, '„' + t + '" ist keine Zahl, gelesen: ' + P(t)));
 }
 
 /* 2. _currencyOfFormat: Zahlenformat-Zeichenkette → Währungscode oder null. */

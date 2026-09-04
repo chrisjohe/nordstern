@@ -1,4 +1,4 @@
-/* NORDSTERN — Grundlagen: Namensraum, Formatierung, DOM- und Mathe-Helfer, Event-Bus.
+/* NORDSTERN: Grundlagen: Namensraum, Formatierung, DOM- und Mathe-Helfer, Event-Bus.
    Klassisches Script, keine Module — läuft unter file:// ohne Build. */
 (function (global) {
   'use strict';
@@ -21,9 +21,7 @@
 
   /** Stellt alle Zahlen- und Datumsformatierer auf eine Währung um. Ein
       unbekannter Code fällt auf EUR zurück, statt die App mit einer
-      werfenden Formatierung zu blockieren. Gibt den tatsächlich gesetzten
-      Code zurück, damit der Aufrufer (z. B. Einstellungen) weiß, was
-      angekommen ist. */
+      werfenden Formatierung zu blockieren. */
   function setCurrency(code) {
     var c = Object.prototype.hasOwnProperty.call(CURRENCIES, code) ? code : 'EUR';
     var locale = CURRENCIES[c].locale;
@@ -90,10 +88,8 @@
     return (v > 0 ? '+' : v < 0 ? '−' : '±') + nfEur.format(Math.abs(v));
   }
 
-  /** Dasselbe ohne Cent — für die Position, wo Stand, Veränderung und
-      Kennzahlen nebeneinander stehen. Zwei Nachkommastellen bei der einen und
-      keine bei der nächsten liest sich wie zwei verschiedene Genauigkeiten;
-      es ist aber dieselbe Zahl aus derselben Zeile der Mappe. */
+  /** Dasselbe ohne Cent, für die Position, wo Stand, Veränderung und
+      Kennzahlen nebeneinander stehen und dieselbe Genauigkeit tragen sollen. */
   function eurSigned0(v) {
     if (!isNum(v)) return '—';
     return (v > 0 ? '+' : v < 0 ? '−' : '±') + nfEur0.format(Math.abs(v));
@@ -244,8 +240,7 @@
   }
 
   /* Eine Fassung, an einer Stelle. Ohne Bauschritt kann nichts sie aus
-     package.json holen, also steht sie hier — und tests/behaviour.mjs hält
-     beide gegeneinander, damit sie nicht auseinanderlaufen. */
+     package.json holen, also steht sie hier. */
   NS.VERSION = '1.1.8';
 
   /* Formatierer müssen existieren, bevor irgendetwas eur()/pct()/dateTime()

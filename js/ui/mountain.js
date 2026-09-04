@@ -1,8 +1,6 @@
-/* NORDSTERN — der FIRE-Berg.
+/* NORDSTERN: der FIRE-Berg.
    Echte Topografie: ein deterministisches Höhenfeld, daraus per Marching Squares
-   Höhenlinien, projiziert über eine eigene Rotationsmatrix auf Canvas 2D.
-   Die Bänder werden von unten nach oben gefüllt und gestrichelt — dadurch verdeckt
-   der Berg sich selbst korrekt, ohne Tiefenpuffer und ohne 3D-Bibliothek. */
+   Höhenlinien, projiziert über eine eigene Rotationsmatrix auf Canvas 2D. */
 (function (global) {
   'use strict';
 
@@ -35,7 +33,7 @@
   var RING_R = 1.02;              // Reservering
 
   /* Kamera. Die Bildaufteilung steckt in frame() und projectPt(), damit sie
-     kopflos nachgerechnet werden kann — siehe tests/geometry.mjs. */
+     kopflos nachgerechnet werden kann. */
   var CAM_F = 9.0;                // Brennweite; groß = fast orthografisch
   var PITCH_DEF = 0.46;           // Standardneigung ≈ 26°
   var PITCH_MIN = 0.30, PITCH_MAX = 0.78;
@@ -340,21 +338,18 @@
      hält sich ans Gelände wie ein echter Steig:
 
        · Zwischen zwei Ankern werden Winkel und Zielhöhe interpoliert, der
-         Radius wird aus dem Höhenfeld gesucht (radiusFor). Der Weg steigt
-         dadurch stetig, statt Rinnen zu queren und wieder herauszuklettern.
+         Radius aus dem Höhenfeld gesucht (radiusFor): der Weg steigt so
+         stetig, statt Rinnen zu queren und wieder herauszuklettern.
        · Zwei Anker sitzen fest auf dem Gelände: Aurora auf dem Nebengipfel,
          Apex auf dem Hauptgipfel.
-       · Der Abschnitt Aurora → Passage ist als 'ridge' markiert: dort wird
-         direkt in Polarkoordinaten interpoliert, sodass der Weg dem Grat
-         folgt, statt in den Sattel abzusteigen. Die 0,02 Höhenverlust gleich
-         hinter dem Nebengipfel sind der Grat selbst.
+       · Aurora → Passage ist als 'ridge' markiert: dort wird direkt in
+         Polarkoordinaten interpoliert, sodass der Weg dem Grat folgt statt
+         in den Sattel abzusteigen.
        · Oberhalb der Passage dreht der Weg auf die abgewandte Seite: Polaris
-         liegt dem Grat gegenüber, der Anstieg wird zur Wendeltreppe statt zur
-         Falllinie.
+         liegt dem Grat gegenüber, der Anstieg wird zur Wendeltreppe.
 
-     `seg` ist die Zahl der Zwischenpunkte bis zu diesem Anker. Daraus ergibt
-     sich der Wegparameter jeder Station — er muss zu `t` in calc.js passen,
-     tests/geometry.mjs rechnet das nach. */
+     `seg` ist die Zahl der Zwischenpunkte bis zu diesem Anker; daraus ergibt
+     sich der Wegparameter jeder Station, der zu `t` in calc.js passen muss. */
   var ROUTE_ANCHORS = [
     { a: -135, z: 0.012 },
     { a:  -95, z: 0.105, seg: 3, st: true },   // First Light
@@ -645,19 +640,15 @@
       drawCardinals();
     }
 
-    /* Die Himmelsrichtungen liegen flach in der Tellerebene, nicht als Etikett
-       davor. Dafür wird die Schrift über die projizierten Basisvektoren der
-       Ebene geschert — Tangente als Leserichtung, Radius als Hochachse. */
-    /* Die Himmelsrichtungen liegen in der Ebene des Tellers und drehen sich mit
-       ihm — wie die Rose eines echten Kompasses: Leserichtung entlang der
-       Teilung, Kopf nach außen, von der Mitte aus gelesen.
-
-       Der Vorzeichenwechsel ist kein Schönheitsgriff: Die Projektion bildet
-       die Bodenebene seitenverkehrt ab (+y zeigt zur Kamera, +x nach rechts).
-       Flach gelegte Schrift erbt das und stünde gespiegelt da. Beide
-       Achsen umgedreht ergibt dieselbe Lage in der Ebene, aber eine
-       seitenrichtige Schrift auf dem Bildschirm. tests/geometry.mjs prüft
-       das über alle Drehungen mit. */
+    /* Die Himmelsrichtungen liegen flach in der Ebene des Tellers und drehen
+       sich mit ihm, wie die Rose eines echten Kompasses: Leserichtung entlang
+       der Teilung, Kopf nach außen. Dafür wird die Schrift über die
+       projizierten Basisvektoren der Ebene geschert, Tangente als
+       Leserichtung, Radius als Hochachse. Der Vorzeichenwechsel dabei ist kein
+       Schönheitsgriff: die Projektion bildet die Bodenebene seitenverkehrt ab
+       (+y zeigt zur Kamera, +x nach rechts), flach gelegte Schrift erbt das
+       und stünde gespiegelt da; beide Achsen umgedreht ergibt dieselbe Lage in
+       der Ebene, aber eine seitenrichtige Schrift auf dem Bildschirm. */
     function drawCardinals() {
       ctx.font = '500 100px ' + displayFont();
       ctx.textAlign = 'center';

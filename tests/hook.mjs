@@ -1,4 +1,4 @@
-/* NORDSTERN — der Commit-Haken selbst.
+/* NORDSTERN: der Commit-Haken selbst.
    Ein Haken, der nichts tut, sieht genauso aus wie einer, der nichts zu tun
    findet. Deshalb diese Reihe: sie legt ein Wegwerf-Repository an, hängt den
    echten Haken ein und prüft, dass er beisst — bei einer untergeschobenen

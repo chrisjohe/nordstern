@@ -1,4 +1,4 @@
-/* NORDSTERN — Net-Worth-Verlauf.
+/* NORDSTERN: Net-Worth-Verlauf.
    SVG, damit die Linie bei jeder Fenstergröße scharf bleibt. Atmosphärisch,
    aber messgenau: Fadenkreuz, exakte Werte, Vorjahresvergleich. */
 (function (global) {
@@ -149,14 +149,11 @@
       if (min > 0 && min < span * 0.5) min = 0;
 
       var iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-      /* Die Waagerechte ist Zeit, nicht Reihenfolge.
-
-         Nach Index verteilt sieht ein halbes Jahr ohne Eintrag aus wie ein
-         gewöhnlicher Monatsschritt — die Kurve wird flacher, und man hält es
-         für ruhige Monate statt für fehlende. Der Abstand kommt deshalb aus
-         dem Monatsschlüssel. Ist die Reihe lückenlos, ist es dieselbe Achse
-         wie zuvor; steht sie ganz auf einem Monat (Doppelspalten), bleibt es
-         beim Index, weil es sonst keine Strecke gäbe. */
+      /* Die Waagerechte ist Zeit, nicht Reihenfolge: nach Index verteilt sähe
+         ein halbes Jahr ohne Eintrag aus wie ein gewöhnlicher Monatsschritt,
+         die Kurve würde flacher statt lückenhaft. Steht die Reihe ganz auf
+         einem Monat (Doppelspalten), bleibt es beim Index, weil es sonst
+         keine Strecke gäbe. */
       var t0 = U.monthNo(data[0].key);
       var tSpan = U.monthNo(data[data.length - 1].key) - t0;
       var at = data.map(function (d, i) {
@@ -173,14 +170,11 @@
           U.monthLong(data[0].key) + ' to ' + U.monthLong(data[data.length - 1].key) });
 
       var defs = U.svg('defs', {}, [
-        /* Die Fläche als Polarlicht-Vorhang. Der Verlauf hängt an der Bounding-Box
-           der Fläche, nicht am Chart: Offset 0 sitzt damit immer auf dem höchsten
-           Punkt der gerade sichtbaren Kurve — der Kamm leuchtet, egal welcher
-           Zeitraum gewählt ist. Reihenfolge wie am echten Himmel und wie in der
-           Kapitelzeile darüber: Violett oben, Grün darunter, Blau am Boden.
-           Bewusst nur als Wäsche mit kleiner Deckkraft — Grün heißt in diesem
-           Programm „erreicht" und Violett „Vorjahr"; als Fläche darf die Farbe
-           Atmosphäre sein, als Strich wäre sie eine Aussage. */
+        /* Die Fläche als Polarlicht-Vorhang, in kleiner Deckkraft: Grün heißt
+           in diesem Programm „erreicht" und Violett „Vorjahr", als Fläche darf
+           die Farbe Atmosphäre sein, als Strich wäre sie eine Aussage. Der
+           Verlauf hängt an der Bounding-Box der Fläche, nicht am Chart, damit
+           der Kamm immer leuchtet, egal welcher Zeitraum gewählt ist. */
         U.svg('linearGradient', { id: 'nsFill', x1: '0', y1: '0', x2: '0', y2: '1' }, [
           U.svg('stop', { offset: '0', 'stop-color': '#9085e9', 'stop-opacity': '0.26' }),
           U.svg('stop', { offset: '0.26', 'stop-color': '#2fbd8b', 'stop-opacity': '0.16' }),
@@ -237,19 +231,12 @@
       }
       g.appendChild(gy);
 
-      /* Stationslinien.
-
-         Nur auf „Invested": die sieben Stationen messen gegen das Depot, auf
-         Net oder Total wären die Schwellen falsch — es ist nicht dieselbe
-         Größe. Die Skala rechnet weiter allein aus der Kurve; die Stationen
-         zoomen sich nicht hinein. Was über `max` liegt, ist ohnehin „noch
-         weit weg" und bleibt außen vor, statt die Kurve zusammenzustauchen.
-         Die Gruppe steht trotzdem immer im SVG, auch leer — die Struktur
-         bleibt stabil, egal welche Reihe gerade gezeigt wird.
-
-         Liegen zwei Ziele nah beieinander, überlappten sich ihre Labels:
-         die Linien bleiben exakt auf ihrer Höhe (sie sind die Aussage), nur
-         die Beschriftung weicht nach oben aus, bis ihr Platz frei ist. */
+      /* Stationslinien nur auf „Invested": die sieben Stationen messen gegen
+         das Depot, auf Net oder Total wäre es nicht dieselbe Größe. Die Skala
+         rechnet weiter allein aus der Kurve, was über `max` liegt bleibt
+         außen vor statt sie zusammenzustauchen. Liegen zwei Ziele nah
+         beieinander, weicht nur die Beschriftung nach oben aus, die Linien
+         bleiben exakt auf ihrer Höhe, sie sind die Aussage. */
       var gs = U.svg('g', { class: 'chart-stations' });
       /* Rückt ein Label nach oben, bis sein 12-px-Band frei von allen bereits
          gesetzten Bändern ist — anderen Stationslabels und, sofern sie sich
@@ -304,17 +291,11 @@
       });
       g.appendChild(gx);
 
-      /* Fläche + Linie.
-
-         Über eine Lücke hinweg bricht der Strich ab; die Strecke dorthin
-         bekommt stattdessen einen gestrichelten Steg. Zwischen zwei Ständen,
-         die ein halbes Jahr auseinanderliegen, ist die Gerade eine Behauptung
-         über sechs Monate, die niemand eingetragen hat.
-
-         Die Fläche läuft weiter durch: sie ist Atmosphäre, kein Wert — dieselbe
-         Trennung wie oben bei den Farben. Sie braucht ohnehin einen
-         geschlossenen Umriss, und ein Vorhang mit Löchern sähe aus wie ein
-         zweiter Verlauf. */
+      /* Fläche + Linie. Über eine Lücke hinweg bricht der Strich ab und
+         bekommt einen gestrichelten Steg statt einer Geraden, die eine
+         Behauptung über nicht eingetragene Monate wäre. Die Fläche läuft
+         weiter durch: sie ist Atmosphäre, kein Wert, und ein Vorhang mit
+         Löchern sähe aus wie ein zweiter Verlauf. */
       var dFull = '', dLine = '', dGap = '';
       data.forEach(function (d, i) {
         var x = X(i).toFixed(1), y = Y(d.value).toFixed(1);
@@ -347,15 +328,12 @@
       g.appendChild(glow);
       g.appendChild(line);
 
-      /* Ankunft: die Linie zeichnet sich einmal von links nach rechts.
-         Die Länge steht fest, ohne zu messen — der Pfad ist ein Streckenzug
-         durch bekannte Punkte, also ist seine Länge deren Summe. getTotalLength
-         gäbe dasselbe, existiert aber nicht in jeder Umgebung, in der diese
-         Datei laufen muss.
-         Der Auslöser ist bewusst kein Rendern: gerendert wird auch bei jedem
-         Zug am Schieberegler und bei jeder Fenstergrösse. Gezeichnet wird nur,
-         wenn wirklich eine andere Linie entsteht — neue Mappe, anderer
-         Zeitraum, andere Reihe. */
+      /* Ankunft: die Linie zeichnet sich einmal von links nach rechts. Die
+         Länge steht fest, ohne zu messen: der Pfad ist ein Streckenzug durch
+         bekannte Punkte, seine Länge also deren Summe; getTotalLength
+         existiert nicht in jeder Umgebung, in der diese Datei laufen muss.
+         Gezeichnet wird nur, wenn wirklich eine andere Linie entsteht, nicht
+         bei jedem Rendern. */
       if (state.arrive) {
         var len = 0;
         for (var q = 1; q < data.length; q++) {
@@ -403,9 +381,9 @@
       if (!geo) return;
       var r = body.getBoundingClientRect();
       var x = ev.clientX - r.left;
-      /* Nicht mehr zurückgerechnet, sondern gesucht: die Punkte stehen seit
-         der echten Zeitachse nicht mehr in gleichen Abständen. Gemeint ist
-         der nächstgelegene — auch mitten in einer Lücke. */
+      /* Gesucht statt zurückgerechnet: seit die Waagerechte Zeit statt Index
+         ist, stehen die Punkte nicht in gleichen Abständen, also gilt der
+         nächstgelegene, auch mitten in einer Lücke. */
       var frac = (x - geo.pad.l) / (geo.w - geo.pad.l - geo.pad.r);
       var i = 0;
       for (var k = 1; k < geo.at.length; k++) {
@@ -460,11 +438,8 @@
         geo.yaCursor.setAttribute('x2', (px + half).toFixed(1));
       }
       /* Das Fenster hängt über dem Punkt, den es beschreibt, und darf dabei
-         über den oberen Rand des Charts hinaus — über Schalter, Kapitelwort
-         und notfalls die Kennzahlen. Am Rand abgefangen läge es genau dort,
-         wo die Linie hinwill: oben rechts. Die Schalter stehen still und sind
-         wieder da, sobald der Zeiger den Chart verlässt; die Linie ist das,
-         was man gerade liest. Grenze ist der Fensterrand. */
+         über Schalter und Kapitelwort hinauslaufen: am Rand abgefangen läge
+         es genau dort, wo die Linie hinwill, oben rechts. */
       var tw = tip.offsetWidth || 190;
       var th = tip.offsetHeight || 96;
       tip.style.left = U.clamp(px - tw / 2, 4, geo.w - tw - 4) + 'px';
@@ -481,11 +456,10 @@
     body.addEventListener('pointerleave', onLeave);
 
     /* Der Beobachter meldet sich einmal von selbst, sobald er zu beobachten
-       beginnt — mit derselben Grösse, die gerade gezeichnet wurde. Genau
-       dieser Leerlauf hat die Ankunft der Linie gefressen: gezeichnet, und im
-       nächsten Bild ohne Not neu gebaut, diesmal ohne Aufbau. Also wird nur
-       neu gebaut, wenn die Fläche sich wirklich geändert hat — und wenn das
-       mitten in der Ankunft passiert, fängt sie eben von vorn an. */
+       beginnt, mit derselben Grösse, die gerade gezeichnet wurde. Ein
+       Neubau bei unveränderter Fläche würde die Ankunft der Linie ohne Not
+       wiederholen, diesmal ohne Aufbau; deshalb wird nur neu gebaut, wenn
+       die Fläche sich wirklich geändert hat. */
     var ro = global.ResizeObserver ? new ResizeObserver(function () {
       var r = body.getBoundingClientRect();
       if (Math.round(r.width) === state.w && Math.round(r.height) === state.h) return;

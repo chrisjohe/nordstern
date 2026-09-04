@@ -110,3 +110,56 @@ export function importFixture(w,file){
   return res;
 }
 export const tick=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* Die kleine, aber vollständige Mappe für die Importer-Reihen: alle fünfzehn
+   Anker, drei Sektionen leer. Die Daten müssen aus der Welt des Fensters
+   kommen: SheetJS läuft dort und prüft `instanceof Date` gegen dessen
+   Konstruktor, nicht gegen den hiesigen. */
+export const TINY_ROWS={MONTH:0, LIQUID:1, CASH:2, TOTALLIQUID:3, CLAIMS:4, TOTALCLAIMS:5,
+  INVEST:6, DEPOT:7, TOTALINVEST:8, PROPERTY:9, TOTALPROPERTY:10,
+  RETIREMENT:11, TOTALRETIREMENT:12, TOTALASSETS:13, LIABILITIES:14,
+  LOAN:15, LIABTOTAL:16, NETWORTH:17};
+
+export function tinySheet(w,months){
+  const D=(y,m)=>new w.Date(y,m-1,1);
+  return w.XLSX.utils.aoa_to_sheet([
+    ['Month',        ...months.map(([y,m])=>D(y,m))],
+    ['Liquid'],
+    ['  Cash',       ...months.map((_,i)=>100+i)],
+    ['Total liquid', ...months.map((_,i)=>100+i)],
+    ['Claims'],
+    ['Total claims', ...months.map(()=>0)],
+    ['Investments'],
+    ['  Depot',      ...months.map((_,i)=>1000+100*i)],
+    ['Total investments', ...months.map((_,i)=>1000+100*i)],
+    ['Property'],
+    ['Total property', ...months.map(()=>0)],
+    ['Retirement'],
+    ['Total retirement', ...months.map(()=>0)],
+    ['Total assets', ...months.map((_,i)=>1100+100*i+i)],
+    ['Liabilities'],
+    ['  Loan',       ...months.map(()=>0)],
+    ['Total liabilities', ...months.map(()=>0)],
+    ['Total net worth', ...months.map((_,i)=>1100+100*i+i)]
+  ],{cellDates:true});
+}
+
+export function tinyWorkbook(w,months,sheetName='Data Input'){
+  const wb=w.XLSX.utils.book_new();
+  w.XLSX.utils.book_append_sheet(wb,tinySheet(w,months),sheetName);
+  return wb;
+}
+
+/* Der Schwenkwinkel eines Scheiben-Segments, aus dem gezeichneten Pfad
+   zurückgerechnet. */
+export function arcSweep(d,id){
+  const n=d.querySelector('.orbit-arc[data-id="'+id+'"],.orbit-short[data-id="'+id+'"]');
+  if(!n) return null;
+  if(n.tagName==='circle') return Math.PI*2;
+  const m=/M([-\d.]+) ([-\d.]+)A[\d.]+ [\d.]+ 0 (\d) (\d) ([-\d.]+) ([-\d.]+)/.exec(n.getAttribute('d'));
+  if(!m) return null;
+  const a=(x,y)=>Math.atan2(Number(x)-135,-(Number(y)-135));
+  let s0=a(m[1],m[2]), s1=a(m[5],m[6]);
+  let dl=s1-s0; if(m[4]==='0') dl=-Math.abs(dl); if(dl<0&&m[4]==='1') dl+=Math.PI*2;
+  return Math.abs(dl)+(m[3]==='1'&&Math.abs(dl)<Math.PI?Math.PI*2-2*Math.abs(dl):0);
+}

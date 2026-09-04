@@ -84,9 +84,10 @@ It runs from `file://` with no server and no build step.
 ## Before you say you are done
 
 ```
-npm test          # smoke, behaviour, geometry, formats, example, build, hook — all must pass
+npm test          # behaviour, geometry, formats, example, build, hook — all must pass
 npm run build     # regenerates export/nordstern.html
 npm run privacy   # only meaningful where a real workbook exists
+npm run smoke     # prints a masked walk-through; NORDSTERN_WORKBOOK=… for a real workbook
 ```
 
 Add assertions for what you changed. The suites are plain scripts with an

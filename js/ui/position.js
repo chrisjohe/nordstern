@@ -1,4 +1,4 @@
-/* NORDSTERN — finanzielle Position.
+/* NORDSTERN: finanzielle Position.
    Die wichtigste Zahl groß, die Veränderungen daneben, die Nebenkennzahlen
    in einer ruhigen Reihe darunter. */
 (function (global) {
@@ -80,9 +80,7 @@
           v.pace == null ? 'no year-ago value' : 'avg. per month, ' + v.paceSpan + ' months',
           v.pace == null ? '' : v.pace < 0 ? 'is-neg' : v.pace > 0 ? 'is-pos' : ''));
         /* Der Hebel steht neben dem Tempo: beides sagt nichts über den Stand,
-           sondern über die Art, wie er zustande kommt. Die nächste Station
-           stand hier einmal — sie steht schon am Berg, in seiner Statuszeile
-           und auf ihrer Karte, dreimal also, und keinmal so knapp wie hier. */
+           sondern über die Art, wie er zustande kommt. */
         kpis.appendChild(kpi('Leverage',
           U.mult(v.leverage.factor),
           v.leverage.debtRatio == null ? 'no assets'

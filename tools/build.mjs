@@ -1,4 +1,4 @@
-/* NORDSTERN — Build.
+/* NORDSTERN: Build.
    Faltet index.html, die drei Stylesheets und die vierzehn Skripte zu einer
    einzigen Datei unter export/. Kein Bundler, kein Minifier, keine
    Umschrift: der Quelltext wandert Zeichen für Zeichen in <style> und

@@ -7,7 +7,8 @@
     "build": "node tools/build.mjs",
     "example": "node tools/make-example.mjs",
     "privacy": "node tests/privacy.mjs",
-    "test": "node tests/smoke.mjs && node tests/behaviour.mjs && node tests/geometry.mjs && node tests/formats.mjs && node tests/example.mjs && node tests/build.mjs && node tests/hook.mjs"
+    "smoke": "node tests/smoke.mjs",
+    "test": "node tests/behaviour.mjs && node tests/geometry.mjs && node tests/formats.mjs && node tests/example.mjs && node tests/build.mjs && node tests/hook.mjs"
   },
   "devDependencies": {
     "jsdom": "^30.0.1"

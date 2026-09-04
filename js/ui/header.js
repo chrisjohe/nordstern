@@ -1,7 +1,6 @@
-/* NORDSTERN — Kopfbereich: Wortmarke und Nordstern.
-   Der Stern ist der Orientierungspunkt, nicht die Bühne — er sitzt auf
-   Zeilenhöhe der Wortmarke und bleibt klein. Denselben Stern baut auch der
-   Leerzustand, nur größer; gezeichnet wird er genau einmal, hier. */
+/* NORDSTERN: Kopfbereich, Wortmarke und Nordstern.
+   Der Stern ist der Orientierungspunkt, nicht die Bühne: er sitzt auf
+   Zeilenhöhe der Wortmarke und bleibt klein. */
 (function (global) {
   'use strict';
   var NS = global.NORDSTERN || (global.NORDSTERN = {});
@@ -12,9 +11,9 @@
      Verläufen statt aus Filtern — das bleibt auch bei Dauerbewegung billig.
      Die Spitzen sind schlanke Rauten durch die Mitte, die zur Spitze hin
      ausblenden; dadurch entsteht das Kreuz, ohne dass ein Zackenstern
-     dasteht. Blauweiß: innen Sonnenweiß, außen Eisblau. */
-  /* `key` hält die Verlaufs-IDs auseinander: stehen zwei Sterne gleichzeitig
-     im Dokument, würden doppelte IDs beide auf denselben Verlauf zeigen. */
+     dasteht. `key` hält die Verlaufs-IDs auseinander: stehen zwei Sterne
+     gleichzeitig im Dokument, würden doppelte IDs beide auf denselben
+     Verlauf zeigen. */
   function star(size, key) {
     function spike(len, w) {                      // Raute durch die Mitte
       return 'M50 ' + (50 - len) + ' L' + (50 + w) + ' 50 L50 ' + (50 + len) +

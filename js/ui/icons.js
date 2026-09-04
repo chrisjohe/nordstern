@@ -1,32 +1,7 @@
-/* NORDSTERN — Meilenstein-Symbole.
-
-   ════════════════════════════════════════════════════════════════════════
-   HIER LIEGEN DIE ICONS — nur in der Tabelle GLYPHS unten.
-   Berg und Karten zeichnen beide aus dieser einen Quelle, sonst nirgends.
-
-   Es sind Material Symbols in der Outline-Fassung (FILL0, wght400) — die
-   scharfe, dünn gezeichnete Linie zum Zune-/Metro-Bild der Oberfläche. Die
-   Quelldateien liegen unverändert in sprites/; die Lizenz steht in ABOUT.
-
-   Je Meilenstein zwei Einträge, weil Material Symbols pro Zielgröße eine
-   eigene optische Größe hat — dieselbe Form, für klein gröber vereinfacht:
-     pin   — der Marker im Berg  (16-px-Fassung, opsz20)
-     card  — das Motiv der Karte (48-px-Fassung, opsz48)
-   Fehlt `card`, nimmt die Karte `pin`. Beide sind unabhängig austauschbar.
-
-   Ein Eintrag ist { box: '<viewBox>', d: '<Pfaddaten>' } und wird gefüllt
-   gezeichnet. Aus einer heruntergeladenen Datei werden genau zwei Angaben
-   gebraucht:
-
-     <svg ... viewBox="0 -960 960 960" ...><path d="M480-80q-83…"/></svg>
-                       └──── box ────┘              └── d ──┘
-
-   Die Pixelgröße im Dateinamen ist NICHT die box — sie steckt in der
-   Pfadform selbst. Gezeichnet wird in der Größe, die Berg und Karte gerade
-   brauchen; das Bild skaliert verlustfrei mit. Enthält eine Datei mehrere
-   <path>, dürfen ihre d-Angaben mit einem Leerzeichen aneinandergehängt
-   werden.
-   ════════════════════════════════════════════════════════════════════════ */
+/* NORDSTERN: Meilenstein-Symbole.
+   GLYPHS ist die einzige Quelle für Berg und Karten: pin = 16-px-Fassung
+   (opsz20), card = 48-px-Fassung (opsz48), fehlt card, nimmt die Karte pin.
+   Zum Hinzufügen eines Symbols siehe docs/CUSTOMISE.md. */
 (function (global) {
   'use strict';
   var NS = global.NORDSTERN || (global.NORDSTERN = {});

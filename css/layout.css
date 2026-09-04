@@ -1,7 +1,6 @@
-/* NORDSTERN — Panorama-Gerüst.
-   Desktop: ein Viewport, kein Scroll. Schmalere Fenster verdichten und
-   scrollen; niedrige, aber breite Fenster behalten die zwei Spalten und
-   scrollen ebenfalls. */
+/* NORDSTERN: Panorama-Gerüst.
+   Desktop: ein Viewport, kein Scroll. Schmalere und niedrige Fenster
+   verdichten stattdessen und scrollen. */
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -124,14 +123,11 @@ body {
 }
 
 /* --- Verdichtung ----------------------------------------------------------
-   Zwei Fälle, zwei Blöcke. Schmale Fenster (Block A): Hero, Verlauf, Struktur
-   und Kartenschiene passen nicht mehr nebeneinander in einen Viewport, also
-   wird gestapelt und gescrollt, statt dass sich die Blöcke überlagern. Kurze,
-   aber breite Fenster (Block B): die zwei Spalten passen noch nebeneinander,
-   nur reicht die Höhe nicht für einen Viewport ohne Scroll — die
-   Ein-Viewport-Regel fällt, die Spalten bleiben stehen, es wird gescrollt
-   statt gestapelt. Die Grenze liegt bei 1180 px, weil ein 11"-iPad quer
-   genau 1180 px breit ist und noch zwei Spalten bekommen soll. */
+   Block A, schmale Fenster: die Spalten passen nicht mehr nebeneinander,
+   also wird gestapelt und gescrollt. Block B, kurze aber breite Fenster: die
+   Spalten bleiben stehen, nur die Ein-Viewport-Regel fällt und es wird
+   gescrollt. Die Grenze liegt bei 1180 px, weil ein 11"-iPad quer genau
+   1180 px breit ist und noch zwei Spalten bekommen soll. */
 @media (max-width: 1179px) {
   body { overflow: auto; }
   .shell { height: auto; min-height: 100vh; grid-template-rows: var(--head-h) auto; }

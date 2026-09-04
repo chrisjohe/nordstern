@@ -1,4 +1,4 @@
-/* NORDSTERN — Ableitungen.
+/* NORDSTERN: Ableitungen.
    Alles, was aus dem normalisierten Modell + den Einstellungen berechnet wird.
    Keine Kenntnis über den Aufbau der Arbeitsmappe, keine DOM-Berührung. */
 (function (global) {
@@ -10,9 +10,9 @@
   /* Die acht Meilensteine. `months` = Vielfaches der monatlichen Gesamtausgaben.
      Contingency zählt gegen die liquiden Mittel, alle übrigen gegen das
      investierte Vermögen. `t` ist die Position auf der Bergroute (0…1) und
-     entspricht dem Kontrollpunkt der Route in js/ui/mountain.js — die Werte
-     stehen deshalb als Bruch 'Kontrollpunkt / letzter Kontrollpunkt'; tests/geometry.mjs prüft, dass beide Seiten
-     dasselbe meinen. */
+     entspricht dem Kontrollpunkt der Route in js/ui/mountain.js: die Werte
+     stehen deshalb als Bruch 'Kontrollpunkt / letzter Kontrollpunkt', damit
+     beide Seiten immer dasselbe meinen. */
   var MILESTONES = [
     { id: 'contingency', name: 'Contingency',   term: 'Emergency fund', months: 3, basis: 'liquid',
       meaning: 'Three months of expenses, liquid. Room to breathe.',
@@ -66,21 +66,13 @@
     return (now - before) / Math.abs(before);
   }
 
-  /* Der Snapshot vor `i`, dessen Abstand `target` Monaten am nächsten kommt
-     — nicht der `target`-te Index davor.
-
-     Die Reihe kommt aus einer Tabelle. Dort können Monate fehlen (wer
-     quartalsweise einträgt, hat nie einen echten Vormonat), doppelt stehen
-     (zwei Spalten für denselben Monat) oder in falscher Reihenfolge liegen;
-     `i - n` heisst dann weder „vor einem Jahr" noch „im Vormonat". Gesucht
-     wird deshalb rückwärts über den Schlüsselabstand, nicht über den Index.
-     Ohne Toleranz (`tol == null`, „Vormonat") zählt der erste eigenständige
-     Snapshot davor, so weit zurück er auch liegt — Doppelungen (Abstand 0)
-     werden übersprungen, es gibt keine Geschichte zu erzählen. Mit Toleranz
-     (`tol`, „Vorjahr") gewinnt der Treffer mit dem kleinsten Abstand zu
-     `target`; bei Gleichstand bleibt der zuerst gefundene, also der zeitlich
-     nähere. Kein Treffer ist besser als ein falscher: die Oberfläche zeigt
-     dafür einen Strich. */
+  /* Der Snapshot vor `i`, dessen Abstand `target` Monaten am nächsten kommt,
+     nicht der `target`-te Index davor. Monate können in der Reihe fehlen,
+     doppelt stehen oder in falscher Reihenfolge liegen, also zählt der
+     Schlüsselabstand, nicht der Index. Ohne Toleranz (`tol == null`,
+     „Vormonat") gewinnt der erste eigenständige Snapshot davor, Doppelungen
+     übersprungen; mit Toleranz (`tol`, „Vorjahr") der mit dem kleinsten
+     Abstand zu `target`. Kein Treffer ist besser als ein falscher. */
   function nearest(months, i, target, tol) {
     var here = U.monthNo(months[i] && months[i].key);
     if (here == null) return null;
@@ -146,15 +138,9 @@
     };
 
     /* Der Eigenkapitalhebel: wie viel Bilanz auf einem Euro eigenem Geld
-       steht. 1,0× heisst schuldenfrei, 2,0× heisst, die Hälfte ist geliehen.
-
-       Bewusst nicht „investiert / Net Worth", was naheliegt und trügt: diese
-       Zahl steigt auch dann, wenn nur das Eigenkapital wächst, und stand in
-       der Beispielreihe bei sechsfachem Hebel niedriger als heute bei
-       zweifachem. Sie misst den Hebel nicht, sie mischt ihn mit dem Erfolg.
-
-       Bei Net Worth <= 0 gibt es keinen sinnvollen Faktor — dann bleibt der
-       Schuldenanteil, der auch dort noch etwas sagt (und über 100 % geht). */
+       steht. Bewusst nicht „investiert / Net Worth" (das mischt den Hebel
+       mit dem Anlageerfolg und steigt auch dann, wenn nur das Eigenkapital
+       wächst). Bei Net Worth <= 0 bleibt nur der Schuldenanteil aussagekräftig. */
     var leverage = {
       factor: current.netWorth > 0 ? totalAssets / current.netWorth : null,
       debtRatio: totalAssets > 0 ? current.liabilities / totalAssets : null
@@ -169,15 +155,9 @@
       };
     });
 
-    /* Einzelposten je Sektion — für den Blick in eine Sektion hinein.
-       Draußen bleibt nur, was nichts trägt: eine Null ist ein geschlossenes
-       Konto oder eine Zeile auf Vorrat.
-
-       Ein negativer Stand bleibt drin: wer seine Dispositionskredite in den
-       liquiden Mitteln führt statt bei den Verbindlichkeiten, hat dort echtes
-       Geld stehen. Ihn auszublenden hiesse, eine Summe zu zeigen, deren Posten
-       sie nicht ergeben. Sortiert wird absteigend, negative Stände stehen
-       damit am Ende. */
+    /* Einzelposten je Sektion. Eine Null (geschlossenes Konto, Zeile auf
+       Vorrat) bleibt draussen, ein negativer Stand (Dispo in den liquiden
+       Mitteln) bleibt drin, sonst ergäben die Posten die Summe nicht mehr. */
     function itemsOf(id) {
       return (model.accounts[id] || []).map(function (a) {
         return { name: a.name, value: a.values[i] };
@@ -287,8 +267,8 @@
     SECTION_LABELS: SECTION_LABELS,
     derive: derive,
     /* Nach draussen, weil der Chart dieselbe Veränderung zeigt wie die
-       Kennzahlen darüber. Zwei Formeln für eine Zahl waren schon einmal eine
-       zu viel: die eine wurde korrigiert, die andere blieb falsch stehen. */
+       Kennzahlen darüber: eine Formel für eine Zahl, keine zweite, die
+       stillschweigend abweichen könnte. */
     rel: rel,
     routePosition: routePosition
   };

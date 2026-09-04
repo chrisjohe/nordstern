@@ -1,8 +1,7 @@
-/* NORDSTERN — Vermögensinstrument.
+/* NORDSTERN: Vermögensinstrument.
    Kein Balken-, kein Säulendiagramm: eine Navigationsscheibe. Der äußere Ring
-   trägt das Vermögen nach Sektionen, der innere Gegenring die Verbindlichkeiten
-   — beide auf derselben Skala, sodass das Verhältnis unmittelbar ablesbar ist.
-   Die exakten Beträge stehen in der Legende daneben, nicht nur im Tooltip. */
+   trägt das Vermögen nach Sektionen, der innere Gegenring die Verbindlichkeiten,
+   beide auf derselben Skala, sodass das Verhältnis unmittelbar ablesbar ist. */
 (function (global) {
   'use strict';
   var NS = global.NORDSTERN || (global.NORDSTERN = {});
@@ -211,23 +210,13 @@
       var liab = v.current.liabilities;
       var sections = v.sections.filter(function (s) { return s.value > 0.005; });
 
-      /* Beide Ringe teilen sich eine Skala, und die ist der grössere der
-         beiden Beträge — nicht das Vermögen.
-
-         Solange das Vermögen überwiegt, ändert das nichts: der äussere Ring
-         schliesst sich, der Gegenring bleibt kürzer, und die Lücke zwischen
-         ihnen ist der Net Worth. Überwiegen die Schulden, dreht sich das um.
-         Dann schliesst sich der innere Ring, und im äusseren bleibt offen,
-         was fehlt — genau der negative Betrag, der in der Mitte steht.
-
-         Der Gegenring darf dabei nicht in die Sättigung laufen: gedeckelt bei
-         355° sähen 98 %, 116 % und 300 % gleich aus, und er hörte genau dort
-         auf, etwas zu sagen, wo er am meisten zu sagen hätte. */
-      /* `total` allein reicht als Skala nicht immer: eine negative Sektion
-         (ein überzogenes Konto in „liquid" etwa) fällt aus `sections` heraus,
-         zieht `total` aber weiter mit herunter. Ohne die Summe der wirklich
-         gezeichneten, positiven Anteile in der Skala reichten deren Bögen
-         dann über 360° hinaus. */
+      /* Beide Ringe teilen sich eine Skala, die grössere der beiden Beträge,
+         nicht das Vermögen: sonst liefe der kleinere Ring nie in die
+         Sättigung, wenn er der grössere wäre. Eine negative Sektion (ein
+         überzogenes Konto in „liquid") fällt aus `sections` heraus, zieht
+         `total` aber weiter mit herunter; ohne die Summe der wirklich
+         gezeichneten, positiven Anteile reichten deren Bögen über 360°
+         hinaus. */
       var positive = sections.reduce(function (a, s) { return a + s.value; }, 0);
       var scale = Math.max(total, liab, positive);
       var short = liab > total ? liab - total : 0;
@@ -256,15 +245,11 @@
         g.appendChild(shp);
       }
 
-      /* Innerer Gegenring: gegenläufig, auf derselben Skala — und immer von
-         der Zwölf aus, wie der äussere auch. Er wird deshalb von 0 nach
-         -liabSweep gezeichnet: dort beginnt sein Pfad, und dort beginnt auch
-         sein Aufbau.
-
+      /* Innerer Gegenring: gegenläufig, auf derselben Skala, von der Zwölf
+         aus wie der äussere auch, deshalb von 0 nach -liabSweep gezeichnet.
          Ein Bogen von 0 nach genau -2π hätte Anfang und Ende im selben Punkt
-         und verschwände; ein Haar davor nicht. Dieselbe Hilfe nimmt die
-         Fehlstrecke oben schon. Der Spalt ist 0,23° breit, bei diesem Radius
-         ein Drittel Pixel. */
+         und verschwände; ein Haar davor (0,23°, bei diesem Radius ein Drittel
+         Pixel) nicht. */
       var liabSweep = scale > 0 ? (liab / scale) * Math.PI * 2 : 0;
       g.appendChild(U.svg('circle', { cx: C, cy: C, r: R_IN, class: 'orbit-track', 'stroke-width': W_IN }));
       if (liabSweep > 0.001) {
@@ -289,7 +274,6 @@
       core(g, 'NET WORTH', U.eur0(v.current.netWorth), false, v.current.netWorth < 0);
       dial.appendChild(g);
 
-      /* Legende: exakte Beträge, nicht nur im Tooltip */
       sections.forEach(function (s) {
         var r = row(s.id, TONE[s.id], s.label, s.value, s.share);
         if (items(v, s.id).length) openable(r, s.id);
@@ -310,17 +294,13 @@
       var sec = v.sections.filter(function (s) { return s.id === id; })[0];
       var label = isLiab ? 'Liabilities' : (sec ? sec.label : id);
       var list = items(v, id);
-      /* Die Summe kommt aus der Mappe, nicht aus dieser Liste. Solange alle
-         Posten positiv sind, ist das dasselbe — sobald einer negativ ist,
-         nicht mehr, und dann muss hier stehen, was auch in der Übersicht
-         steht. Zwei verschiedene Zahlen für dieselbe Sektion auf demselben
-         Schirm wären das Schlimmste von beidem. */
+      /* Die Summe kommt aus der Mappe, nicht aus dieser Liste: sobald ein
+         Posten negativ ist, wären sonst zwei verschiedene Zahlen für dieselbe
+         Sektion auf demselben Schirm im Umlauf. */
       var sum = isLiab ? v.current.liabilities : (sec ? sec.value : 0);
-      /* Der Ring trägt nur, was eine Länge haben kann. Negative Stände haben
-         keine — sie stehen in der Legende, mit ihrem echten Betrag und im Ton
-         der Verbindlichkeiten, und sie erscheinen im Prozentsatz als das, was
-         sie sind: ein Abzug. Die positiven Anteile schliessen den Kreis unter
-         sich, sonst zeigte der Ring eine Sektion, die es so nicht gibt. */
+      /* Der Ring trägt nur, was eine Länge haben kann; negative Stände
+         stehen stattdessen in der Legende, mit ihrem echten Betrag und im Ton
+         der Verbindlichkeiten. */
       var pos = list.filter(function (it) { return it.value > 0.005; });
       var posSum = pos.reduce(function (a, b) { return a + b.value; }, 0);
       var tone = isLiab ? LIAB_TONE : (TONE[id] || '#7fb2e5');

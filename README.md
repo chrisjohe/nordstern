@@ -302,13 +302,17 @@ npm test
 
 | Suite | What it holds down |
 |---|---|
-| `tests/smoke.mjs` | the whole page against a DOM, with a real import |
 | `tests/behaviour.mjs` | empty state, import, persistence, monthly expenses, series switch, card ↔ mountain, motion, the arrival animation and what must *not* retrigger it, a broken workbook and the way back, edge cases, the contrast ramp, and that deleting local data leaves nothing behind |
 | `tests/geometry.mjs` | height field, contours, route, mountain proportion, framing across 576 views, marker spacing across 360 |
 | `tests/formats.mjs` | every format the file dialog offers except `.numbers` parses to identical figures; `.numbers` is checked by hand |
 | `tests/example.mjs` | the shipped example workbook still says exactly what `tools/make-example.mjs` says, and the generator will not overwrite its hand formatting |
 | `tests/build.mjs` | the single-file build: self-contained, byte-identical to its sources, boots, and reads the same workbook to the same numbers |
 | `tests/hook.mjs` | the pre-commit hook actually blocks a stray spreadsheet, a leaked figure and an unchecked image, and lets a clean commit through |
+
+`tests/smoke.mjs` is not part of `npm test` — it asserts nothing. Run it by
+hand with `npm run smoke` for a masked, printed walk-through of the whole
+page against a DOM, with a real import; point `NORDSTERN_WORKBOOK=…` at a
+real workbook to see it render, masked, without ever printing a figure.
 
 ```
 npm run privacy

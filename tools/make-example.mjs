@@ -1,4 +1,4 @@
-/* NORDSTERN — die Beispielmappe.
+/* NORDSTERN: die Beispielmappe.
    Erzeugt examples/nordstern-example.xlsx: sieben Jahre erfundene Zahlen in
    genau dem Aufbau, den js/importer.js erwartet. Sie ist zweierlei — das,
    womit ein Fremder die Anwendung in zehn Sekunden laufen sieht, und der
