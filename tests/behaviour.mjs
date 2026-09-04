@@ -1045,6 +1045,33 @@ sec('Anker: Doppel, Reihenfolge, Überlappung; Schnappschuss-Diagnose');
   w.close();
 }
 
+/* ---------- 6a. Der Erste des Monats, westlich von UTC ---------- */
+/* SheetJS liefert jede Datumszelle als Mitternacht UTC, aus der Datei wie im
+   Speicher. Wer den Kalendertag mit lokalen Gettern daraus liest, ist westlich
+   von Greenwich noch am Vortag: aus dem 1. Juli wird der 30. Juni, aus dem
+   Juli der Juni. Die Beispielmappe merkt das nicht, sie datiert ihre Spalten
+   auf das Monatsende. Also der Erste, unter drei Uhren; die Uhr des Rechners
+   wird dafür kurz verstellt und danach zurückgedreht. */
+sec('Datumsspalten unter fremden Zeitzonen');
+{ const {w,errors}=await boot();
+  const months=[[2026,1],[2026,2],[2026,3]];
+  const tz0=process.env.TZ;
+  for(const tz of ['Europe/Berlin','America/New_York','Pacific/Kiritimati']){
+    process.env.TZ=tz;
+    const mem=w.NORDSTERN.importer.parseWorkbook(tinyWorkbook(w,months),'erster.xlsx');
+    const bytes=w.XLSX.write(tinyWorkbook(w,months),{type:'array',bookType:'xlsx'});
+    const file=w.NORDSTERN.importer.parseArrayBuffer(bytes,'erster.xlsx',{});
+    for(const [via,res] of [['im Speicher',mem],['aus Bytes',file]]){
+      const keys=res.ok?res.model.months.map(m=>m.key).join(' '):res.errors.join(' | ');
+      ok(keys==='2026-01 2026-02 2026-03',tz+', '+via+': die Monate heissen wie ihre Spalten: '+keys);
+      ok(res.ok&&res.model.months[0].iso==='2026-01-01',tz+', '+via+': der Kalendertag bleibt der Erste: '+(res.ok&&res.model.months[0].iso));
+    }
+  }
+  if(tz0===undefined) delete process.env.TZ; else process.env.TZ=tz0;
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 6b. Löchrige Zeitreihe ---------- */
 /* Eine Monatsspalte fehlt, eine steht doppelt. Beides sieht in der Mappe
    harmlos aus und macht aus „im Vormonat" und „vor einem Jahr" stillschweigend

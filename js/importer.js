@@ -203,11 +203,17 @@
     return Number(p[0]) * 12 + (Number(p[1]) - 1);
   }
 
+  /** SheetJS liefert Datumszellen als Mitternacht UTC, aus der Datei wie im
+      Speicher. Mit lokalen Gettern gelesen läge der Kalendertag westlich von
+      Greenwich einen Tag zurück: aus dem 1. Juli würde der 30. Juni, aus dem
+      Juli der Juni. Deshalb der Tag aus den UTC-Feldern, als lokales Datum. */
+  function calendarDay(d) {
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
+
   /** Excel-Seriennummer → Datum (nur Fallback, wenn cellDates nicht griff). */
   function serialToDate(n) {
-    var ms = Math.round((n - 25569) * 86400000);
-    var d = new Date(ms);
-    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    return calendarDay(new Date(Math.round((n - 25569) * 86400000)));
   }
 
   function isDate(v) { return Object.prototype.toString.call(v) === '[object Date]'; }
@@ -216,7 +222,7 @@
   function readDate(ws, row, col) {
     var c = cell(ws, row, col);
     if (!c || c.v == null || c.v === '') return null;
-    if (isDate(v_(c))) return isFinite(c.v.getTime()) ? c.v : null;   // new Date('x') & Co.
+    if (isDate(v_(c))) return isFinite(c.v.getTime()) ? calendarDay(c.v) : null;   // new Date('x') & Co.
     if (typeof c.v === 'number' && c.v > 20000 && c.v < 80000) return serialToDate(c.v);
     return null;
   }
