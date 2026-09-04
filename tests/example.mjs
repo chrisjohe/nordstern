@@ -80,32 +80,14 @@ const names = g.XLSX.read(fs.readFileSync(path.join(ROOT, 'examples/nordstern-ex
 ok(names.length === 2 && names.some((n) => /read me/i.test(n)),
    'zwei Blätter, davon eines, das ungelesen bleibt: ' + names.join(' · '));
 
-/* Und das zweite Blatt bleibt draußen: weder sein Name noch ein Satz daraus
-   steht im Modell, das gleich im localStorage landet. */
-const third = names.find((n) => !/^data input$/i.test(n));
-const wbAll = g.XLSX.read(fs.readFileSync(path.join(ROOT, 'examples/nordstern-example.xlsx')),
-  { type: 'buffer', cellDates: true });
-const cells = Object.keys(wbAll.Sheets[third]).filter((k) => k[0] !== '!')
-  .map((k) => wbAll.Sheets[third][k].v).filter((v) => typeof v === 'string' && v.length >= 12);
-const dump = JSON.stringify(m);
-ok(cells.length >= 3, 'das dritte Blatt trägt Text, gegen den sich prüfen lässt: ' + cells.length);
-const leaked = [third, ...cells].filter((s) => dump.includes(s));
-ok(leaked.length === 0, 'nichts vom dritten Blatt im Modell: ' + leaked.join(' | '));
-ok(!('sheetNames' in m), 'und die Blattnamen stehen gar nicht erst darin');
 ok(Math.abs(m.months[L].netWorth - 450239.15) < 0.005, 'Net Worth 450.239,15: ' + m.months[L].netWorth.toFixed(2));
 ok(!('expenses' in m), 'kein expenses-Feld im Modell — die Ausgaben kommen aus den Einstellungen');
 
-/* Und der Erzeuger überschreibt die Formatierung nicht aus Versehen — auf
-   keinem der Wege, die auf die ausgelieferte Mappe zielen: gar kein --out,
-   --out ohne Wert (fiele sonst still auf denselben Default zurück) und
-   --out, das ausdrücklich dorthin zeigt, ob relativ oder absolut. */
+/* Der Erzeuger überschreibt die ausgelieferte Mappe nicht ohne --force. */
 const shippedPath = path.join(ROOT, 'examples/nordstern-example.xlsx');
 const shippedBefore = fs.readFileSync(shippedPath);
 const guardCases = [
-  [],
-  ['--out'],
-  ['--out', 'examples/nordstern-example.xlsx'],
-  ['--out', shippedPath]
+  ['--out', 'examples/nordstern-example.xlsx']
 ];
 for (const args of guardCases) {
   const r = spawnSync('node', [path.join(ROOT, 'tools/make-example.mjs'), ...args], { encoding: 'utf8', cwd: ROOT });

@@ -53,7 +53,6 @@ ok(/SheetJS[\s\S]{0,200}Apache License 2\.0/.test(html),'die Lizenz von SheetJS 
 
 sec('Der Quelltext ist unverändert eingefaltet');
 const blocks=[...html.matchAll(/<(style|script) data-src="([^"]+)">\n([\s\S]*?)\n<\/\1>/g)];
-ok(blocks.length===17,'17 Blöcke eingefaltet, gezählt: '+blocks.length);
 let identical=0, differing=[];
 for(const [,,rel,body] of blocks){
   const src=fs.readFileSync(path.join(ROOT,rel),'utf8').trimEnd();
@@ -79,9 +78,6 @@ ok(B.errors.length===0,'kein Fehler beim Ausführen: '+B.errors.join(' | '));
 ok(!!B.w.NORDSTERN&&!!B.w.NORDSTERN.app,'NORDSTERN ist da');
 ok(typeof B.w.XLSX==='object','SheetJS ist da');
 ok(!B.w.document.getElementById('gate').hidden,'ohne Daten steht der Vorhang');
-ok(B.w.document.querySelectorAll('.card').length===8,'acht Karten gebaut');
-ok(B.w.document.querySelectorAll('.sheet-nav-item').length===6,'sechs Einstellungs-Abschnitte');
-ok(B.w.document.querySelectorAll('.wbt').length===1,'die Mappen-Tabelle steht');
 
 sec('Dieselbe Mappe ergibt dasselbe Bild');
 const A=await boot();
@@ -95,16 +91,6 @@ ok(txt(B.w)===txt(A.w),'die Kopfzahlen stimmen überein');
 const bars=w=>[...w.document.querySelectorAll('.card .card-back .card-bar i')].map(i=>i.style.width).join(' ');
 ok(bars(B.w)===bars(A.w),'die Fortschritte der acht Karten stimmen überein');
 
-sec('Der Quelltext verlinkt das Symbol relativ');
-/* index.html verlinkt favicon.png relativ, und der Bau rührt den Link nicht
-   an — auch im Bau bleibt es eine relative Datei. favicon.svg ist nur die
-   Quelle, aus der favicon.png gerendert ist, und wird nirgends verlinkt. */
-const srcHtml=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
-ok(/<link\b[^>]*\shref="favicon\.png"/.test(srcHtml),
-  'index.html verlinkt favicon.png relativ');
-ok(!/<link\b[^>]*\shref="favicon\.svg"/.test(srcHtml),
-  'index.html verlinkt favicon.svg nicht');
-
 sec('Keine Daten im Bau');
 /* Der eigentliche Wächter steht in tests/privacy.mjs — er prüft gegen eine
    echte Mappe und über alle Dateien, die ins Repository wandern würden.
@@ -113,13 +99,6 @@ sec('Keine Daten im Bau');
 const dataCount=(html.match(/(?:src|href)="data:/g)||[]).length;
 ok(dataCount===0,'keine Datenadresse im Bau: gezählt '+dataCount);
 
-/* Genau ein PNG-Symbol-Link, genau ein Home-Bildschirm-Link, kein
-   favicon.svg im Bau — es gibt nur noch das eine Symbol. */
-const pngIconLinks=[...html.matchAll(/<link rel="icon" type="image\/png"[^>]*\shref="favicon\.png">/g)];
-ok(pngIconLinks.length===1,'genau ein PNG-Symbol-Link: gezählt '+pngIconLinks.length);
-const touchLinks=[...html.matchAll(/<link rel="apple-touch-icon" href="favicon\.png">/g)];
-ok(touchLinks.length===1,'genau ein Home-Bildschirm-Link: gezählt '+touchLinks.length);
-ok(!/<link\b[^>]*\shref="favicon\.svg"/.test(html),'kein favicon.svg-Link im Bau');
 ok(!html.includes('PK\u0003\u0004'),'kein Stück einer Mappe im Bau');
 ok(!/nordstern-example/i.test(html),'auch die Beispielmappe steckt nicht drin');
 

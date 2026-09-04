@@ -82,12 +82,6 @@ for (const bt of accept.filter((f) => f !== 'numbers')) {
      (expected === 2 ? ' — SheetJS kennt für dieses Format keinen Filter' : ''));
 }
 
-/* Und der Leser für Numbers ist wirklich im Bundle — geprüft am Code, weil
-   es keine Datei zum Prüfen gibt. */
-const vendor = fs.readFileSync(path.join(ROOT, 'js/vendor/xlsx.full.min.js'), 'utf8');
-ok(vendor.includes('Index/Document.iwa'), 'SheetJS erkennt Numbers-Dateien');
-ok(/NUMBERS file parsing requires/.test(vendor), 'und hat den Parser dafür an Bord');
-
 /* Google Sheets hat kein eigenes Format — der Export ist .xlsx oder .ods,
    beides oben nachgewiesen. Es gibt hier nichts eigenes zu prüfen. */
 

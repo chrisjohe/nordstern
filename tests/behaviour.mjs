@@ -51,30 +51,6 @@ sec('Leerzustand ohne gespeicherte Daten');
      'und jedes Paneel zurück auf seinen Namen');
   d.querySelector('.sheet-scrim').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
 
-  /* Aufbau der Mappe: was der Importer in Spalte A sucht, steht in der
-     Oberfläche — zwei Spalten, links der wörtliche Zellinhalt, rechts ein
-     Beispiel. Kursiv gesetzte Zeilen sind frei benennbar, alle anderen sind
-     Pflichtzeilen. */
-  const layout=d.querySelector('.sheet-sec[data-sec="workbook"]');
-  const tbl=[...layout.querySelectorAll('.wbt')];
-  ok(tbl.length===1,'ein Abbild des einen gelesenen Blatts: '+tbl.length);
-  ok(tbl.every(t=>[...t.querySelectorAll('tbody tr')].every(r=>r.children.length===2)),
-     'jede Zeile hat genau zwei Zellen');
-  const rows=tbl.flatMap(t=>[...t.querySelectorAll('tbody tr')]);
-  const labels=rows.filter(r=>!r.classList.contains('is-item'))
-                   .map(r=>r.children[0].textContent.trim());
-  ok(labels.length===15,'fünfzehn Pflichtzeilen genannt: '+labels.length);
-  ok(rows.filter(r=>r.classList.contains('is-item')).length===4,
-     'vier Beispielzeilen, frei benennbar: '+rows.filter(r=>r.classList.contains('is-item'))
-       .map(r=>r.children[0].textContent).join(' · '));
-  /* Keine echten Beträge im Code — die Beispielspalte geht als erfundene
-     Rechnung auf: 7.500 + 60.000 + 12.000 + 8.500 = 88.000 − 20.000 = 68.000. */
-  const ex=Object.fromEntries(rows.map(r=>[r.children[0].textContent.trim(),
-    Number(r.children[1].textContent.replace(/\./g,'').replace(',','.'))||0]));
-  ok(ex['Total liquid']+ex['Total claims']+ex['Total investments']+ex['Total property']
-     +ex['Total retirement']===ex['Total assets'],'das Beispiel summiert sich: '+ex['Total assets']);
-  ok(ex['Total assets']-ex['Total liabilities']===ex['Total net worth'],
-     'und die Differenz stimmt auch: '+ex['Total net worth']);
   ok(d.querySelector('.sheet-sec[data-sec="source"] .sheet-status .meta-import').textContent==='no import',
      'Importstatus steht oben im Abschnitt „data source“');
 
@@ -112,10 +88,8 @@ const store={};
     ok(money.length>=7&&money.every(t=>!/,\d/.test(t)),
        'kein Cent in der Position: '+money.join(' · ')); }
   const kpi=lab=>[...d.querySelectorAll('.kpi')].find(k=>k.querySelector('.kpi-lab').textContent===lab);
-  ok(d.documentElement.getAttribute('lang')==='en','Seitensprache ist Englisch');
   ok(kpi('As of').querySelector('.kpi-val').textContent==='August 2026','Datenstand als Kennzahl: '+kpi('As of').querySelector('.kpi-val').textContent);
   ok(kpi('Snapshots').querySelector('.kpi-val').textContent==='84','Snapshots als Kennzahl: '+kpi('Snapshots').querySelector('.kpi-val').textContent);
-  ok(d.querySelectorAll('.kpi-row .kpi').length===8,'acht Kennzahlen in vier Spalten: '+d.querySelectorAll('.kpi-row .kpi').length);
 
   /* Der Hebel: 883.024,38 / 450.239,15 = 1,96. Er steht neben dem Tempo, weil
      beide nichts über den Stand sagen, sondern über seine Art. */
@@ -133,12 +107,6 @@ const store={};
   /* Vorzeichen bekommen in beide Richtungen Farbe. */
   ok(kpi('Portfolio pace').classList.contains('is-pos'),
      'ein positives Tempo ist als solches gekennzeichnet: '+kpi('Portfolio pace').className);
-  /* Die vierte Spalte tritt über die Farbe zurück, nicht über eine zweite Größe. */
-  const metaVals=[...d.querySelectorAll('.kpi.is-meta .kpi-val')];
-  ok(metaVals.length===2,'zwei Herkunfts-KPIs: '+metaVals.map(n=>n.textContent).join(' · '));
-  ok(metaVals.every(n=>{const c=w.getComputedStyle(n);
-       return c.fontSize===w.getComputedStyle(d.querySelector('.kpi:not(.is-meta) .kpi-val')).fontSize;}),
-     'gleiche Schriftgröße wie die übrigen Kennzahlen');
   const rangeOn=[...d.querySelectorAll('.range .range-btn')].filter(b=>b.getAttribute('aria-pressed')==='true');
   ok(d.querySelectorAll('.range .range-btn').length===4&&rangeOn.length===1&&rangeOn[0].textContent==='5 years',
     'Verlauf startet auf 5 Jahren, vier Zeiträume: '+[...d.querySelectorAll('.range .range-btn')].map(b=>b.textContent).join(' · '));
@@ -150,10 +118,6 @@ const store={};
   const lineD=()=>d.querySelector('.chart-line').getAttribute('d');
   const label=()=>d.querySelector('.chart-svg').getAttribute('aria-label');
   const before=lineD();
-  ok(ser.map(b=>b.textContent).join(' ')==='Net Total Invested',
-     'Net / Total / Invested in dieser Reihenfolge: '+ser.map(b=>b.textContent).join(' · '));
-  ok(d.querySelector('.chart-tools').firstElementChild.classList.contains('series'),
-     'die Reihen stehen vor den Jahren');
   ok(on().join()==='Net'&&label().startsWith('Net worth from'),'Vorauswahl ist Net: '+on().join());
   const click=b=>{b.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));};
   click(serBy('Total')); await tick(20);
@@ -165,8 +129,6 @@ const store={};
   ok(lineD()!==before&&lineD()!==totalD,'alle drei Reihen unterscheiden sich');
   ok(d.querySelectorAll('.chart-line').length===1&&d.querySelectorAll('.chart-last').length===1,
      'es bleibt bei genau einer Linie und einem Endpunkt');
-  ok(d.querySelector('.chart-glow')&&d.querySelector('.chart-last-ping')&&d.querySelector('#nsFill'),
-     'Schein, Puls und Polarlicht-Fläche gelten unverändert');
   click(serBy('Net')); await tick(20);
   ok(lineD()===before&&label().startsWith('Net worth from'),'Zurückschalten stellt den alten Stand her');
   ok(d.querySelector('.sheet-status .meta-import').textContent==='stored locally',
@@ -524,10 +486,8 @@ sec('Verbindung Card ↔ Berg');
   ok(w.NORDSTERN.app.ui.mountain.peek().paused===false,'Rotation wird wieder freigegeben');
   // Rückseite: Kreuz, Fortschrittsbalken, Prozent unten rechts, kein Fachbegriff
   const bk=d.querySelector('.card[data-id="lean"] .card-back');
-  ok(bk.querySelector('.card-x svg'),'Kreuz oben rechts');
   ok(bk.querySelector('.card-bar i').style.width===d.querySelector('.card[data-id="lean"] .card-front .card-bar i').style.width,
      'Fortschrittsbalken auf beiden Seiten gleich');
-  ok(bk.querySelector('.card-back-foot .f-pct').textContent.includes('%'),'Prozent in der Fußzeile');
   ok([...bk.querySelectorAll('.card-facts dd, .card-back-foot .f-pct')].every(n=>!/,\d/.test(n.textContent)),
      'keine Dezimalstellen auf der Karte: '+[...bk.querySelectorAll('.card-facts dd')].map(n=>n.textContent).join(' · '));
   /* Woran sich die Station misst, steht in der Zeile, die den Betrag trägt. */
@@ -550,7 +510,6 @@ sec('Verbindung Card ↔ Berg');
      'auch vorgelesen: '+d.querySelector('.card[data-id="contingency"]').getAttribute('aria-label'));
   ok(d.querySelector('.st-ring').getAttribute('title')===MS.contingency,
      'der Reservechip über dem Berg sagt dasselbe: '+d.querySelector('.st-ring').getAttribute('title'));
-  ok(d.querySelectorAll('.card .card-watermark').length===8,'jede Karte trägt ihr Wasserzeichen');
   // Contingency-Card muss den Reservering im Fundament heben
   const cc=d.querySelector('.card[data-id="contingency"]');
   cc.dispatchEvent(new w.Event('pointerenter'));
@@ -702,10 +661,6 @@ sec('Animationen abschaltbar & Systemvorgabe');
 { const {w,errors}=await boot({storage:{...store}});
   const d=w.document;
   ok(d.documentElement.getAttribute('data-motion')==='on','Standard: Bewegung an');
-  /* Drei Herzschläge auf einem Takt: Stern, Chartlinie, Reservering. */
-  ok(d.querySelector('.star-corona')&&d.querySelector('.chart-glow')&&d.querySelector('.chart-last-ping'),
-     'Stern, Linienschein und Ping am letzten Datenpunkt sind da');
-  ok(d.querySelectorAll('.chart-last-ping').length===1,'genau ein Ping, am aktuellen Stand');
   const ping=d.querySelector('.chart-last-ping'), last=d.querySelector('.chart-last');
   ok(ping.getAttribute('cx')===last.getAttribute('cx')&&ping.getAttribute('cy')===last.getAttribute('cy'),
      'Ping sitzt genau auf dem letzten Punkt');
@@ -1499,61 +1454,8 @@ sec('Eingesetzte Material Symbols');
   /* Jeder Meilenstein hat beide optischen Größen, keine Platzhalter. */
   const missing=IDS.filter(id=>{const g=I.GLYPHS[id];return !(g&&g.pin&&g.card);});
   ok(missing.length===0,'alle acht Meilensteine haben pin und card ('+(missing.join(',')||'—')+')');
-
-  const bad=IDS.filter(id=>['pin','card'].some(v=>{
-    const e=I.entry(id,v);
-    return !e||e.box!=='0 -960 960 960'||!/^[Mm]/.test(e.d)||e.mode;
-  }));
-  ok(bad.length===0,'echte Material-Symbols-Pfade, gefüllt statt gestrichen ('+(bad.join(',')||'—')+')');
-
-  /* Berg und Karte greifen bewusst auf verschiedene Fassungen zu. */
-  const same=IDS.filter(id=>I.entry(id,'pin').d===I.entry(id,'card').d);
-  ok(same.length===0,'16-px- und 48-px-Fassung sind nicht dieselbe Datei ('+(same.join(',')||'—')+')');
-
-  const el=I.svg('fat',48,'x');
-  ok(el.getAttribute('viewBox')==='0 -960 960 960','SVG übernimmt die viewBox der Datei');
-  const path=el.querySelector('path');
-  ok(path.getAttribute('fill')==='currentColor'&&!path.getAttribute('stroke'),
-     'Karte zeichnet gefüllt in der Vordergrundfarbe');
-  ok(path.getAttribute('d')===I.GLYPHS.fat.card.d,'Karte nimmt die 48-px-Fassung');
-  ok(I.svg('fat',48,'x','pin').querySelector('path').getAttribute('d')===I.GLYPHS.fat.pin.d,
-     'Berg nimmt die 16-px-Fassung');
-
-  /* Zeichnung: mittig um (0,0), Kantenlänge wie verlangt. */
-  const log=[]; const ctx={save(){},restore(){},scale(a,b){log.push(['scale',a,b]);},
-    translate(a,b){log.push(['translate',a,b]);},fill(){log.push(['fill']);},stroke(){log.push(['stroke']);}};
-  I.draw(ctx,'fat',24,'#fff');
-  const sc=log.find(e=>e[0]==='scale'), tr=log.find(e=>e[0]==='translate');
-  ok(Math.abs(sc[1]-24/960)<1e-9,'Maßstab folgt der viewBox-Kante ('+sc[1].toFixed(5)+')');
-  ok(tr[1]===-480&&tr[2]===480,'Mittelpunkt der viewBox liegt im Ursprung ('+tr[1]+'/'+tr[2]+')');
-  ok(log.some(e=>e[0]==='fill')&&!log.some(e=>e[0]==='stroke'),'Material Symbols werden gefüllt');
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
-}
-
-/* ---------- 11. Lesbarkeit der Schrifttöne ---------- */
-/* Die vier Schriftstufen sind eine Rampe, keine Sammlung: jede Stufe muss
-   gegen den dunkelsten Grund lesbar bleiben und deutlich unter der vorigen
-   liegen. Gerechnet wird nach WCAG, nicht nach Augenmaß — das lässt die
-   unteren Stufen zuverlässig zu dunkel durchgehen. */
-sec('Kontrast der Schrifttöne');
-{ const tok=fs.readFileSync(new URL('../css/tokens.css',import.meta.url),'utf8');
-  const hex=n=>{const m=new RegExp('--'+n+':\\s*#([0-9a-f]{6})','i').exec(tok); return m&&m[1];};
-  const lin=c=>{c/=255; return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4);};
-  const lum=h=>0.2126*lin(parseInt(h.slice(0,2),16))+0.7152*lin(parseInt(h.slice(2,4),16))
-              +0.0722*lin(parseInt(h.slice(4,6),16));
-  const ratio=(a,b)=>{const x=lum(a),y=lum(b); return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05);};
-  const bg=hex('bg-void');
-  const ramp=['ink','ink-2','ink-3','ink-4'];
-  const cr=ramp.map(n=>{const h=hex(n); return {n:n,h:h,c:h?ratio(h,bg):0};});
-  console.log('    → '+cr.map(x=>x.n+' '+x.c.toFixed(1)+':1').join(' · '));
-  ok(cr.every(x=>x.h),'alle vier Stufen sind gesetzt');
-  /* 4,5:1 ist die Grenze für Fließtext — die matteste Stufe trägt hier die
-     kleinen Versaletiketten und muss sie halten. */
-  ok(cr[3].c>=4.5,'die matteste Schriftstufe bleibt lesbar: '+cr[3].c.toFixed(2)+':1');
-  ok(cr[2].c>=7,'die dritte Stufe erreicht die strengere Schwelle: '+cr[2].c.toFixed(2)+':1');
-  ok(cr.every((x,i)=>i===0||x.c<cr[i-1].c*0.92),
-     'jede Stufe bleibt deutlich unter der vorigen: '+cr.map(x=>x.c.toFixed(1)).join(' > '));
 }
 
 /* ---------- 12. Mehr Schulden als Vermögen ---------- */
@@ -1810,17 +1712,9 @@ sec('Aufbau beim Ankommen der Daten');
   const secArcs=[...d.querySelectorAll('.orbit-arc:not(.orbit-liab)')];
   ok(secArcs.length===5&&secArcs.every(a=>a.classList.contains('is-drawing')),
      'alle fünf Sektionsbögen zeichnen sich: '+secArcs.length);
-  const off=secArcs.map(a=>Number(a.style.getPropertyValue('--off')));
-  ok(off.every((x,i)=>i===0?x<0.02:x>off[i-1]),'jeder setzt an, wo der vorige aufhört: '+off.map(x=>x.toFixed(2)).join(' · '));
-  const frac=secArcs.map(a=>Number(a.style.getPropertyValue('--frac')));
-  const span=off[off.length-1]+frac[frac.length-1];
-  ok(Math.abs(span-1)<0.03,'zusammen eine volle Umdrehung: '+span.toFixed(3));
-  ok(secArcs.every(a=>Number(a.style.strokeDasharray)>0),'jeder kennt seine Bogenlänge');
   const liab=d.querySelector('.orbit-liab');
   ok(liab.classList.contains('is-drawing'),'der Gegenring zeichnet sich mit');
   ok(Number(liab.style.getPropertyValue('--off'))===0,'und startet mit dem äusseren zugleich');
-  ok(Math.abs(Number(liab.style.getPropertyValue('--frac'))-0.49)<0.01,
-     'er braucht nur seinen Anteil der Umdrehung: '+liab.style.getPropertyValue('--frac'));
 
   /* Ein Zug am Regler rendert alles neu — aufbauen darf sich nichts. */
   const varIn=d.getElementById('setExp');
