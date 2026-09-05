@@ -289,6 +289,49 @@ if (!real) {
   }
 }
 
+/* Sauberer Boden für die restlichen Fälle, unabhängig davon, ob der
+   Mappen-Zweig oben gelaufen ist und was er liegen liess. */
+try { fs.unlinkSync(path.join(tmp, 'notes.md')); } catch (e) { /* schon weg */ }
+git('reset', '-q');
+
+/* --- eine Ausnahme ohne Begründung (G5) --------------------------------- */
+/* raw.slice(raw.indexOf('#') + 1) macht bei fehlendem "#" (indexOf -1) über
+   slice(0) die ganze Zeile (die Nadel selbst) zur Begründung. Der Kopf von
+   tests/privacy-allow.txt erklärt die Begründung aber zur Pflicht: eine
+   bare Zeile muss den Commit verhindern, nicht still durchgehen. */
+fs.writeFileSync(path.join(tmp, 'tests/privacy-allow.txt'), 'Dashboard\n');
+fs.appendFileSync(path.join(tmp, 'README.md'), '\nbare allow line\n');
+git('add', '-A');
+r = commit('bare allow line');
+ok(r.status !== 0, 'eine Ausnahme ohne Begründung lässt keinen Commit durch: ' + r.status);
+ok(/privacy-allow\.txt:1\b/.test(r.stdout + r.stderr),
+  'und nennt die Zeile: ' + (r.stdout + r.stderr).trim().split('\n').slice(0, 3).join(' | '));
+git('reset', '-q');
+
+/* Mit Begründung geht dieselbe Nadel wieder durch: die Regel trifft die
+   Form der Zeile, nicht die Nadel selbst. */
+fs.writeFileSync(path.join(tmp, 'tests/privacy-allow.txt'),
+  fs.readFileSync(path.join(ROOT, 'tests/privacy-allow.txt')));
+git('add', '-A');
+r = commit('restore allow file');
+ok(r.status === 0, 'mit Begründung ist wieder Ruhe: ' + (r.stdout + r.stderr).trim().split('\n')[0]);
+
+/* --- der Personen-Scan meldet jeden Treffer, nicht nur den ersten (G6) -- */
+/* Zwei Zeilen mit demselben Namen in derselben Datei müssen zwei Zeilen im
+   Bericht ergeben, sonst versteht niemand aus der Meldung, wie viel
+   aufzuräumen ist. */
+fs.writeFileSync(path.join(tmp, 'notes.md'),
+  'Die Mappe von ' + NAME + ' liegt in excel/.\n' +
+  'Auch diese Zeile spricht von ' + NAME + ' und der Mappe.\n');
+git('add', 'notes.md');
+r = commit('person twice');
+ok(r.status !== 0, 'zwei Sätze über dieselbe Person werden abgewiesen');
+ok(/notes\.md:1\b/.test(r.stdout + r.stderr) && /notes\.md:2\b/.test(r.stdout + r.stderr),
+  'und beide Zeilen stehen im Bericht, nicht nur die erste: ' +
+  (r.stdout + r.stderr).trim().split('\n').slice(0, 5).join(' | '));
+git('reset', '-q');
+fs.unlinkSync(path.join(tmp, 'notes.md'));
+
 fs.rmSync(tmp, { recursive: true, force: true });
 ok(!fs.existsSync(tmp), 'das Wegwerf-Repository ist wieder weg');
 

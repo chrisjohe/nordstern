@@ -253,7 +253,9 @@
       }
       if (state.series === 'invested') {
         var stations = state.view.stations
-          .filter(function (s) { return min <= s.target && s.target <= max; })
+          /* Ohne Ausgaben liegt jedes Ziel bei 0, eine Linie bei null sagt
+             nichts, ausser dass niemand die Ausgaben gesetzt hat. */
+          .filter(function (s) { return s.target > 0 && min <= s.target && s.target <= max; })
           .sort(function (a, b) { return a.target - b.target; });
         stations.forEach(function (s) {
           var y = Y(s.target);

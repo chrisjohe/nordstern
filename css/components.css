@@ -436,6 +436,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   transition: transform .62s var(--ease-out);
 }
 .card.is-flipped .card-inner { transform: rotateY(180deg); }
+/* Ohne monatliche Ausgaben liegt jedes Ziel bei 0: die Karte hat
+   nichts zu zeigen und lässt sich nicht öffnen. */
+.card.is-inactive { opacity: .38; pointer-events: none; cursor: default; }
 
 .card-face {
   position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
@@ -467,6 +470,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 .card-tag b { font-weight: 400; color: rgba(233,239,249,.80); }
 .card-tag i { font-style: normal; color: rgba(233,239,249,.54); }
+/* Ohne feste Fläche schwimmt die Marke über wechselnden Kartenfarben,
+   im hohen Kontrast reicht die Haarlinie allein nicht mehr. */
+:root[data-contrast="high"] .card-tag { background: var(--bg-void); }
 .card-scrim {
   position: absolute; inset: 0;
   background: linear-gradient(178deg, rgba(4,7,14,0) 32%, rgba(4,7,14,.86) 100%);

@@ -163,6 +163,21 @@
     };
   }
 
+  /* ------------------------------------------------------------------ Farbe */
+
+  /** '#rrggbb' → [r, g, b]. */
+  function hex(c) {
+    return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+  }
+  /** Linear zwischen zwei Hexfarben, t ∈ [0,1]. */
+  function mix(a, b, t) {
+    var A = hex(a), B = hex(b);
+    return '#' + [0, 1, 2].map(function (i) {
+      var v = Math.round(A[i] + (B[i] - A[i]) * clamp(t, 0, 1));
+      return (v < 16 ? '0' : '') + v.toString(16);
+    }).join('');
+  }
+
   /* -------------------------------------------------------------------- DOM */
 
   function el(sel, root) { return (root || document).querySelector(sel); }
@@ -225,7 +240,7 @@
 
   /* Eine Fassung, an einer Stelle. Ohne Bauschritt kann nichts sie aus
      package.json holen, also steht sie hier. */
-  NS.VERSION = '1.1.12';
+  NS.VERSION = '1.1.13';
 
   /* Formatierer müssen vor dem ersten eur()/pct()-Aufruf existieren, auch
      wenn util.js allein geladen wird. */
@@ -238,6 +253,7 @@
     MONTHS_SHORT: MONTHS_SHORT,
     CURRENCIES: CURRENCIES, setCurrency: setCurrency, currency: currency, currencySymbol: currencySymbol,
     clamp: clamp, lerp: lerp, smoothstep: smoothstep, easeOutCubic: easeOutCubic, rng: rng,
+    hex: hex, mix: mix,
     el: el, els: els, make: make, svg: svg, bus: bus
   };
 })(typeof window !== 'undefined' ? window : globalThis);

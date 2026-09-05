@@ -39,7 +39,7 @@ sec('Leerzustand ohne gespeicherte Daten');
   ok(tabs.every(b=>b.tabIndex===(b.getAttribute('aria-selected')==='true'?0:-1)),
      'die Liste ist ein einziger Tabstopp');
   key(tabs[2],'ArrowDown');
-  ok(shown().join()==='motion','↓ wandert weiter: '+shown().join());
+  ok(shown().join()==='display','↓ wandert weiter: '+shown().join());
   key(tabs[3],'End');
   ok(shown().join()==='about','Ende springt ans Ende: '+shown().join());
   key(tabs[4],'ArrowDown');
@@ -175,15 +175,26 @@ sec('Beschädigtes Modell im Speicher');
     'tangible fehlt in einem Monat':   bend(m=>{delete m.months[3].tangible;}),
     /* Die Versionsnummer allein ist der schnellste Weg, ein Modell aus einer
        alten Form zu verwerfen. */
-    'alte Modellversion (v2)':         JSON.stringify({...good,version:2})
+    'alte Modellversion (v2)':         JSON.stringify({...good,version:2}),
+    /* A11: die vier Felder, an denen settings.js beim Anzeigen hängt (sync()),
+       die store.usable() prüfen muss, allen voran „boom": ein Text
+       statt einer Liste, an dem model.warnings.forEach() zerbricht. */
+    'warnings ist ein Text statt einer Liste': bend(m=>{m.warnings='boom';}),
+    'importedAt fehlt':                bend(m=>{delete m.importedAt;}),
+    'sourceName ist eine Zahl':        bend(m=>{m.sourceName=42;}),
+    'skipped ohne count':              bend(m=>{m.skipped={from:'2026-01'};}),
+    'skipped ist eine Zahl statt eines Objekts': bend(m=>{m.skipped=3;})
   };
   for(const [what,raw] of Object.entries(broken)){
-    const {w,errors}=await boot({storage:{[KEY]:raw}});
+    const {w,errors,mem}=await boot({storage:{[KEY]:raw}});
     const d=w.document;
     ok(!d.getElementById('gate').hidden,what+': der Leerzustand steht');
     ok(errors.length===0,what+': ohne Fehler — '+errors.join(' | '));
     ok(d.querySelector('.sheet-status .meta-import').textContent==='no import',
        what+': und die Einstellungen sagen es — '+d.querySelector('.sheet-status .meta-import').textContent);
+    /* A11: ein kaputter Eintrag bleibt nicht liegen, sonst schlägt er bei
+       jedem Neustart erneut an. */
+    ok(!(KEY in mem),what+': der kaputte Eintrag ist aus dem Speicher entfernt: '+Object.keys(mem).join(' · '));
     w.close();
   }
   /* Und das heile Modell kommt weiter durch — die Prüfung darf nicht mehr
@@ -195,7 +206,7 @@ sec('Beschädigtes Modell im Speicher');
   /* Der zweite Boden: das Modell besteht jede Prüfung, und die Berechnung
      wirft trotzdem. Dann steht der Vorhang, statt dass ein leerer Bildschirm
      ohne Knopf zurückbleibt. */
-  { const {w,errors}=await boot({storage:{...store},
+  { const {w,errors,mem}=await boot({storage:{...store},
       patch:win=>{ win.NORDSTERN.calc.derive=()=>{ throw new TypeError('geplatzt'); }; }});
     const d=w.document;
     ok(!d.getElementById('gate').hidden,'wirft die Berechnung, steht der Leerzustand');
@@ -203,6 +214,10 @@ sec('Beschädigtes Modell im Speicher');
        'und die Einstellungen sagen es: '+d.querySelector('.sheet-status .meta-import').textContent);
     ok(!d.querySelector('.hero-val'),'auf der Bühne steht nichts Halbfertiges');
     ok(errors.length===0,'und nichts dringt als Ausnahme nach draussen: '+errors.join(' | '));
+    /* A11: auch dieser zweite Boden räumt auf, statt den Eintrag liegen zu
+       lassen, sonst schlägt genau dieselbe Ausnahme beim nächsten Start
+       wieder an. */
+    ok(Object.keys(mem).length===0,'boot() räumt den Speicher leer: '+Object.keys(mem).join(' · '));
     w.close();
   }
 }
@@ -233,6 +248,62 @@ sec('Monatliche Ausgaben verschieben alle Ziele');
   ok(N(afterTarget)==='360.000 €','Ziel nachher '+afterTarget);
   ok(N(d.querySelector('.sheet-facts .is-total').textContent)==='6.000 €','Gesamtausgaben: '+d.querySelector('.sheet-facts .is-total').textContent);
   ok(!d.querySelector('.st-hint'),'Hinweis „expenses are an estimate“ verschwindet');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 3c. A9: Ausgaben auf 0 ---------- */
+/* Bei 0 € Ausgaben liegt jedes Ziel bei 0 (calc.derive: target 0, pct null),
+   die Karten haben nichts zu zeigen und lassen sich nicht öffnen, die
+   Statuszeile sagt es in Worten statt in einer Kette aus Strichen. Getrieben
+   wird das vom berechneten Modell (ms.target), nicht von settings.monthlyExpenses
+   direkt, sonst liefen Karte und Statuszeile bei künftigen Änderungen
+   auseinander. */
+sec('A9: monatliche Ausgaben auf 0');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  const setExp=v=>{ const inp=d.getElementById('setExp'); inp.value=String(v); inp.dispatchEvent(new w.Event('input')); };
+  const card=id=>d.querySelector('.card[data-id="'+id+'"]');
+  const status=()=>d.getElementById('mountStatus');
+
+  d.querySelector('.st-hint').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  setExp(0); await tick(30);
+
+  ok(N(d.querySelector('.sheet-facts .is-total').textContent)==='0 €',
+     'Gesamtausgaben jetzt 0 €: '+d.querySelector('.sheet-facts .is-total').textContent);
+
+  var ids=['contingency','snowball','fyou','coast','barista','semi','lean','fat'];
+  ids.forEach(function(id){
+    var c=card(id);
+    ok(c.classList.contains('is-inactive'),'Karte '+id+' ist inaktiv markiert');
+    ok(c.getAttribute('aria-disabled')==='true','Karte '+id+' trägt aria-disabled="true": '+c.getAttribute('aria-disabled'));
+    ok(c.getAttribute('tabindex')==='-1','Karte '+id+' ist aus der Tabreihenfolge genommen: '+c.getAttribute('tabindex'));
+  });
+
+  /* Weder Klick noch Tastatur klappen eine inaktive Karte auf. */
+  var coast=card('coast');
+  coast.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  ok(!coast.classList.contains('is-flipped'),'Klick auf die inaktive Karte klappt sie nicht auf');
+  coast.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+  ok(!coast.classList.contains('is-flipped'),'Enter auf der inaktiven Karte ebenfalls nicht');
+  ok(w.NORDSTERN.app.ui.cards.openId()===null,'keine Karte gilt als offen');
+
+  /* Die Statuszeile sagt es in einem Satz, kein Strich weit und breit. */
+  ok(status().textContent.trim()==='No monthly expenses are set',
+     'die Statuszeile meldet den Grund: '+status().textContent);
+  ok(!/[—–]/.test(status().textContent),'kein Gedankenstrich-Platzhalter in der Statuszeile: '+status().textContent);
+  ok(!d.querySelector('.st-hint'),'kein zusätzlicher Schätzwert-Hinweis daneben');
+  ok(d.getElementById('ringLegend').textContent==='','die Reserve-Legende steht leer, statt "Reserve —"');
+
+  /* Und zurück: über 0 hinaus wirkt sofort wieder alles wie zuvor, ohne Neustart. */
+  setExp(2500); await tick(30);
+  ok(!card('coast').classList.contains('is-inactive'),'Karte wird ohne Neustart wieder aktiv');
+  ok(card('coast').getAttribute('aria-disabled')===null,
+     'aria-disabled entfällt wieder: '+card('coast').getAttribute('aria-disabled'));
+  ok(card('coast').getAttribute('tabindex')==='0','wieder in der Tabreihenfolge');
+  card('coast').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  ok(card('coast').classList.contains('is-flipped'),'Klick klappt die Karte jetzt wieder auf');
+  ok(!status().textContent.includes('No monthly expenses'),'die Statuszeile zeigt wieder die Leiter');
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }
@@ -754,6 +825,11 @@ sec('Stationslinien im Verlauf');
      'bei 4.000 €/Monat bleiben nur die ersten drei — Aurora (480.000 €) läge über der Skala: '
      +st4000.map(s=>s.dataset.id).join());
 
+  /* 9: bei 0 €/Monat liegt jedes Ziel bei 0 (nicht min <= 0 <= max, der
+     Filter schliesst target <= 0 eigens aus), also keine einzige Linie. */
+  setExp(0); await tick(30);
+  ok(stations().length===0,'bei 0 €/Monat zeichnet die Serie keine einzige Stationslinie: '+stations().length);
+
   setExp(2500); await tick(30);
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
@@ -782,6 +858,46 @@ sec('Animationen abschaltbar & Systemvorgabe');
 }
 { const {w}=await boot({storage:{...store},reducedMotion:true});
   ok(w.document.documentElement.getAttribute('data-motion')==='off','prefers-reduced-motion respektiert');
+  w.close();
+}
+
+/* ---------- 5d. U10: hoher Kontrast ---------- */
+sec('U10: hoher Kontrast');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  ok(d.documentElement.getAttribute('data-contrast')==='normal',
+     'Standard: normaler Kontrast: '+d.documentElement.getAttribute('data-contrast'));
+
+  const pane=d.querySelector('.sheet-sec[data-sec="display"]');
+  ok(!!pane,'der Abschnitt heisst display');
+  const cb=pane&&pane.querySelector('#setContrast');
+  ok(!!cb,'der Schalter für hohen Kontrast liegt im Abschnitt display');
+
+  cb.checked=true; cb.dispatchEvent(new w.Event('change'));
+  await tick(20);
+  ok(d.documentElement.getAttribute('data-contrast')==='high',
+     'Schalter setzt data-contrast="high": '+d.documentElement.getAttribute('data-contrast'));
+  ok(JSON.parse(w.localStorage.getItem('nordstern.settings.v1')).highContrast===true,
+     'und schreibt highContrast:true weg');
+
+  cb.checked=false; cb.dispatchEvent(new w.Event('change'));
+  await tick(20);
+  ok(d.documentElement.getAttribute('data-contrast')==='normal','Schalter zurück: wieder normal');
+  ok(JSON.parse(w.localStorage.getItem('nordstern.settings.v1')).highContrast===false,
+     'und schreibt highContrast:false weg');
+  ok(errors.length===0,'keine Fehler');
+  w.close();
+}
+{ const {w}=await boot({storage:{...store},patch:win=>{
+    /* Der Stub in harness.mjs kennt nur `reducedMotion`; hier zählt allein
+       "prefers-contrast: more", unabhängig davon. */
+    const base=win.matchMedia;
+    win.matchMedia=q=>/prefers-contrast/.test(q)
+      ? {matches:true,media:q,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}}
+      : base(q);
+  }});
+  ok(w.document.documentElement.getAttribute('data-contrast')==='high',
+     'prefers-contrast: more allein reicht: '+w.document.documentElement.getAttribute('data-contrast'));
   w.close();
 }
 
@@ -877,6 +993,44 @@ sec('Unbrauchbare Mappenstruktur');
      'er führt direkt nach workbook: '+d.querySelector('.sheet-nav-item[aria-selected="true"]').textContent);
   ok(d.querySelector('.sheet-sec[data-sec="workbook"]').hidden===false,'und das Paneel steht offen');
   ok(errors.length===0,'keine Fehler');
+  w.close();
+}
+
+/* ---------- 6b. A12: .xls kommt durch die Endungsprüfung ---------- */
+/* SheetJS liest .xls (das ältere BIFF-Format) längst; nur readFile() kannte
+   die Endung nicht und wies eine sonst brauchbare Mappe allein deswegen ab. */
+sec('A12: .xls wird gelesen, ein fremdes Format weiterhin nicht');
+{ const {w,errors}=await boot();
+  const d=w.document;
+  const XLSX=w.XLSX;
+  const months=[[2026,1],[2026,2]];
+  const picker=d.getElementById('filePicker');
+
+  const bytes=XLSX.write(tinyWorkbook(w,months),{type:'array',bookType:'xls'});
+  const file=new w.File([bytes],'gut.xls');
+  Object.defineProperty(picker,'files',{value:[file],configurable:true});
+  picker.dispatchEvent(new w.Event('change'));
+  await tick(80);
+
+  ok(d.getElementById('gate').hidden,
+     '.xls wird gelesen, der Vorhang geht auf: '+d.getElementById('toast').textContent);
+  ok(!d.getElementById('toast').textContent.includes('Not a spreadsheet'),
+     'keine Ablehnung wegen der Endung: '+d.getElementById('toast').textContent);
+  ok(!!w.NORDSTERN.app.state.model&&w.NORDSTERN.app.state.model.months.length===2,
+     'die .xls-Mappe wurde tatsächlich gelesen');
+
+  /* Ein Format, das der Dialog nicht anbietet, bleibt abgewiesen, ohne
+     überhaupt gelesen zu werden; die Endungsprüfung ist nicht grenzenlos
+     aufgeweicht worden. */
+  const file2=new w.File([new Uint8Array([1,2,3])],'notizen.csv');
+  Object.defineProperty(picker,'files',{value:[file2],configurable:true});
+  picker.dispatchEvent(new w.Event('change'));
+  await tick(20);
+  ok(d.getElementById('toast').textContent.includes('Not a spreadsheet')&&
+     d.getElementById('toast').textContent.includes('.xls'),
+     'ein fremdes Format wird weiterhin abgewiesen, die Meldung nennt jetzt auch .xls: '
+     +d.getElementById('toast').textContent);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }
 
@@ -1107,7 +1261,7 @@ sec('Robustheit: Fehlerwerte, kaputte Daten, leere Mappe');
      Adresse, nicht nur „irgendeine". */
   const wsBadHeaderCols2=full([[2026,6],[2026,7],[2026,8]]);
   wsBadHeaderCols2[EC(ROW.MONTH,2)]={t:'s', v:'not a date'};
-  wsBadHeaderCols2[EC(ROW.MONTH,3)]={t:'n', v:12345};          // < 20000: faellt nicht unter den Seriennummer-Fallback in readDate
+  wsBadHeaderCols2[EC(ROW.MONTH,3)]={t:'n', v:12345};          // eine Zahl ohne Datumsformat ist kein Datum (A10)
   const badHeaderCols2=parse(wsBadHeaderCols2);
   ok(badHeaderCols2.ok,'eine verbleibende Monatsspalte reicht zum Import: '+badHeaderCols2.errors.join(' | '));
   ok(badHeaderCols2.warnings.some(t=>/^2 header cells hold/.test(t)&&t.indexOf('C1')>=0),
@@ -1269,6 +1423,145 @@ sec('Anker: Doppel, Reihenfolge, Überlappung; Schnappschuss-Diagnose');
   /* Und zur Gegenprobe: die unveränderte Mappe bleibt sauber. */
   const clean=parse(full(months));
   ok(clean.ok&&clean.warnings.length===0,'die unveränderte Mappe bleibt ohne jeden Hinweis: '+clean.warnings.join(' | '));
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6e. A5: Summenzeilen werden nicht doppelt gezählt ---------- */
+/* checkSums las die Summenzeile ein zweites Mal über num(), obwohl ihr Wert
+   schon in months[i][id] steht: eine Text- oder Fehlerzelle dort wurde so
+   doppelt gemeldet. */
+sec('A5: Text- und Fehlerzellen in Summenzeilen zählen einmal');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const EC=(r,c)=>XLSX.utils.encode_cell({r,c});
+  const ROW=TINY_ROWS;
+  const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Data Input'); return b; };
+  const parse=(ws)=>w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'x.xlsx');
+
+  const wsText=tinySheet(w,[[2026,1],[2026,2]]);
+  wsText[EC(ROW.TOTALLIQUID,1)]={t:'s', v:'150'};      // lesbarer Text, im vergangenen Monat
+  const resText=parse(wsText);
+  ok(resText.ok,'liest sich trotz Textzelle in der Summenzeile: '+resText.errors.join(' | '));
+  ok(resText.warnings.some(t=>/^1 amount is stored as text/.test(t)),
+     'die Textzelle zählt einmal, nicht doppelt: '+resText.warnings.join(' | '));
+
+  const wsErr=tinySheet(w,[[2026,1],[2026,2]]);
+  wsErr[EC(ROW.TOTALLIQUID,1)]={t:'e', v:42, w:'#N/A'};
+  const resErr=parse(wsErr);
+  ok(resErr.ok,'liest sich trotz Fehlerwert in der Summenzeile: '+resErr.errors.join(' | '));
+  ok(resErr.warnings.some(t=>/^1 cell holds/.test(t)&&/Excel error values/.test(t)),
+     'der Fehlerwert zählt einmal, nicht doppelt: '+resErr.warnings.join(' | '));
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6f. A6: eine Fehlerzelle in Spalte A wird kein Kontoname ---------- */
+/* str() prüfte c.t nicht auf 'e': ein #N/A in Spalte A wurde als String(42)
+   zu einem Konto namens "42". */
+sec('A6: eine Fehlerzelle in Spalte A ergibt kein Konto');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const EC=(r,c)=>XLSX.utils.encode_cell({r,c});
+  const ROW=TINY_ROWS;
+  const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Data Input'); return b; };
+  const parse=(ws)=>w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'x.xlsx');
+
+  const ws=tinySheet(w,[[2026,1],[2026,2]]);
+  ws[EC(ROW.DEPOT,0)]={t:'e', v:42, w:'#N/A'};
+  const res=parse(ws);
+  ok(res.ok,'liest sich trotz Fehlerwert in Spalte A: '+res.errors.join(' | '));
+  ok(!res.model.accounts.investment.some(a=>a.name==='42'),
+     'kein Konto namens „42": '+res.model.accounts.investment.map(a=>a.name).join(', '));
+  ok(res.warnings.some(t=>/Excel error values/.test(t)&&t.indexOf('A8')>=0),
+     'die Fehlerzelle wird stattdessen gemeldet, mit ihrer Adresse A8: '+res.warnings.join(' | '));
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6g. A7: eine leere, nicht-zukünftige Spalte ist keine Projektion ---------- */
+/* Eine vorbereitete, noch leere Spalte für den laufenden Monat liegt nicht in
+   der Zukunft; nur was nach "jetzt" liegt, darf als Projektion ignoriert
+   werden. Die leere laufende Spalte gehört zur Lückenwarnung, nicht zur
+   "ignoriert"-Zählung. */
+sec('A7: leere laufende Spalte vs. echte Projektion');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const EC=(r,c)=>XLSX.utils.encode_cell({r,c});
+  const ROW=TINY_ROWS;
+  const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Data Input'); return b; };
+  const parse=(ws)=>w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'x.xlsx');
+  /* Heute ist September 2026: August ist der letzte echte Schnappschuss,
+     September (der laufende Monat) ist vorbereitet, aber leer, Oktober liegt
+     tatsächlich in der Zukunft. */
+  const ws=tinySheet(w,[[2026,8],[2026,9],[2026,10]]);
+  const EMPTY_ROWS=[ROW.CASH,ROW.DEPOT,ROW.LOAN,ROW.TOTALLIQUID,ROW.TOTALCLAIMS,ROW.TOTALINVEST,
+    ROW.TOTALPROPERTY,ROW.TOTALRETIREMENT,ROW.TOTALASSETS,ROW.LIABTOTAL,ROW.NETWORTH];
+  [2,3].forEach(col=>EMPTY_ROWS.forEach(row=>delete ws[EC(row,col)]));   // September, Oktober leeren
+  const res=parse(ws);
+  ok(res.ok,'liest sich trotz leerer laufender und zukünftiger Spalte: '+res.errors.join(' | '));
+  ok(res.model.months.length===1&&res.model.months[0].key==='2026-08',
+     '„jetzt" bleibt August, der letzte befüllte Monat: '+res.model.months.map(m=>m.key).join(', '));
+  ok(res.model.skipped&&res.model.skipped.count===1&&res.model.skipped.from==='2026-10',
+     'nur Oktober zählt als übersprungene Projektion: '+JSON.stringify(res.model.skipped));
+  ok(res.warnings.some(t=>/1 empty month column/.test(t)&&/2026-09/.test(t)),
+     'September steht stattdessen als leere Spalte in der Reihe: '+res.warnings.join(' | '));
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6h. A8: die Gegenprobe formatiert über opts.fmt ---------- */
+/* Ohne Formatierer bleibt der eingebaute Fallback toFixed(2) + Anzeigewährung;
+   mit einem übergebenen fmt (app.js reicht NS.util.eur durch) wird dieser
+   verwendet, statt an der Betragsform ohne U.eur* vorbeizugehen. */
+sec('A8: opts.fmt formatiert die Gegenprobe-Warnung');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const EC=(r,c)=>XLSX.utils.encode_cell({r,c});
+  const ROW=TINY_ROWS;
+  const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Data Input'); return b; };
+
+  const ws=tinySheet(w,[[2026,1],[2026,2]]);
+  ws[EC(ROW.CASH,1)]={t:'n', v:1234.56};      // weicht von "Total liquid" (100) im vergangenen Monat ab
+
+  const noFmt=w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'x.xlsx',{});
+  ok(noFmt.ok,'liest sich trotz Abweichung: '+noFmt.errors.join(' | '));
+  ok(noFmt.warnings.some(t=>/max\. 1134\.56 EUR/.test(t)),
+     'ohne Formatierer bleibt der eingebaute Fallback: '+noFmt.warnings.join(' | '));
+
+  const withFmt=w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'x.xlsx',{fmt:n=>'#'+n.toFixed(1)});
+  ok(withFmt.ok,'liest sich trotz Abweichung: '+withFmt.errors.join(' | '));
+  ok(withFmt.warnings.some(t=>t.indexOf('max. #1134.6')>=0),
+     'mit Formatierer wird er statt des Fallbacks verwendet: '+withFmt.warnings.join(' | '));
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6i. A10: kein Seriennummer-Fallback für 1904-Mappen ---------- */
+/* Eine Zahl im Kopf ohne Datumsformat wird nicht mehr über die 1900er-Epoche
+   geraten: sie zählt wie jede andere kaputte Kopfzelle (A3), auch wenn sie
+   im ehemaligen Fallback-Bereich (20000..80000) läge. */
+sec('A10: eine Zahl ohne Datumsformat ist kein Datum');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const EC=(r,c)=>XLSX.utils.encode_cell({r,c});
+  const ROW=TINY_ROWS;
+  const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Data Input'); return b; };
+  const parse=(ws)=>w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'x.xlsx');
+
+  const ws=tinySheet(w,[[2026,6],[2026,7],[2026,8]]);
+  ws[EC(ROW.MONTH,2)]={t:'n', v:45000};    // ein echtes Excel-Serial, aber ohne Datumsformat
+  const res=parse(ws);
+  ok(res.ok,'zwei von drei Monatsspalten reichen weiterhin: '+res.errors.join(' | '));
+  ok(res.model.months.length===2,
+     'die Zahl wird nicht als drittes Datum gelesen: '+res.model.months.length);
+  ok(res.warnings.some(t=>/header cell holds something other than a date/.test(t)&&t.indexOf('C1')>=0),
+     'stattdessen zählt sie als kaputte Kopfzelle, wie jede Zahl ohne Datumsformat: '+res.warnings.join(' | '));
 
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
@@ -1804,6 +2097,26 @@ sec('Klick öffnet eine Sektion der Scheibe');
   w.close();
 }
 
+/* ---------- 9b. U9: Fokus kehrt zur geöffneten Zeile zurück ---------- */
+sec('U9: Fokus kehrt zur geöffneten Zeile zurück');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  const click=n=>n.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  const openable=()=>[...d.querySelectorAll('.orbit-legend .legend-row.is-open-able')];
+
+  const second=openable()[1];
+  const id=second.getAttribute('data-id');
+  click(second);
+  await tick(20);
+  click(d.querySelector('.legend-back'));
+  await tick(20);
+  ok(d.activeElement&&d.activeElement.getAttribute('data-id')===id,
+     'Fokus kehrt zur geöffneten Zeile ('+id+') zurück, nicht zur ersten: '+
+     (d.activeElement&&d.activeElement.getAttribute('data-id')));
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 10. Eingesetzte Icons ---------- */
 sec('Eingesetzte Material Symbols');
 { const {w,errors}=await boot({storage:{...store}});
@@ -1813,6 +2126,22 @@ sec('Eingesetzte Material Symbols');
   /* Jeder Meilenstein hat beide optischen Größen, keine Platzhalter. */
   const missing=IDS.filter(id=>{const g=I.GLYPHS[id];return !(g&&g.pin&&g.card);});
   ok(missing.length===0,'alle acht Meilensteine haben pin und card ('+(missing.join(',')||'—')+')');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- D1: Farbhelfer in util, schmale Icon-Schnittstelle ---------- */
+sec('D1: U.hex und U.mix, NS.icons ohne entry');
+{ const {w,errors}=await boot({storage:{...store}});
+  const U=w.NORDSTERN.util;
+  ok(typeof U.hex==='function'&&typeof U.mix==='function','U.hex und U.mix stehen bereit');
+  ok(JSON.stringify(U.hex('#3987e5'))===JSON.stringify([0x39,0x87,0xe5]),
+     'U.hex zerlegt in drei Kanäle: '+JSON.stringify(U.hex('#3987e5')));
+  ok(U.mix('#000000','#ffffff',0.5)==='#808080',
+     'U.mix mittelt bei t=0.5: '+U.mix('#000000','#ffffff',0.5));
+  ok(U.mix('#3987e5','#e9f2ff',0)==='#3987e5',
+     'U.mix bei t=0 liefert die erste Farbe unverändert: '+U.mix('#3987e5','#e9f2ff',0));
+  ok(w.NORDSTERN.icons.entry===undefined,'NS.icons exportiert kein entry');
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }

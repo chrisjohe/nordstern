@@ -62,7 +62,7 @@ verify yourself in about two minutes:
 | Nothing *can* be uploaded | `grep -r "fetch\|XMLHttpRequest\|WebSocket" js/` — only the vendored SheetJS matches, and only in dead branches |
 | The browser enforces it | `export/nordstern.html` carries `connect-src 'none'; form-action 'none'` |
 | Your spreadsheet is not modified | There is no write path. `XLSX.write` is never called by the app |
-| Only "Data Input" is kept | The example workbook ships with a second sheet; neither its name nor its content appears in the app or in `localStorage`. For `.xlsx`, `.xlsm` and `.xlsb` no other sheet is even decoded; `.ods` and `.numbers` are decoded in full first, then everything but this sheet is dropped — see [SECURITY.md](SECURITY.md) |
+| Only "Data Input" is kept | The example workbook ships with a second sheet; neither its name nor its content appears in the app or in `localStorage`. For `.xlsx`, `.xlsm` and `.xlsb` no other sheet is even decoded; `.xls`, `.ods` and `.numbers` are decoded in full first, then everything but this sheet is dropped — see [SECURITY.md](SECURITY.md) |
 | No web fonts, no CDN, no analytics | `npm test` fails the build if any of those appear |
 
 The parsed result is kept in your browser's `localStorage` and nowhere else,
@@ -76,9 +76,9 @@ See [SECURITY.md](SECURITY.md) for the longer version.
 ## Your workbook
 
 nordstern keeps **one sheet** and ignores everything else in the file — for
-`.xlsx`, `.xlsm` and `.xlsb` no other sheet is even decoded, while `.ods` and
-`.numbers` are decoded in full first and everything but this sheet is then
-dropped. It looks for a sheet named `Data Input`, or one of a handful of
+`.xlsx`, `.xlsm` and `.xlsb` no other sheet is even decoded, while `.xls`,
+`.ods` and `.numbers` are decoded in full first and everything but this sheet
+is then dropped. It looks for a sheet named `Data Input`, or one of a handful of
 aliases such as `Data` or `Daten`; a workbook with only one sheet needs no
 matching name at all — that sheet is used whatever it is called.
 
@@ -127,7 +127,7 @@ compare it against your own file without leaving the page. The full contract
 
 | Program | What to do |
 |---|---|
-| **Excel** | Save as `.xlsx` or `.xlsm`. Nothing special. |
+| **Excel** | Save as `.xlsx`, `.xlsm` or the older `.xls`. Nothing special. |
 | **LibreOffice / OpenOffice** | `.ods` works directly. So does `.xlsx`. |
 | **Google Sheets** | It has no file format of its own. *File → Download → Microsoft Excel (.xlsx)*. |
 | **Apple Numbers** | `.numbers` is read directly — but Numbers must save it as a single file, not a package (*Settings → General → uncheck "Save as package"*). |
@@ -221,7 +221,7 @@ Gear icon, top right. The sheet has one level of navigation: six names on the
 left, exactly one panel on the right.
 
 ```
-expenses · data source · workbook · motion · privacy · about
+expenses · data source · workbook · display · privacy · about
 ```
 
 A `tablist` with a single tab stop: ↑/↓ move, Home/End jump to the ends,
@@ -236,9 +236,12 @@ Escape closes the sheet.
   against your own file line by line.
 * **privacy** — what is read, written, sent, stored and required to sign in,
   each in one line, plus how to check it without taking anyone's word for it.
-* **motion** — two switches with the state spelled out.
-  `prefers-reduced-motion` is respected; without motion the mountain stands
-  still and is still rotatable, and nothing builds itself up on arrival.
+* **display** — three switches with the state spelled out: animations,
+  calmer motion, high contrast. `prefers-reduced-motion` is respected;
+  without motion the mountain stands still and is still rotatable, and
+  nothing builds itself up on arrival. `prefers-contrast: more` is
+  respected the same way; on, text brightens and lines strengthen
+  throughout, with no change in colour identity.
 * **about** — the star, the wordmark and the version, then three chapters:
   nordstern itself, SheetJS, Material Symbols, all three Apache 2.0, each with
   holder and source. No fonts are listed there because none are shipped — the
@@ -304,7 +307,7 @@ npm test
 |---|---|
 | `tests/behaviour.mjs` | empty state, import, persistence, monthly expenses, series switch, card ↔ mountain, motion, the arrival animation and what must *not* retrigger it, a broken workbook and the way back, edge cases, the contrast ramp, and that deleting local data leaves nothing behind |
 | `tests/geometry.mjs` | height field, contours, route, mountain proportion, framing across 576 views, marker spacing across 360 |
-| `tests/formats.mjs` | every format the file dialog offers except `.numbers` parses to identical figures; `.numbers` is checked by hand |
+| `tests/formats.mjs` | every format the file dialog offers except `.xls` and `.numbers` parses to identical figures; those two are checked by hand |
 | `tests/example.mjs` | the shipped example workbook still says exactly what `tools/make-example.mjs` says, and the generator will not overwrite its hand formatting |
 | `tests/build.mjs` | the single-file build: self-contained, byte-identical to its sources, boots, and reads the same workbook to the same numbers |
 | `tests/hook.mjs` | the pre-commit hook actually blocks a stray spreadsheet, a leaked figure and an unchecked image, and lets a clean commit through |

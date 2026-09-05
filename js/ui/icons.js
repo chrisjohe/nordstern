@@ -106,5 +106,5 @@
     ]);
   }
 
-  NS.icons = { GLYPHS: GLYPHS, entry: entry, draw: draw, svg: svg };
+  NS.icons = { GLYPHS: GLYPHS, draw: draw, svg: svg };
 })(typeof window !== 'undefined' ? window : globalThis);

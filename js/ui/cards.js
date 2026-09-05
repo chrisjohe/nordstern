@@ -118,12 +118,16 @@
       art.addEventListener('focus', function () { bus.emit('card:hover', { id: ms.id }); });
       art.addEventListener('blur', function () { bus.emit('card:hover', null); });
 
-      cards[ms.id] = { root: art, front: front, back: back };
+      cards[ms.id] = { root: art, front: front, back: back, inactive: false };
       return art;
     }
 
     function toggle(id, force) {
       var open = force != null ? force : state.openId !== id;
+      /* Eine inaktive Karte lässt sich nicht öffnen; schliessen (etwa weil
+         sie gerade inaktiv geworden ist, während sie aufgeklappt war) bleibt
+         erlaubt, das räumt nur auf. */
+      if (open && cards[id] && cards[id].inactive) return;
       Object.keys(cards).forEach(function (k) {
         var on = open && k === id;
         cards[k].root.classList.toggle('is-flipped', on);
@@ -139,6 +143,16 @@
       v.milestones.forEach(function (ms) {
         var c = cards[ms.id];
         if (!c) return;
+        /* Ohne Ausgaben liegt jedes Ziel bei 0, das steht schon im
+           berechneten Modell (calc.derive), nicht erst in den Einstellungen;
+           die Karte richtet sich danach, nicht nach settings.monthlyExpenses. */
+        var inactive = !(ms.target > 0);
+        c.inactive = inactive;
+        c.root.classList.toggle('is-inactive', inactive);
+        if (inactive) c.root.setAttribute('aria-disabled', 'true');
+        else c.root.removeAttribute('aria-disabled');
+        c.root.setAttribute('tabindex', inactive ? '-1' : '0');
+        if (inactive && state.openId === ms.id) toggle(ms.id, false);
         var pct = ms.pct == null ? 0 : ms.pct;
         c.root.setAttribute('data-status', ms.status);
         var w = (pct * 100).toFixed(1) + '%';
@@ -185,6 +199,10 @@
           var c = cards[k];
           c.root.removeAttribute('data-status');   // wie vor dem ersten Import
           c.root.classList.remove('is-linked');
+          c.root.classList.remove('is-inactive');
+          c.root.removeAttribute('aria-disabled');
+          c.root.setAttribute('tabindex', '0');
+          c.inactive = false;
           c.front.querySelector('.card-bar i').style.width = '0%';
           c.back.querySelector('.card-bar i').style.width = '0%';
           c.back.querySelector('.f-target').textContent = '—';

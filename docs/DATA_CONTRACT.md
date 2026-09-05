@@ -115,7 +115,8 @@ An amount pasted from a bank statement often sits in the cell as text.
 accepts only what matches one of a fixed set of notations completely: German
 (`.` groups, `,` separates the decimals), English (the other way round), or
 Swiss (`'` groups, `.` separates the decimals — `1'234.56`), each optionally
-carrying a leading currency code (`CHF 1'234.56`). Anything else is **not
+carrying a currency code at either end, leading or trailing but not both
+(`CHF 1'234.56` or `1'234.56 CHF`). Anything else is **not
 read at all** rather than read in part; the cell then counts as empty. Where
 more than one notation fits — `1.234` — the German reading applies.
 

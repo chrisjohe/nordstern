@@ -40,6 +40,15 @@
   }
   if (mq && mq.addEventListener) mq.addEventListener('change', applyMotion);
 
+  /* --------------------------------------------------------------- Kontrast */
+  var mqContrast = global.matchMedia ? global.matchMedia('(prefers-contrast: more)') : null;
+  function applyContrast() {
+    var on = !!state.settings.highContrast || !!(mqContrast && mqContrast.matches);
+    document.documentElement.setAttribute('data-contrast', on ? 'high' : 'normal');
+    if (ui.mountain) ui.mountain.refreshTokens();
+  }
+  if (mqContrast && mqContrast.addEventListener) mqContrast.addEventListener('change', applyContrast);
+
   /* ---------------------------------------------------------------- Toast */
   var toastTimer = null;
   function toast(msg, kind) {
@@ -83,10 +92,10 @@
   /* ---------------------------------------------------------------- Import */
   function readFile(file) {
     if (!file) return;
-    /* SheetJS liest auch .ods, .xlsb und .numbers; Google Sheets exportiert
-       nach .xlsx. */
-    if (!/\.(xlsx|xlsm|xlsb|ods|numbers)$/i.test(file.name)) {
-      toast('Not a spreadsheet nordstern can read (.xlsx, .xlsm, .xlsb, .ods, .numbers).', 'error');
+    /* SheetJS liest auch .xls, .ods, .xlsb und .numbers; Google Sheets
+       exportiert nach .xlsx. */
+    if (!/\.(xlsx|xlsm|xlsb|xls|ods|numbers)$/i.test(file.name)) {
+      toast('Not a spreadsheet nordstern can read (.xlsx, .xlsm, .xlsb, .xls, .ods, .numbers).', 'error');
       return;
     }
     ui.settings.setStatus('busy', 'reading …');
@@ -99,7 +108,7 @@
     };
     fr.onload = function () {
       if (token !== importSeq) return;
-      var res = NS.importer.parseArrayBuffer(fr.result, file.name, { currency: state.settings.currency });
+      var res = NS.importer.parseArrayBuffer(fr.result, file.name, { currency: state.settings.currency, fmt: NS.util.eur });
       if (!res.ok) {
         ui.settings.setStatus('error', 'unknown structure');
         /* Mit einem stehenden Modell bleibt die Bühne stehen; der Vorhang
@@ -164,6 +173,7 @@
     state.model = null; state.view = null;
     state.settings = NS.store.loadSettings();       // mit den Vorgaben als Grund
     applyMotion();
+    applyContrast();
     applyCurrency();
     ui.position.clear();
     ui.chart.clear();
@@ -187,6 +197,7 @@
     for (var k in patch) state.settings[k] = patch[k];
     if (!opts || !opts.transient) NS.store.saveSettings(state.settings);
     applyMotion();
+    applyContrast();
     applyCurrency();
     refresh();
   }
@@ -210,6 +221,16 @@
   function renderStatus(v) {
     var box = U.el('#mountStatus');
     box.innerHTML = '';
+    /* Bei 0 € Ausgaben liegt jedes Ziel bei 0 (calc.derive), die Leiter
+       hat also nichts zu zeigen: statt einer Kette aus Strichen (pct und
+       remaining sind dann null) steht hier eine einzige, ehrliche Zeile. */
+    if (!(v.expenses.monthly > 0)) {
+      box.appendChild(U.make('span', { class: 'st-pos', text: 'No monthly expenses are set' }));
+      var lgEmpty = U.el('#ringLegend');
+      lgEmpty.className = 'lg lg-ring';
+      lgEmpty.textContent = '';
+      return;
+    }
     var pos;
     if (v.allReached) pos = 'All seven stations reached';
     else if (v.reachedCount === 0) pos = 'Climbing to ' + v.nextStation.name;
@@ -285,6 +306,7 @@
       U.el('#mountFallback').hidden = false;
     }
     applyMotion();
+    applyContrast();
 
     U.el('#btnSettings').addEventListener('click', function () {
       if (ui.settings.isOpen()) ui.settings.close(); else ui.settings.open();
@@ -335,6 +357,10 @@
       } catch (e) {
         state.model = null;
         state.arriving = false;
+        /* Ein Eintrag, der jede Strukturprüfung besteht und trotzdem beim
+           Rechnen oder Zeichnen wirft, würde sonst bei jedem Neustart erneut
+           anschlagen. Weg damit; die Einstellungen bleiben, sie sind heil. */
+        NS.store.clearModel();
       }
     }
     if (!standing) {

@@ -40,8 +40,8 @@ const ref = base.model.months[base.model.months.length - 1];
 /* Was index.html im accept anbietet — jedes Format einzeln nachgewiesen. */
 const accept = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')
   .match(/id="filePicker"[^>]*accept="([^"]+)"/)[1].split(',').map((s) => s.trim().replace(/^\./, ''));
-ok(accept.join(' ') === 'xlsx xlsm xlsb ods numbers',
-   'der Dialog bietet fünf Formate an: ' + accept.join(' · '));
+ok(accept.join(' ') === 'xlsx xlsm xlsb xls ods numbers',
+   'der Dialog bietet sechs Formate an: ' + accept.join(' · '));
 
 const wb = XLSX.read(fs.readFileSync(FIXTURE), { type: 'buffer', cellDates: true });
 for (const bt of accept.filter((f) => f !== 'numbers')) {
@@ -76,7 +76,7 @@ for (const bt of accept.filter((f) => f !== 'numbers')) {
      bt + ' reicht nur das eine Blatt weiter: ' + openedBt.SheetNames.join(' · '));
   ok(openedBt.available.join(' · ') === 'Read me · Data Input',
      bt + ' nennt available beide Blätter, in Dateireihenfolge: ' + openedBt.available.join(' · '));
-  const expected = bt === 'ods' ? 2 : 1;
+  const expected = (bt === 'ods' || bt === 'xls') ? 2 : 1;
   ok(decoded.length === 1 && decoded[0] === expected,
      bt + ': ' + decoded[0] + ' von 2 Blättern dekodiert' +
      (expected === 2 ? ' — SheetJS kennt für dieses Format keinen Filter' : ''));

@@ -10,7 +10,7 @@
     { id: 'expenses', label: 'expenses' },
     { id: 'source',   label: 'data source' },
     { id: 'workbook', label: 'workbook' },
-    { id: 'motion',   label: 'motion' },
+    { id: 'display',  label: 'display' },
     { id: 'privacy',  label: 'privacy' },
     { id: 'about',    label: 'about' }
   ];
@@ -164,7 +164,7 @@
         refs.warn,
         U.make('div', { class: 'sheet-actions' }, [refs.reimport, refs.forget]),
         U.make('p', { class: 'sheet-copy', text:
-          'Only the sheet "Data Input" is used; for .ods and .numbers the reader decodes ' +
+          'Only the sheet "Data Input" is used; for .xls, .ods and .numbers the reader decodes ' +
           'the whole file first, then the other sheets are discarded. The workbook is ' +
           'never modified, and nothing leaves this machine.' })
       ]));
@@ -241,15 +241,21 @@
       }
       var anim = toggle('setAnim', 'Animations');
       var calm = toggle('setCalm', 'Calmer motion');
+      var contrast = toggle('setContrast', 'High contrast');
       refs.anim = anim.input; refs.animState = anim.state;
       refs.calm = calm.input; refs.calmState = calm.state;
+      refs.contrast = contrast.input; refs.contrastState = contrast.state;
 
-      body.appendChild(pane('motion', [
+      body.appendChild(pane('display', [
         anim.node,
         calm.node,
+        contrast.node,
         U.make('p', { class: 'sheet-copy', text:
           'With animations off the mountain rests and still rotates on demand. ' +
-          'The system setting "Reduce motion" is respected.' })
+          'The system setting "Reduce motion" is respected.' }),
+        U.make('p', { class: 'sheet-copy', text:
+          'High contrast brightens text and strengthens lines across the whole app. ' +
+          'The system setting "Increase contrast" is respected.' })
       ]));
 
       /* --- Datenschutz ----------------------------------------------------- */
@@ -257,7 +263,7 @@
         return [U.make('dt', { text: term }), U.make('dd', { text: detail })];
       }
       var facts = [];
-      [['Read', 'The sheet "Data Input" — nothing else is kept, evaluated or stored, not even a sheet name. In .xlsx, .xlsm and .xlsb the parser is handed the one matching name and decodes no other sheet. For .ods and .numbers SheetJS offers no such filter: there the whole workbook is decoded, and everything but that sheet is dropped the moment it is open.'],
+      [['Read', 'The sheet "Data Input" — nothing else is kept, evaluated or stored, not even a sheet name. In .xlsx, .xlsm and .xlsb the parser is handed the one matching name and decodes no other sheet. For .xls, .ods and .numbers SheetJS offers no such filter: there the whole workbook is decoded, and everything but that sheet is dropped the moment it is open.'],
        ['Written', 'Nothing. There is no write path — the app never calls XLSX.write, and your file is closed again unchanged.'],
        ['Sent', 'Nothing, anywhere. There is no fetch, no XMLHttpRequest, no WebSocket, no image request, no web font, no analytics, no error reporting.'],
        ['Stored', 'Two keys in this browser\u2019s localStorage: the parsed model and your settings. Nothing else, nowhere else.'],
@@ -362,6 +368,10 @@
         paintSwitches();
         api.patchSettings({ motionIntensity: refs.calm.checked ? 'ruhig' : 'normal' });
       });
+      refs.contrast.addEventListener('change', function () {
+        paintSwitches();
+        api.patchSettings({ highContrast: refs.contrast.checked });
+      });
       refs.reimport.addEventListener('click', function () { api.pickFile(); });
       refs.forget.addEventListener('click', function () {
         if (global.confirm('The locally stored data will be deleted. Your workbook stays untouched.')) {
@@ -375,6 +385,7 @@
     function paintSwitches() {
       refs.animState.textContent = refs.anim.checked ? 'on' : 'off';
       refs.calmState.textContent = refs.calm.checked ? 'on' : 'off';
+      refs.contrastState.textContent = refs.contrast.checked ? 'on' : 'off';
     }
 
     /* Ziehen am Regler feuert `input` mehrmals pro Bild — jedes Ereignis eine
@@ -519,6 +530,7 @@
           'Importing a workbook whose number formats carry a currency symbol switches this to match.';
         refs.anim.checked = !!settings.animations;
         refs.calm.checked = settings.motionIntensity === 'ruhig';
+        refs.contrast.checked = !!settings.highContrast;
         paintSwitches();
         var em = String(settings.monthlyExpenses || 0);
         if (refs.expInput !== document.activeElement && refs.expInput.value !== em) refs.expInput.value = em;

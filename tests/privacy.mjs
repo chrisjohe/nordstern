@@ -173,9 +173,21 @@ const ALLOW = new Map();
 {
   const buf = configBytes('tests/privacy-allow.txt');
   if (buf) {
-    buf.toString('utf8').split('\n').forEach((raw) => {
+    buf.toString('utf8').split('\n').forEach((raw, i) => {
       const line = raw.replace(/\s*#.*$/, '').trim();
-      if (line) ALLOW.set(line, raw.slice(raw.indexOf('#') + 1).trim());
+      if (!line) return;
+      /* Ohne "#" liefert indexOf -1, und slice(-1 + 1) ist slice(0), die
+         ganze Zeile, also die Nadel selbst, würde zur Begründung. Der Kopf
+         der Datei erklärt die Begründung zur Pflicht, also zählt nur ein
+         echtes "#" mit nicht-leerem Rest dahinter. */
+      const hash = raw.indexOf('#');
+      const reason = hash >= 0 ? raw.slice(hash + 1).trim() : '';
+      if (!reason) {
+        console.log('tests/privacy-allow.txt:' + (i + 1) + ': Ausnahme ohne Begründung: „' +
+          raw.trim() + '". Jede Zeile braucht ein "#" mit einem Grund dahinter.');
+        process.exit(1);
+      }
+      ALLOW.set(line, reason);
     });
   }
 }
@@ -246,7 +258,6 @@ function scanPersons(rel, text) {
       if (LICENCE.test(lines[i])) continue;
       if (prx.get(needle).test(lines[i])) {
         personHits.push({ rel, line: i + 1, needle, what });
-        break;
       }
     }
   }

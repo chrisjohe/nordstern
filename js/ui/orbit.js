@@ -38,19 +38,9 @@
 
   /* Tönungen innerhalb einer Sektion: gleiche Farbe, heller werdend.
      Der größte Posten trägt den vollen Sektionston. */
-  function hex(c) {
-    return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
-  }
-  function mix(a, b, t) {
-    var A = hex(a), B = hex(b);
-    return '#' + [0, 1, 2].map(function (i) {
-      var v = Math.round(A[i] + (B[i] - A[i]) * t);
-      return (v < 16 ? '0' : '') + v.toString(16);
-    }).join('');
-  }
   function tints(tone, n) {
     var out = [];
-    for (var i = 0; i < n; i++) out.push(mix(tone, '#e9f2ff', n < 2 ? 0 : (i / (n - 1)) * 0.62));
+    for (var i = 0; i < n; i++) out.push(U.mix(tone, '#e9f2ff', n < 2 ? 0 : (i / (n - 1)) * 0.62));
     return out;
   }
 
@@ -347,11 +337,21 @@
     }
 
     function openSection(id) {
+      var was = state.open;
       state.open = state.open === id ? null : id;
       render();
-      /* Der Fokus darf nicht ins Leere fallen, wenn die Scheibe neu entsteht. */
-      var next = state.open ? legend.querySelector('.legend-back')
-        : legend.querySelector('.legend-row.is-open-able');
+      /* Der Fokus darf nicht ins Leere fallen, wenn die Scheibe neu entsteht.
+         Beim Verlassen einer Sektion kehrt er zu der Zeile zurück, über die
+         sie geöffnet wurde, nicht zur ersten in der Legende; nur wenn diese
+         Zeile nicht mehr da ist (Betrag auf null gefallen), zählt die
+         Ersatzregel. */
+      var next;
+      if (state.open) {
+        next = legend.querySelector('.legend-back');
+      } else {
+        next = (was && legend.querySelector('.legend-row.is-open-able[data-id="' + was + '"]')) ||
+          legend.querySelector('.legend-row.is-open-able');
+      }
       if (next && next.focus) next.focus();
     }
 

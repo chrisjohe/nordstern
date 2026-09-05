@@ -361,7 +361,7 @@
     { a:  495, r: 0.047, seg: 8, st: true }    // Apex — Gipfel
   ];
 
-  function polar(a, r) { return [Math.sin(a * Math.PI / 180) * r, Math.cos(a * Math.PI / 180) * r]; }
+  function polarDeg(a, r) { return [Math.sin(a * Math.PI / 180) * r, Math.cos(a * Math.PI / 180) * r]; }
 
   /** Radius, bei dem der Strahl `a` von außen kommend die Höhe z erreicht.
       Grob suchen, dann halbieren — ein gerasterter Radius würde den Weg
@@ -369,13 +369,13 @@
   function radiusFor(field, a, z) {
     var r, p, hit = 0.03;
     for (r = 0.95; r > 0.03; r -= 0.01) {
-      p = polar(a, r);
+      p = polarDeg(a, r);
       if (sampleH(field, p[0], p[1]) * Z_MAX >= z) { hit = r; break; }
     }
     var inner = hit, outer = Math.min(0.95, hit + 0.01);
     for (var k = 0; k < 8; k++) {
       var m = (inner + outer) / 2;
-      p = polar(a, m);
+      p = polarDeg(a, m);
       if (sampleH(field, p[0], p[1]) * Z_MAX >= z) inner = m; else outer = m;
     }
     return inner;
@@ -383,14 +383,14 @@
 
   function anchorZ(field, an) {
     if (an.z != null) return an.z;
-    var p = polar(an.a, an.r);
+    var p = polarDeg(an.a, an.r);
     return sampleH(field, p[0], p[1]) * Z_MAX;
   }
   function anchorR(field, an) { return an.r != null ? an.r : radiusFor(field, an.a, an.z); }
 
   /** Kontrollpolygon + Wegparameter der Stationen. */
   function routeControls(field) {
-    var pts = [polar(ROUTE_ANCHORS[0].a, anchorR(field, ROUTE_ANCHORS[0]))];
+    var pts = [polarDeg(ROUTE_ANCHORS[0].a, anchorR(field, ROUTE_ANCHORS[0]))];
     var stationT = [];
     for (var k = 1; k < ROUTE_ANCHORS.length; k++) {
       var prev = ROUTE_ANCHORS[k - 1], an = ROUTE_ANCHORS[k];
@@ -403,7 +403,7 @@
         if (an.mode === 'ridge') r = r0 + (r1 - r0) * t;
         else if (s === an.seg && an.r != null) r = an.r;
         else r = radiusFor(field, a, z0 + (z1 - z0) * t);
-        pts.push(polar(a, r));
+        pts.push(polarDeg(a, r));
       }
       if (an.st) stationT.push(pts.length - 1);
     }
@@ -485,10 +485,10 @@
         lp.px = new Float32Array(lp.n); lp.py = new Float32Array(lp.n);
       });
       var f = lv.index / (LEVELS - 1);
-      lv.fill = mix('#060b14', '#122036', f * f * 0.85 + f * 0.15);
-      lv.strokeLit = rgba(mix('#7fb2e5', '#e8f2ff', f), 0.30 + 0.44 * f);
-      lv.strokeMid = rgba(mix('#7fb2e5', '#dfeaff', f), 0.17 + 0.27 * f);
-      lv.strokeDim = rgba(mix('#5c86b8', '#9fc0e4', f), 0.09 + 0.14 * f);
+      lv.fill = U.mix('#060b14', '#122036', f * f * 0.85 + f * 0.15);
+      lv.strokeLit = rgba(U.mix('#7fb2e5', '#e8f2ff', f), 0.30 + 0.44 * f);
+      lv.strokeMid = rgba(U.mix('#7fb2e5', '#dfeaff', f), 0.17 + 0.27 * f);
+      lv.strokeDim = rgba(U.mix('#5c86b8', '#9fc0e4', f), 0.09 + 0.14 * f);
       lv.z = lv.level * Z_MAX;
     });
 
@@ -510,17 +510,7 @@
     };
 
     /* ---------------------------------------------------------- Farbhelfer */
-    function hex(c) {
-      return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
-    }
-    function mix(a, b, t) {
-      var A = hex(a), B = hex(b);
-      return '#' + [0, 1, 2].map(function (i) {
-        var v = Math.round(A[i] + (B[i] - A[i]) * U.clamp(t, 0, 1));
-        return (v < 16 ? '0' : '') + v.toString(16);
-      }).join('');
-    }
-    function rgba(c, a) { var C = hex(c); return 'rgba(' + C[0] + ',' + C[1] + ',' + C[2] + ',' + a.toFixed(3) + ')'; }
+    function rgba(c, a) { var C = U.hex(c); return 'rgba(' + C[0] + ',' + C[1] + ',' + C[2] + ',' + a.toFixed(3) + ')'; }
 
     /* Ringfarben kommen aus den Tokens, damit Warm und Grün nur an einer
        Stelle festgelegt sind. Fehlt der Wert (alte Engine, Testumgebung),
@@ -531,8 +521,8 @@
         return /^#[0-9a-fA-F]{6}$/.test(v) ? v : fb;
       } catch (e) { return fb; }
     }
-    var RGB_OK = hex(token('--aurora', '#2fbd8b')).join(',');
-    var RGB_WARN = hex(token('--amber', '#d46a2e')).join(',');
+    var RGB_OK = U.hex(token('--aurora', '#2fbd8b')).join(',');
+    var RGB_WARN = U.hex(token('--amber', '#d46a2e')).join(',');
 
     /* ------------------------------------------------------------ Kamera */
     var cam = makeCam(state.yaw, state.pitch, 0, 0, 1);
@@ -1137,6 +1127,14 @@
         state.needsDraw = true;
       },
       setPaused: function (p) { state.paused = !!p; if (!p) state.idle = 0; },
+      /* Ring- und Amber-Ton liegen als Cache im Speicher; ein Wechsel der
+         Tokens zur Laufzeit muss ihn neu füllen, sonst zeichnet der Canvas
+         weiter mit den alten Werten. */
+      refreshTokens: function () {
+        RGB_OK = U.hex(token('--aurora', '#2fbd8b')).join(',');
+        RGB_WARN = U.hex(token('--amber', '#d46a2e')).join(',');
+        state.needsDraw = true;
+      },
       setHover: function (id) {
         var ring = id === 'contingency';
         var st = ring ? null : id;
@@ -1161,10 +1159,6 @@
           paused: !!state.paused, motion: state.motion, yaw: state.yaw, pitch: state.pitch,
           ringFill: state.ringFill, markers: state.hits.length,
           hiddenMarkers: state.hits.filter(function (h) { return h.hidden; }).length };
-      },
-      destroy: function () {
-        global.cancelAnimationFrame(raf);
-        if (ro) ro.disconnect(); else global.removeEventListener('resize', resize);
       }
     };
   }

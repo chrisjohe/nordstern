@@ -94,3 +94,26 @@
 /* Bewegung: app.js setzt data-motion auf "on", "calm" oder "off".
    Alle Animationen hängen an "on"/"calm" — ohne Attribut bewegt sich nichts. */
 :root[data-motion="calm"] { --pulse-dur: 8.5s; }
+
+/* Kontrast: app.js setzt data-contrast auf "high" oder "normal", aus dem
+   Schalter im Blatt oder aus "prefers-contrast: more". Nur Token, keine
+   Komponente: Schrift heller, Linien kräftiger, Grund dunkler, wo es
+   einen Token dafür gibt. Bei "normal" bleibt der Auslieferungszustand
+   unverändert. */
+:root[data-contrast="high"] {
+  --ink:          #ffffff;
+  --ink-2:        #dbe5f6;
+  --ink-3:        #bccce6;
+  --ink-4:        #a2b6d4;
+  --ink-mute:     #7488a3;
+
+  --line-hair:    rgba(180, 205, 240, 0.22);
+  --line-soft:    rgba(180, 205, 240, 0.36);
+  --line-firm:    rgba(180, 205, 240, 0.54);
+
+  --bg-void:      #000000;
+  --bg-deep:      #01030a;
+  --bg-surface:   #030711;
+  --bg-raise:     #060c1c;
+  --bg-sunk:      #000206;
+}

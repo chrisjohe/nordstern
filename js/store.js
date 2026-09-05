@@ -19,6 +19,7 @@
     expensesSet: false,        // hat je ein Mensch das Blatt geöffnet und die Summe gesehen?
     animations: true,
     motionIntensity: 'normal', // 'ruhig' | 'normal'
+    highContrast: false,
     currency: 'EUR'
   };
 
@@ -78,9 +79,25 @@
     for (var j = 0; j < m.sectionOrder.length; j++) {
       if (!Array.isArray(m.accounts[m.sectionOrder[j]])) return false;
     }
+    /* Die vier Felder, an denen settings.js beim Anzeigen hängt (sync()):
+       ein Array aus Zeichenketten wirft sonst beim ersten forEach/length,
+       ein falscher sourceName oder skipped steht nur falsch da, aber ein
+       kaputtes warnings reisst die ganze Anzeige mit. */
+    if (!strArray(m.warnings)) return false;
+    if (typeof m.importedAt !== 'string') return false;
+    if (m.sourceName !== null && typeof m.sourceName !== 'string') return false;
+    if (m.skipped !== null) {
+      if (!m.skipped || typeof m.skipped !== 'object') return false;
+      if (!num(m.skipped.count) || typeof m.skipped.from !== 'string') return false;
+    }
     return true;
   }
   function num(v) { return typeof v === 'number' && isFinite(v); }
+  function strArray(a) {
+    if (!Array.isArray(a)) return false;
+    for (var i = 0; i < a.length; i++) if (typeof a[i] !== 'string') return false;
+    return true;
+  }
 
   function accountList(rows, monthCount) {
     if (!Array.isArray(rows)) return false;
@@ -95,12 +112,17 @@
 
   function loadModel() {
     if (!ok) return null;
-    try {
-      var raw = LS.getItem(KEY_MODEL);
-      if (!raw) return null;
-      var m = JSON.parse(raw);
-      return usable(m) ? m : null;
-    } catch (e) { return null; }
+    var raw;
+    try { raw = LS.getItem(KEY_MODEL); } catch (e) { return null; }
+    if (!raw) return null;
+    var m = null;
+    try { m = JSON.parse(raw); } catch (e) { m = null; }
+    if (m && usable(m)) return m;
+    /* Abgeschnitten, halb überschrieben oder von Hand gesetzt: was hier
+       liegt, besteht die Prüfung nie wieder und würfe bei jedem Neustart
+       erneut. Weg damit; die Einstellungen bleiben, sie sind heil. */
+    clearModel();
+    return null;
   }
 
   function saveModel(model) {
@@ -118,6 +140,11 @@
      Ausgaben sind eine von Hand eingetippte Zahl, genauso persönlich wie
      jeder Kontostand. Erst sammeln, dann löschen: wer während des
      Durchlaufs entfernt, überspringt Einträge, weil der Index weiterrutscht. */
+  function clearModel() {
+    if (!ok) return;
+    try { LS.removeItem(KEY_MODEL); } catch (e) {}
+  }
+
   function clearAll() {
     if (!ok) return 0;
     var mine = [];
@@ -165,7 +192,7 @@
 
   NS.store = {
     DEFAULT_SETTINGS: DEFAULT_SETTINGS, DEFAULT_EXPENSES: DEFAULT_EXPENSES,
-    loadModel: loadModel, saveModel: saveModel, clearAll: clearAll,
+    loadModel: loadModel, saveModel: saveModel, clearModel: clearModel, clearAll: clearAll,
     _usable: usable,
     loadSettings: loadSettings, saveSettings: saveSettings
   };

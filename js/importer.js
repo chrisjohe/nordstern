@@ -174,6 +174,10 @@
   function str(ws, row, col) {
     var c = cell(ws, row, col);
     if (!c || c.v == null) return '';
+    if (c.t === 'e') {                    // #N/A & Co. sind keine Beschriftung
+      if (noted) { noted.errN++; if (!noted.errAt) noted.errAt = addr(row, col); }
+      return '';
+    }
     return typeof c.v === 'string' ? c.v : String(c.v);
   }
 
@@ -211,19 +215,17 @@
     return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   }
 
-  /** Excel-Seriennummer → Datum (nur Fallback, wenn cellDates nicht griff). */
-  function serialToDate(n) {
-    return calendarDay(new Date(Math.round((n - 25569) * 86400000)));
-  }
-
   function isDate(v) { return Object.prototype.toString.call(v) === '[object Date]'; }
   function v_(c) { return c.v; }
 
+  /* Eine Zahl ohne Datumsformat ist kein Datum: das Jahr 1900 oder 1904 als
+     Epoche zu raten hiesse, für die eine Mappe richtigzuliegen und für die
+     andere still falsch. Eine Kopfzelle ohne Datumsformat zählt stattdessen
+     als kaputt (A3), statt als Schnappschuss eines geratenen Tages. */
   function readDate(ws, row, col) {
     var c = cell(ws, row, col);
     if (!c || c.v == null || c.v === '') return null;
     if (isDate(v_(c))) return isFinite(c.v.getTime()) ? calendarDay(c.v) : null;   // new Date('x') & Co.
-    if (typeof c.v === 'number' && c.v > 20000 && c.v < 80000) return serialToDate(c.v);
     return null;
   }
 
@@ -254,26 +256,29 @@
   var ANCHOR_LIAB_TOTAL  = 'total liabilities';
 
   /* map trägt je Beschriftung die erste Zeile, rows jedes Vorkommen:
-     Kontonamen dürfen sich wiederholen, Anker nicht (need()). */
+     Kontonamen dürfen sich wiederholen, Anker nicht (need()). count zählt
+     die beschrifteten Zeilen, mehr braucht kein Aufrufer; str() zählt
+     Fehlerzellen in die Diagnosenotiz, ein zweiter Aufruf je Zeile würde
+     doppelt zählen. */
   function labelRows(ws, range) {
-    var map = {}, rows = {}, order = [];
+    var map = {}, rows = {}, count = 0;
     for (var r = range.r0; r <= range.r1; r++) {
       var l = norm(str(ws, r, 0));
       if (!l) continue;
       if (!(l in map)) map[l] = r;
       (rows[l] || (rows[l] = [])).push(r);
-      order.push({ row: r, label: l, raw: str(ws, r, 0).replace(/ /g, ' ').trim() });
+      count++;
     }
-    return { map: map, rows: rows, order: order };
+    return { map: map, rows: rows, count: count };
   }
 
-  function parseDataInput(ws, errors, warnings) {
+  function parseDataInput(ws, errors, warnings, fmt) {
     noteInit('Data Input');
     var range = decodeRange(ws);
     var L = labelRows(ws, range);
     /* Eine leere Mappe verfehlt sonst jeden der fünfzehn Anker einzeln —
        fünfzehn Meldungen für denselben Befund. Eine genügt. */
-    if (!ws['!ref'] || !L.order.length) {
+    if (!ws['!ref'] || !L.count) {
       errors.push('The sheet "Data Input" is empty.');
       return null;
     }
@@ -478,9 +483,20 @@
     for (var i2 = 0; i2 <= lastIdx; i2++) {
       if (hasData(cols[i2].col)) used.push(cols[i2]); else emptyInside.push(cols[i2].key);
     }
-    /* Spalten rechts von lastIdx, nicht die Längendifferenz (die zählte
-       die innen ausgesiebten mit). */
-    var skipped = cols.length - (lastIdx + 1);
+    /* Spalten rechts von lastIdx sind nicht alle Projektionen: eine
+       vorbereitete, noch leere Spalte für den laufenden Monat liegt nicht in
+       der Zukunft, sie ist bloss noch nicht befüllt (sie gehört zur leeren
+       Reihe oben, nicht zur „ignoriert, weil kommend"-Zählung). Nur was nach
+       dem heutigen Monat liegt, ist eine Projektion. */
+    var skipped = 0, skippedFrom = null;
+    for (var i3 = lastIdx + 1; i3 < cols.length; i3++) {
+      if (cols[i3].key > nowKey) {
+        if (!skipped) skippedFrom = cols[i3].key;
+        skipped++;
+      } else {
+        emptyInside.push(cols[i3].key);
+      }
+    }
 
     /* Aufsteigend, sonst liest die Berechnung die falsche Spalte als
        Vormonat. Lücken und Doppelungen trägt das Programm, eine verrutschte
@@ -550,24 +566,27 @@
       }
     }
 
-    /* Gegenprobe: Kontensummen gegen die Summenzeilen der Mappe */
+    /* Gegenprobe: Kontensummen gegen die Summenzeilen der Mappe. Die Summenzeile
+       selbst ist schon in months[i][id] gelesen (oben, beim Aufbau der
+       Monatsreihe); ein zweites num() auf derselben Zelle würde jede Text-
+       oder Fehlerzelle dort ein zweites Mal zählen. */
     var EPS = 0.02;
-    function checkSums(id, rows, totalRow) {
+    function checkSums(id, rows) {
       var bad = 0, worst = 0, worstKey = null;
       used.forEach(function (mc, i) {
         var sum = 0;
         rows.forEach(function (a) { sum += a.values[i]; });
-        var tot = num(ws, totalRow, mc.col) || 0;
-        var diff = Math.abs(sum - tot);
+        var diff = Math.abs(sum - months[i][id]);
         if (diff > EPS) { bad++; if (diff > worst) { worst = diff; worstKey = mc.key; } }
       });
       if (bad) {
+        var shown = fmt ? fmt(worst) : (worst.toFixed(2) + ' ' + dispCode);
         warnings.push('Section "' + id + '": ' + bad + ' month(s) differ from the total row (max. ' +
-          worst.toFixed(2) + ' ' + dispCode + ' in ' + worstKey + ').');
+          shown + ' in ' + worstKey + ').');
       }
     }
-    SECTIONS.forEach(function (s) { checkSums(s.id, accounts[s.id], s._total); });
-    checkSums('liabilities', accounts.liabilities, rowLiabTot);
+    SECTIONS.forEach(function (s) { checkSums(s.id, accounts[s.id]); });
+    checkSums('liabilities', accounts.liabilities);
 
     var badTA = 0, badNW = 0;
     months.forEach(function (m) {
@@ -584,7 +603,7 @@
       currentIndex: months.length - 1,
       accounts: accounts,
       sectionOrder: SECTIONS.map(function (s) { return s.id; }),
-      skipped: skipped ? { count: skipped, from: cols[lastIdx + 1].key } : null
+      skipped: skipped ? { count: skipped, from: skippedFrom } : null
     };
   }
 
@@ -643,7 +662,8 @@
     }
     if (errors.length) return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
 
-    var data = parseDataInput(wsData, errors, warnings);
+    var fmt = opts && typeof opts.fmt === 'function' ? opts.fmt : null;
+    var data = parseDataInput(wsData, errors, warnings, fmt);
     if (errors.length || !data) return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
 
     var currency = currencyResult(warnings, dispCode);
