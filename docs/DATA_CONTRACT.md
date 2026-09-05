@@ -36,7 +36,7 @@ file.`
 Those sheet names appear only in that message, on screen — an error leaves
 no model, so nothing about the workbook is stored.
 
-## 2. `Data Input`
+## 2. The sheet
 
 ### Anchoring
 
@@ -44,6 +44,17 @@ Sections are found by their **label in column A**, never by row number.
 Inserting or deleting accounts therefore does not shift the import. Labels are
 compared lower-cased, with whitespace collapsed and a trailing `:` or `•`
 stripped.
+
+Two **layouts** are known, held in one table (`LAYOUTS` in `js/importer.js`).
+Each names the anchor of its header row, its sections and the four single
+anchors. The **header row picks the layout**: the first label in column A
+that matches a layout's header anchor decides, and nothing is inferred from
+the content below it. A sheet that has neither header stops with a message
+naming both anchors; a sheet with one layout's header over the other
+layout's totals stops with that layout's list of missing rows, and the first
+line of the message says which layout was read and why.
+
+**nordstern**, the layout the example workbook uses:
 
 | Anchor (column A) | Meaning |
 |---|---|
@@ -53,25 +64,56 @@ stripped.
 | `Investments` … `Total investments` | invested assets |
 | `Property` … `Total property` | tangible assets |
 | `Retirement` … `Total retirement` | retirement assets |
-| `Total assets` | all five sections together |
+| `Total assets` | all sections together |
 | `Liabilities` … `Total liabilities` | what you owe |
 | `Total net worth` | assets minus liabilities |
+
+**origin**, the 2016 sheet the nordstern layout descends from: one sheet, US
+dates on the first of the month, `$` formats, the funds under the liquid
+assets, no claims and no separate investments, an education block, and two
+blocks without a head row:
+
+| Anchor (column A) | Meaning |
+|---|---|
+| `Net Worth by Month (Progress)` | the header row holding the month dates |
+| `Assets` … `Total Liquid Assets` | liquid assets |
+| (no head) … `Total Education Assets` | education assets |
+| (no head) … `Total Hard Assets` | tangible assets |
+| `Retirement Assets` … `Total Retirement Assets` | retirement assets |
+| `Total Assets` | all sections together |
+| `Liabilities` … `Total Liabilities` | what you owe |
+| `Total Net Worth` | assets minus liabilities, at the top of the sheet |
+
+A **section without a head row** takes the total row of the section before
+it as its head: its accounts are the labelled rows between the two totals.
+Everything else the origin sheet carries falls under rules that hold for
+any workbook: the ratio rows near the top and the copy of the liquid total
+are labelled rows outside every section and are skipped; group rows without
+values (`Vanguard Mutual Funds`, `Jeep Car Loan`) read as accounts worth 0
+and stay out of the structure view; two accounts may share a name; a
+numeric label is a label; the single sheet needs no name.
 
 The **accounts of a section** are every labelled row between its head row and
 its total row. `Liabilities` is matched **exactly**, not as a substring, so a
 helper row such as `Liabilities *(-1)` below the total is left alone.
 
-Exactly one spelling per anchor, the same one the interface shows. Two valid
-names for the same row would only help for as long as somebody remembers the
-second one.
+Exactly one spelling per anchor per layout, the same one the interface shows.
+Two valid names for the same row would only help for as long as somebody
+remembers the second one.
 
 Each anchor must occur exactly once: a repeated `Liquid` or `Total assets`
 stops the import rather than silently keeping the first one. Within a
-section, the head row must come before its total row, and no two of the six
-sections (the five above, plus `Liabilities` … `Total liabilities`) may
-overlap (a total row moved into another section could otherwise turn that
-section's own anchors into "accounts", without a word about it). Each of
-the three stops the import and names the rows involved.
+section, the head row must come before its total row (for a headless
+section, the previous total), and no two sections (those of the layout, plus
+`Liabilities` … `Total liabilities`) may overlap (a total row moved into
+another section could otherwise turn that section's own anchors into
+"accounts", without a word about it); a headless section touching the total
+it starts on is not an overlap. Each of the three stops the import and names
+the rows involved.
+
+The model carries the sections a workbook has (`sectionOrder`, in sheet
+order) and nothing else: a month object from the origin layout has four
+section totals, one from the nordstern layout five.
 
 ### Month columns
 
@@ -156,7 +198,7 @@ Two other rules do not hold:
 For **every** month:
 
 * sum of the account rows = the section's total row (tolerance 0.02 €)
-* sum of the five sections = `Total assets`
+* sum of the sections = `Total assets`
 * `Total assets − Total liabilities` = `Total net worth`
 
 Differences are collected and shown in the settings as warnings — they do not
@@ -184,7 +226,15 @@ own file warns, the difference is in your file, not in the reader.
    retirement assets are not available at short notice and stay out of it.
 4. **The seven investment stations count against `Total investments`.**
    Property does not contribute to financial independence, and neither does
-   money somebody still owes you.
+   money somebody still owes you. **A workbook without an Investments
+   section** (the origin layout keeps the funds under the liquid assets)
+   measures the stations against `Total liquid` instead: cash and holdings
+   together, so the stations measure generously and share their pot with the
+   emergency fund. The settings say so in one sentence while the fallback is
+   active, the cards name `liquid` as the pot, and the "Invested" series in
+   the chart draws that block. Nothing is split by group rows or indentation,
+   that would be guessing; whoever moves the funds into their own
+   `Investments` … `Total investments` block gets the sharper reading.
 5. **A month with no year-ago value** (no snapshot 11 to 13 months back) shows
    "no year-ago value" rather than a 0.
 6. **Empty cells count as 0**, not as missing — which is how a spreadsheet

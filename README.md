@@ -119,7 +119,10 @@ and a comparison like "vs. last year" finds the nearest snapshot at that
 distance instead of assuming one exists.
 
 The same table is inside the app under *Settings → workbook*, so you can
-compare it against your own file without leaving the page. The full contract
+compare it against your own file without leaving the page. The 2016 sheet
+this layout descends from (`Net Worth by Month (Progress)` in the header,
+`Total Liquid Assets`, `Total Hard Assets` and so on) is read as well; the
+contract lists its anchors. The full contract
 — tolerances, what happens when sums disagree, the FIRE mathematics — is in
 [docs/DATA_CONTRACT.md](docs/DATA_CONTRACT.md).
 

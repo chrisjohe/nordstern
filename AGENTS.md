@@ -47,7 +47,7 @@ It runs from `file://` with no server and no build step.
 
 | I want to change… | Go to |
 |---|---|
-| how the spreadsheet is read | `js/importer.js` — **all** workbook knowledge is here, and nowhere else |
+| how the spreadsheet is read | `js/importer.js` — **all** workbook knowledge is here, and nowhere else; the anchors of both layouts sit in `LAYOUTS` |
 | the eight milestones | `js/calc.js` → `MILESTONES`. Read `docs/CUSTOMISE.md` first |
 | what living costs by default | `js/store.js` → `DEFAULT_EXPENSES` (2 500 € a month, a placeholder for the whole monthly spending — the targets are multiples of it) |
 | derived figures, FIRE ladder | `js/calc.js` |

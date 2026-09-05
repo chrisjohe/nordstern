@@ -44,7 +44,8 @@
     receivables: 'Claims',
     investment: 'Investments',
     tangible: 'Property',
-    retirement: 'Retirement'
+    retirement: 'Retirement',
+    education: 'Education'
   };
 
   /* Der Betrag im Nenner: von −100 auf −50 ist +50 %, nicht −50 %. Der
@@ -117,11 +118,23 @@
     var totalMonthly = Math.max(0, Number(settings.monthlyExpenses) || 0);
     var totalAnnual = totalMonthly * 12;
 
+    /* --- Basis der Stationen -------------------------------------------- */
+    /* Die Stationen messen am Depot. Hat die Mappe keins (Origin-Layout: die
+       Fonds stehen unter den liquiden Mitteln), tritt „liquid" an seine
+       Stelle. Der Block trägt dann Bargeld und Anlagen zugleich, die
+       Stationen messen grosszügig und teilen ihren Topf mit der Reserve; die
+       Einstellungen sagen das. Kein Aufteilen nach Gruppenzeilen, das wäre
+       geraten. */
+    var basisId = model.sectionOrder.indexOf('investment') >= 0 ? 'investment' : 'liquid';
+    var basis = { id: basisId, fallback: basisId !== 'investment',
+      label: basisId === 'investment' ? 'invested assets' : 'liquid assets' };
+    var invested = current[basisId];
+
     /* --- Position ------------------------------------------------------- */
     var totalAssets = current.totalAssets;
     var shares = {
       liquid: totalAssets > 0 ? current.liquid / totalAssets : null,
-      invested: totalAssets > 0 ? current.investment / totalAssets : null
+      invested: totalAssets > 0 ? invested / totalAssets : null
     };
 
     /* Der Eigenkapitalhebel: wie viel Bilanz auf einem Euro eigenem Geld
@@ -159,10 +172,16 @@
     var stations = [], contingency = null;
     MILESTONES.forEach(function (ms) {
       var target = ms.months * totalMonthly;
-      var value = ms.basis === 'liquid' ? current.liquid : current.investment;
+      var onDepot = ms.basis !== 'liquid';
+      var value = onDepot ? invested : current.liquid;
       var entry = {
         id: ms.id, name: ms.name, term: ms.term, meaning: ms.meaning,
-        basis: ms.basis, basisLabel: ms.basisLabel, months: ms.months,
+        /* Die Karte nennt den Topf, der wirklich zählt, nicht den gemeinten. */
+        basis: onDepot ? basisId : 'liquid',
+        basisLabel: onDepot && basis.fallback
+          ? ms.basisLabel + '; liquid assets stand in (no Investments section)'
+          : ms.basisLabel,
+        months: ms.months,
         target: target, value: value,
         pct: target > 0 ? U.clamp(value / target, 0, 1) : null,
         rawPct: target > 0 ? value / target : null,
@@ -182,11 +201,11 @@
     contingency.status = contingency.reached ? 'reached' : 'current';
 
     var nextStation = stations[reachedCount] || null;
-    var routeT = routePosition(stations, current.investment);
+    var routeT = routePosition(stations, invested);
 
     /* --- Tempo: Depotveränderung pro Monat über den tatsächlichen Abstand, bei einer Lücke nicht immer 12 ----- */
     var pace = null;
-    if (yearAgo) pace = (current.investment - yearAgo.m.investment) / yearAgo.span;
+    if (yearAgo) pace = (invested - yearAgo.m[basisId]) / yearAgo.span;
     var etaMonths = null;
     if (nextStation && pace && pace > 0) {
       etaMonths = Math.ceil(nextStation.remaining / pace);
@@ -199,12 +218,12 @@
       return {
         key: m.key, iso: m.iso, value: m.netWorth,
         assets: m.totalAssets, liabilities: m.liabilities,
-        investment: m.investment, liquid: m.liquid,
+        investment: m[basisId], liquid: m.liquid,
         yearAgo: ya ? ya.m.netWorth : null,
         /* Je Reihe ein eigener Vorjahreswert, damit die gestrichelte Spur
            der gezeigten Reihe folgt. */
         assetsYearAgo: ya ? ya.m.totalAssets : null,
-        investmentYearAgo: ya ? ya.m.investment : null,
+        investmentYearAgo: ya ? ya.m[basisId] : null,
         /* Der tatsächliche Abstand, für die Beschriftung im Chart. */
         yearAgoSpan: ya ? ya.span : null,
         index: idx
@@ -219,6 +238,7 @@
       assetsMom: prev ? { abs: current.totalAssets - prev.m.totalAssets, rel: rel(current.totalAssets, prev.m.totalAssets), span: prev.span } : null,
       liabMom: prev ? { abs: current.liabilities - prev.m.liabilities, rel: rel(current.liabilities, prev.m.liabilities), span: prev.span } : null,
       shares: shares,
+      basis: basis,
       leverage: leverage,
       sections: sections,
       sectionItems: sectionItems,

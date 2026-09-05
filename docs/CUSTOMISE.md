@@ -63,7 +63,10 @@ cannot see the number.
 
 `basis: 'liquid'` counts against `Total liquid` in your workbook;
 `basis: 'investment'` counts against `Total investments`. Those are the only
-two values the code understands.
+two values the code understands. A workbook with no Investments section (the
+origin layout, see `docs/DATA_CONTRACT.md`) has no such pot; `derive()` then
+measures every `'investment'` station against `Total liquid` and says so in
+the station's `basis` and `basisLabel`.
 
 If you want a station measured against something else — say, invested plus
 retirement — that is a change in `js/calc.js` where the two pots are picked

@@ -1,4 +1,4 @@
-import {boot, importFixture, tick, FIXTURE, tinySheet, tinyWorkbook, TINY_ROWS, arcSweep} from './harness.mjs';
+import {boot, importFixture, tick, FIXTURE, tinySheet, tinyWorkbook, TINY_ROWS, arcSweep, originSheet, originWorkbook, originFigures, ORIGIN_ROWS} from './harness.mjs';
 import fs from 'fs';
 let pass=0, fail=0;
 const ok=(c,m)=>{ if(c){pass++;} else {fail++; console.log('  ✗ '+m);} };
@@ -1047,11 +1047,20 @@ sec('Unbrauchbare Mappenstruktur');
 { const {w,errors}=await boot();
   const XLSX=w.XLSX;
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['irgendwas',1]]),'Data Input');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Month',1]]),'Data Input');
   const res=w.NORDSTERN.importer.parseWorkbook(wb,'kaputt.xlsx');
   ok(!res.ok,'Import wird abgelehnt');
   ok(res.errors.length>=3,'nennt die fehlenden Zeilen ('+res.errors.length+')');
+  ok(/^Read as the nordstern layout, chosen by the row "month" \(row 1\)\.$/.test(res.errors[0]),
+     'und sagt zuerst, welches Layout die Kopfzeile gewählt hat: '+res.errors[0]);
   console.log('    →', res.errors.slice(0,3).join(' / '));
+  /* Ohne jede Kopfzeile gibt es kein Layout, also auch keine Liste fehlender
+     Anker: eine Meldung, die beide Kopf-Anker nennt. */
+  const wb0=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb0,XLSX.utils.aoa_to_sheet([['irgendwas',1]]),'Data Input');
+  const res0=w.NORDSTERN.importer.parseWorkbook(wb0,'kaputt.xlsx');
+  ok(!res0.ok&&res0.errors.length===1&&/"month" \(nordstern layout\) or "net worth by month \(progress\)" \(origin layout\)/.test(res0.errors[0]),
+     'ohne Kopfzeile eine Meldung mit beiden Kopf-Ankern: '+res0.errors.join(' / '));
   /* Ein einzelnes Blatt wird über den Einzelblatt-Fallback trotzdem genommen
      (siehe unten, „Blattname") — erst zwei oder mehr Blätter ohne Treffer
      sind ein Fehler. Dafür muss der echte Zwei-Durchgänge-Weg laufen, nicht
@@ -1195,6 +1204,186 @@ sec('Zweiter Boden: ein werfendes Modul nach dem Import zieht den Vorhang wieder
   await tick(120);
   ok(d.getElementById('gate').hidden,'ohne werfendes Modul bleibt der Vorhang zu');
   ok(!!w.NORDSTERN.app.state.model,'und das Modell steht wieder');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6o. Origin-Layout: das Reddit-Blatt von 2016 ---------- */
+/* Das Blatt, von dem die heutige Mappe abstammt: andere Anker, „Total Net
+   Worth" oben, Kennzahlzeilen dazwischen, zwei Blöcke ohne Kopfzeile, kein
+   Depot und keine Forderungen, dafür Bildungskonten. Die Kopfzeile wählt das
+   Layout; geraten wird nichts. Das Fixture ist die Referenz, eine echte
+   Datei gibt es nicht (nur einen Screenshot). */
+sec('Origin-Layout: Import');
+const originMonths=[[2015,2],[2015,3],[2015,4],[2015,5]];
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const res=w.NORDSTERN.importer.parseWorkbook(originWorkbook(w,originMonths),'origin.xlsx');
+  ok(res.ok,'die Origin-Mappe wird gelesen: '+res.errors.join(' | '));
+  ok(res.warnings.length===0,'ohne eine einzige Warnung: '+res.warnings.join(' | '));
+  ok(res.currency==='USD','die $-Formate ergeben USD: '+res.currency);
+  const m=res.model;
+  ok(m.sectionOrder.join()==='liquid,education,tangible,retirement',
+     'die Sektionen des Layouts, in Blattreihenfolge: '+m.sectionOrder.join());
+  ok(m.months.map(x=>x.key).join()==='2015-02,2015-03,2015-04,2015-05',
+     'Monatsersten in US-Schreibweise ergeben die Monate: '+m.months.map(x=>x.key).join());
+  const last=m.months[3], f=originFigures(3);
+  ok(last.netWorth===f.netWorth,'„Total Net Worth" oben wird gelesen: '+last.netWorth+' / '+f.netWorth);
+  ok(last.liquid===f.liquid&&last.education===f.education&&last.tangible===f.tangible&&last.retirement===f.retirement,
+     'alle vier Summenzeilen stimmen: '+[last.liquid,last.education,last.tangible,last.retirement].join('/'));
+  ok(!('investment' in last)&&!('receivables' in last),'ein Monat trägt nur die Sektionen des Layouts: '+Object.keys(last).join());
+  const names=id=>m.accounts[id].map(a=>a.name).join('|');
+  ok(names('liquid')==='Checking|Savings|Brokerage|Index Fund A|Index Fund B',
+     '„Assets … Total Liquid Assets" trägt die liquiden Konten samt Gruppenzeile: '+names('liquid'));
+  ok(names('education')==='529 Plan|529 Plan','der kopflose Bildungsblock: die Zeilen zwischen den beiden Summen, doppelter Name erlaubt: '+names('education'));
+  ok(names('tangible')==='Contract House|Business Account|Checking|212',
+     'der kopflose Sachwertblock, mit dem numerischen Label 212: '+names('tangible'));
+  ok(names('retirement')==='Pension','„Retirement Assets": '+names('retirement'));
+  ok(names('liabilities')==='Rewards Card|Mortgage|Car Loan|Loan','die Verbindlichkeiten samt Gruppenzeile: '+names('liabilities'));
+  ok(m.accounts.liquid[2].values.every(v=>v===0),'eine Gruppenzeile ohne Werte liest sich als Konto mit 0');
+  ok(m.accounts.tangible[3].values[3]===f.numLabel,'das Konto „212" trägt seinen Stand: '+m.accounts.tangible[3].values[3]);
+  ok(!Object.values(m.accounts).flat().some(a=>/Liquid Assets|Change|Net worth %/i.test(a.name)),
+     'Kennzahl- und Kopiezeilen ausserhalb der Sektionen bleiben draussen');
+
+  /* Derselbe Inhalt als .xls (BIFF8): Datumszellen, $-Formate und cellNF
+     müssen den alten Container überstehen. */
+  const xls=XLSX.write(originWorkbook(w,originMonths),{type:'array',bookType:'biff8'});
+  ok(String.fromCharCode(...new Uint8Array(xls).slice(0,2))==='\xD0\xCF','die Probe ist wirklich ein OLE2-Container');
+  const r2=w.NORDSTERN.importer.parseArrayBuffer(xls,'Assets.Liabilities.xls');
+  ok(r2.ok&&r2.warnings.length===0,'als .xls ebenso, ohne Warnung: '+r2.errors.join(' | ')+r2.warnings.join(' | '));
+  ok(r2.currency==='USD','USD auch aus BIFF8: '+r2.currency);
+  ok(r2.ok&&JSON.stringify(r2.model.months)===JSON.stringify(m.months),'und dieselbe Monatsreihe wie aus .xlsx');
+  ok(r2.ok&&JSON.stringify(r2.model.accounts)===JSON.stringify(m.accounts),'und dieselben Konten');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+sec('Origin-Layout: Fehlerbilder');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Sheet1'); return b; };
+  const parse=ws=>w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'o.xlsx');
+  const label=(ws,r)=>XLSX.utils.encode_cell({r,c:0});
+
+  /* Origin-Kopfzeile über nordstern-Summen: das Layout kommt aus der
+     Kopfzeile, die Meldung sagt das, und dann fehlen die Origin-Anker. */
+  const ws1=tinySheet(w,[[2026,1],[2026,2]]);
+  ws1[label(ws1,TINY_ROWS.MONTH)].v='Net Worth by Month (Progress)';
+  const r1=parse(ws1);
+  ok(!r1.ok&&/^Read as the origin layout, chosen by the row "net worth by month \(progress\)" \(row 1\)\.$/.test(r1.errors[0]),
+     'Origin-Kopf über nordstern-Zeilen: die Meldung nennt das Layout und die Kopfzeile: '+r1.errors[0]);
+  ok(r1.errors.some(t=>t==='Row "total liquid assets" not found.')&&r1.errors.some(t=>t==='Row "total education assets" not found.'),
+     'und die fehlenden Origin-Anker: '+r1.errors.slice(1).join(' | '));
+
+  /* Umgekehrt: „Month" über Origin-Summen fällt auf die nordstern-Liste. */
+  const ws2=originSheet(w,originMonths);
+  ws2[label(ws2,ORIGIN_ROWS.HEADER)].v='Month';
+  const r2=parse(ws2);
+  ok(!r2.ok&&/^Read as the nordstern layout, chosen by the row "month"/.test(r2.errors[0])&&r2.errors.some(t=>t==='Row "total liquid" not found.'),
+     'nordstern-Kopf über Origin-Zeilen: nordstern-Liste, kein Raten: '+r2.errors.slice(0,2).join(' | '));
+
+  /* Kopflose Sektion vor ihrer Vorgängerin: die Summenzeile davor steht als
+     Kopf, also greift die Reihenfolge-Prüfung mit deren Namen. */
+  const ws3=originSheet(w,originMonths);
+  ws3[label(ws3,ORIGIN_ROWS.TOTALEDU)].v='Total Liquid Assets';
+  ws3[label(ws3,ORIGIN_ROWS.TOTALLIQUID)].v='Total Education Assets';
+  const r3=parse(ws3);
+  ok(!r3.ok&&r3.errors.some(t=>/^Row "total liquid assets" must come before row "total education assets"/.test(t)),
+     'vertauschte Summen: „must come before" mit der Summe davor als Kopf: '+r3.errors.join(' | '));
+
+  /* Zwei Summen direkt hintereinander: eine kopflose Sektion ohne Konten ist
+     ein gültiges Blatt, keine Überlappung. */
+  const ws4=originSheet(w,originMonths);
+  for (const r of [ORIGIN_ROWS.PLAN_1,ORIGIN_ROWS.PLAN_2]) { delete ws4[label(ws4,r)]; for(let c=1;c<=originMonths.length;c++) delete ws4[XLSX.utils.encode_cell({r,c})]; }
+  for(let c=1;c<=originMonths.length;c++) ws4[XLSX.utils.encode_cell({r:ORIGIN_ROWS.TOTALEDU,c})].v=0;
+  const r4=parse(ws4);
+  ok(r4.ok&&r4.model.accounts.education.length===0,'ein leerer kopfloser Block ist erlaubt: '+r4.errors.join(' | '));
+  /* Die Summe des Sachwertblocks stimmt dann nicht mehr mit „Total Assets"
+     überein, das ist eine Warnung, kein Abbruch, wie bei jeder Mappe. */
+  ok(r4.ok&&r4.warnings.length===1&&/Total assets differ/.test(r4.warnings[0]),'und die Gegenprobe meldet nur die Summendifferenz: '+r4.warnings.join(' | '));
+
+  /* Anker eines fremden Layouts als Kontoname sind harmlos: ein Konto
+     namens „Total liquid" in der Origin-Mappe ist ein Konto. */
+  const ws5=originSheet(w,originMonths);
+  ws5[label(ws5,ORIGIN_ROWS.SAVINGS)].v='Total liquid';
+  const r5=parse(ws5);
+  ok(r5.ok&&r5.model.accounts.liquid[1].name==='Total liquid','ein nordstern-Anker als Kontoname im Origin-Blatt bleibt ein Konto');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+sec('Origin-Layout: Stationen messen an liquid, wenn kein Depot da ist');
+{ const {w,errors}=await boot();
+  const res=w.NORDSTERN.importer.parseWorkbook(originWorkbook(w,originMonths),'origin.xlsx');
+  const settings=w.NORDSTERN.store.loadSettings();
+  const v=w.NORDSTERN.calc.derive(res.model,settings);
+  const cur=res.model.months[3];
+  ok(v.basis.id==='liquid'&&v.basis.fallback===true&&v.basis.label==='liquid assets',
+     'die Basis ist liquid und als Ersatz markiert: '+JSON.stringify(v.basis));
+  ok(v.stations.every(s=>s.value===cur.liquid&&s.basis==='liquid'),'jede Station misst am liquiden Block und sagt es');
+  ok(v.contingency.value===cur.liquid&&v.contingency.basis==='liquid','die Reserve misst wie immer an liquid');
+  ok(v.stations.every(s=>/covered by investments; liquid assets stand in \(no Investments section\)$/.test(s.basisLabel)),
+     'das Basis-Etikett nennt den Ersatz: '+v.stations[0].basisLabel);
+  ok(v.contingency.basisLabel==='3 × monthly expenses, covered by liquid assets','das Etikett der Reserve bleibt, wie es war');
+  ok(v.shares.invested===v.shares.liquid,'der investierte Anteil ist dann der liquide Anteil');
+  ok(v.series.every((p,i)=>p.investment===res.model.months[i].liquid),'die Verlaufsreihe „Invested" trägt den liquiden Block');
+  ok(isFinite(v.routeT)&&v.routeT>0,'die Route hat eine Position: '+v.routeT);
+  ok(v.sections.map(s=>s.label).join()==='Liquid,Education,Property,Retirement','die Struktur nennt Education: '+v.sections.map(s=>s.label).join());
+  ok([...JSON.stringify(v)].length&&!/NaN|null,"value":Infinity/.test(JSON.stringify(v.stations)),'keine NaN in den Stationen');
+
+  /* Mit Depot bleibt alles beim Alten. */
+  const ex=importFixture(w);
+  const v2=w.NORDSTERN.calc.derive(ex.model,settings);
+  ok(v2.basis.id==='investment'&&v2.basis.fallback===false,'die Beispielmappe misst am Depot: '+JSON.stringify(v2.basis));
+  ok(v2.stations.every(s=>s.basis==='investment'&&/covered by investments$/.test(s.basisLabel)),'und die Etiketten sind unverändert');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+sec('Origin-Layout: Speicher und Oberfläche');
+const originStore={};
+{ const {w,errors}=await boot({storage:originStore});
+  const d=w.document;
+  const res=w.NORDSTERN.importer.parseWorkbook(originWorkbook(w,originMonths),'origin.xlsx');
+  w.NORDSTERN.app.state.model=res.model;
+  ok(w.NORDSTERN.store.saveModel(res.model).ok,'das Modell lässt sich speichern');
+  ok(w.NORDSTERN.store.loadModel()!==null,'und besteht die Prüfung beim Laden: vier Sektionen sind vier, nicht fünf');
+  /* Ein Monat ohne eine Sektion des eigenen Layouts fällt durch. */
+  const bent=JSON.parse(JSON.stringify(res.model)); delete bent.months[1].education;
+  w.NORDSTERN.store.saveModel(bent);
+  ok(w.NORDSTERN.store.loadModel()===null,'ein Monat ohne „education" besteht die Prüfung nicht');
+  w.NORDSTERN.store.saveModel(res.model);
+  w.NORDSTERN.app.refresh();
+  d.getElementById('gate').hidden=true;
+  await tick(30);
+
+  const legend=id=>d.querySelector('.orbit-legend .legend-row[data-id="'+id+'"]');
+  ok(!!legend('education')&&legend('education').querySelector('.legend-lab').textContent==='Education',
+     'die Struktur zeigt die Bildungskonten: '+(legend('education')&&legend('education').textContent));
+  ok(!legend('investment')&&!legend('receivables'),'und keine Zeile für Sektionen, die das Blatt nicht hat');
+  ok(legend('education').querySelector('.legend-dot').style.background.includes('rgb(224, 179, 92)'),
+     'mit eigenem Ton: '+legend('education').querySelector('.legend-dot').style.background);
+  const kpi=lab=>[...d.querySelectorAll('.kpi')].find(k=>k.querySelector('.kpi-lab').textContent===lab);
+  ok(/liquid stands in$/.test(kpi('Invested share').querySelector('.kpi-sub').textContent),
+     'die Kennzahl sagt, dass liquid einspringt: '+kpi('Invested share').querySelector('.kpi-sub').textContent);
+  ok([...d.querySelectorAll('.card .f-value-lab i')].every(i=>i.textContent==='liquid'),
+     'jede Karte nennt liquid als Topf: '+[...d.querySelectorAll('.card .f-value-lab i')].map(i=>i.textContent).join());
+  ok(d.getElementById('setBasisNote').hidden===false,'die Einstellungen erklären den Ersatz');
+  ok(/read as well/.test(d.querySelector('.sheet-sec[data-sec="workbook"]').textContent),'und das Mappen-Paneel nennt das Origin-Layout');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+{ const {w,errors}=await boot({storage:originStore});
+  const d=w.document;
+  ok(d.getElementById('gate').hidden&&!!w.NORDSTERN.app.state.model,'nach dem Neustart steht das Origin-Modell wieder');
+  ok(w.NORDSTERN.app.state.model.sectionOrder.length===4,'mit seinen vier Sektionen');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  ok(d.getElementById('setBasisNote').hidden===true,'mit Depot bleibt der Hinweis in den Einstellungen verborgen');
+  ok(!/stands in/.test(d.querySelector('.kpi-row').textContent),'und die Kennzahl schweigt');
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }

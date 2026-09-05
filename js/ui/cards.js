@@ -161,6 +161,11 @@
         c.front.querySelector('.card-status').setAttribute('title', STATUS_LABEL[ms.status]);
         c.back.querySelector('.f-target').textContent = U.eur0(ms.target);
         c.back.querySelector('.f-value').textContent = U.eur0(ms.value);
+        /* Der Topf kommt aus der Ableitung, nicht aus der Tabelle: ohne
+           Depot in der Mappe misst eine Station an den liquiden Mitteln. */
+        var lab = c.back.querySelector('.f-value-lab');
+        lab.setAttribute('title', ms.basisLabel);
+        lab.querySelector('i').textContent = BASIS_LABEL[ms.basis];
         /* Über 100 % hinaus sagt der Wert nichts mehr — gedeckelt. */
         var shown = Math.min(ms.rawPct == null ? 0 : ms.rawPct, 1);
         c.back.querySelector('.f-pct').textContent = U.pct(shown, 0);

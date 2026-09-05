@@ -63,7 +63,8 @@
         kpis.appendChild(kpi('Liquid share', U.pct(v.shares.liquid),
           U.eur0(v.current.liquid)));
         kpis.appendChild(kpi('Invested share', U.pct(v.shares.invested),
-          U.eur0(v.current.investment)));
+          U.eur0(v.current[v.basis.id]) + (v.basis.fallback ? ' · liquid stands in' : ''), '',
+          v.basis.fallback ? 'This workbook has no Investments section; the stations measure against liquid assets.' : ''));
         kpis.appendChild(kpi('Portfolio pace', v.pace == null ? '—' : U.eurSigned0(v.pace),
           v.pace == null ? 'no year-ago value' : 'avg. per month, ' + v.paceSpan + ' months',
           v.pace == null ? '' : v.pace < 0 ? 'is-neg' : v.pace > 0 ? 'is-pos' : ''));

@@ -129,7 +129,11 @@
         U.make('dl', { class: 'sheet-facts' }, [
           U.make('dt', { class: 'is-sum', text: 'Per month' }), U.make('dd', { class: 'is-sum' }, [refs.total]),
           U.make('dt', { class: 'is-foot', text: 'Per year' }), U.make('dd', { class: 'is-foot' }, [refs.annual])
-        ])
+        ]),
+        (refs.basisNote = U.make('p', { class: 'sheet-hint', id: 'setBasisNote', hidden: true, text:
+          'This workbook has no Investments section, so the seven stations measure against ' +
+          'liquid assets: cash and holdings together, the same pot as the emergency fund. Move ' +
+          'the funds into an "Investments … Total investments" block for the sharper reading.' }))
       ]));
 
       /* --- Datenquelle --------------------------------------------------- */
@@ -226,7 +230,12 @@
           'One column per month, each carrying a date in the row "Month". Between a ' +
           'section and its total row you may keep as many account rows as you like, named ' +
           'however you want — the rows in italics are only examples. Every section needs ' +
-          'both its head and its total row, even when it stays at zero.' })
+          'both its head and its total row, even when it stays at zero.' }),
+        U.make('p', { class: 'sheet-copy', text:
+          'The 2016 sheet this layout descends from is read as well. Its header row ' +
+          '"Net Worth by Month (Progress)" selects that layout: "Assets … Total Liquid Assets", ' +
+          'the Education and Hard Assets blocks without a head row, "Retirement Assets … ' +
+          'Total Retirement Assets" and "Liabilities … Total Liabilities".' })
       ]));
 
       /* --- Bewegung --------------------------------------------------------
@@ -545,6 +554,7 @@
         } else {
           refs.snap.textContent = '—';
         }
+        refs.basisNote.hidden = !(v && v.basis.fallback);
         if (model) {
           refs.src.textContent = model.sourceName || '—';
           var sk = model.skipped;

@@ -150,6 +150,98 @@ export function tinyWorkbook(w,months,sheetName='Data Input'){
   return wb;
 }
 
+/* Das Origin-Blatt (Reddit 2016), synthetisch nachgebaut: Kopfzeile „Net
+   Worth by Month (Progress)", „Total Net Worth" oben, Kennzahlzeilen ohne
+   Bedeutung für den Importer, Gruppenzeilen ohne Werte, zwei kopflose
+   Sektionen (Education, Hard Assets), ein doppelter Kontoname, ein
+   numerisches Label, `$`-Formate, Daten am Monatsersten. Die Zahlen sind
+   erfunden und in sich stimmig: null Warnungen sind der Massstab. */
+export const ORIGIN_ROWS={HEADER:0, NETWORTH:2, LIQUIDCOPY:7, ASSETS:13, CHECKING:14, SAVINGS:15, BROKERAGE:16,
+  FUND_A:17, FUND_B:18, TOTALLIQUID:19, PLAN_1:21, PLAN_2:22, TOTALEDU:24, HOUSE:26, BUSINESS:27,
+  BIZ_CHECKING:28, NUM_LABEL:29, TOTALHARD:30, RETIREMENT:32, PENSION:33, TOTALRET:34, TOTALASSETS:36,
+  LIABILITIES:39, CARD:40, MORTGAGE:41, CARLOAN:42, LOAN:43, TOTALLIAB:44};
+
+export function originFigures(i){
+  const checking=100+i, savings=200+i, fundA=1000+100*i, fundB=500+50*i;
+  const plan=60+i, house=120000, bizChecking=800+i, numLabel=85000, pension=28000+i;
+  const card=100, mortgage=88000-100*i, loan=15000;
+  const liquid=checking+savings+fundA+fundB, education=2*plan, tangible=house+bizChecking+numLabel, retirement=pension;
+  const totalAssets=liquid+education+tangible+retirement, liabilities=card+mortgage+loan;
+  return {checking,savings,fundA,fundB,plan,house,bizChecking,numLabel,pension,card,mortgage,loan,
+    liquid,education,tangible,retirement,totalAssets,liabilities,netWorth:totalAssets-liabilities};
+}
+
+export function originSheet(w,months){
+  const D=(y,m)=>new w.Date(y,m-1,1);
+  const F=months.map((_,i)=>originFigures(i));
+  const col=k=>F.map(f=>f[k]);
+  const ratio=()=>F.map((f,i)=>0.01*(i+1));
+  const rows=[
+    ['Net Worth by Month (Progress)', ...months.map(([y,m])=>D(y,m))],
+    [],
+    ['Total Net Worth',           ...col('netWorth')],
+    ['Net worth % Liquid',        ...ratio()],
+    ['Net Worth % Retirement',    ...ratio()],
+    ['Net Worth % Hard Assets',   ...ratio()],
+    ['Net Worth % Education',     ...ratio()],
+    ['Liquid Assets',             ...col('liquid')],
+    ['Change from previous month',...ratio()],
+    ['',                          ...ratio()],
+    ['Cumlative Change',          ...ratio()],
+    ['Average Change per Month',  ...ratio()],
+    [],
+    ['Assets'],
+    ['Checking',                  ...col('checking')],
+    ['Savings',                   ...col('savings')],
+    ['Brokerage'],
+    ['  Index Fund A',            ...col('fundA')],
+    ['  Index Fund B',            ...col('fundB')],
+    ['Total Liquid Assets',       ...col('liquid')],
+    [],
+    ['  529 Plan',                ...col('plan')],
+    ['  529 Plan',                ...col('plan')],
+    [],
+    ['Total Education Assets',    ...col('education')],
+    [],
+    ['Contract House',            ...col('house')],
+    ['Business Account'],
+    ['  Checking',                ...col('bizChecking')],
+    [212,                         ...col('numLabel')],
+    ['Total Hard Assets',         ...col('tangible')],
+    [],
+    ['Retirement Assets'],
+    ['Pension',                   ...col('pension')],
+    ['Total Retirement Assets',   ...col('retirement')],
+    [],
+    ['Total Assets',              ...col('totalAssets')],
+    ['',                          ...ratio()],
+    [],
+    ['Liabilities'],
+    ['Rewards Card',              ...col('card')],
+    ['Mortgage',                  ...col('mortgage')],
+    ['Car Loan'],
+    ['  Loan',                    ...col('loan')],
+    ['Total Liabilities',         ...col('liabilities')],
+    ['',                          ...ratio()],
+    ['',                          ...F.map(()=>-200.13)]
+  ];
+  const ws=w.XLSX.utils.aoa_to_sheet(rows,{cellDates:true});
+  /* `$` an jeder Betragszelle, wie im Original; die Kennzahlzeilen tragen
+     Prozentformate, sie werden ohnehin nicht gelesen. */
+  const range=w.XLSX.utils.decode_range(ws['!ref']);
+  for(let r=range.s.r;r<=range.e.r;r++) for(let c=1;c<=range.e.c;c++){
+    const a=w.XLSX.utils.encode_cell({r,c}); const cell=ws[a]; if(!cell||cell.t!=='n') continue;
+    cell.z=(rows[r][0]===''||/%|Change/.test(String(rows[r][0])))?'0.0%':'"$"#,##0.00';
+  }
+  return ws;
+}
+
+export function originWorkbook(w,months,sheetName='Sheet1'){
+  const wb=w.XLSX.utils.book_new();
+  w.XLSX.utils.book_append_sheet(wb,originSheet(w,months),sheetName);
+  return wb;
+}
+
 /* Der Schwenkwinkel eines Scheiben-Segments, aus dem gezeichneten Pfad
    zurückgerechnet. */
 export function arcSweep(d,id){

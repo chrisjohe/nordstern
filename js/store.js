@@ -53,6 +53,9 @@
     if (!m || typeof m !== 'object') return false;
     if (m.version !== NS.importer.MODEL_VERSION) return false;
     if (!Array.isArray(m.months) || !m.months.length) return false;
+    /* Welche Sektionen ein Monat trägt, sagt die Mappe (sectionOrder), nicht
+       diese Datei: ein Layout mit vier Sektionen schreibt vier. */
+    if (!strArray(m.sectionOrder) || !m.sectionOrder.length) return false;
     for (var i = 0; i < m.months.length; i++) {
       var mo = m.months[i];
       if (!mo || typeof mo !== 'object') return false;
@@ -60,9 +63,10 @@
          sonst besteht auch '2026-99' die Prüfung. */
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mo.key)) return false;
       if (!num(mo.netWorth) || !num(mo.totalAssets) || !num(mo.liabilities)) return false;
-      /* Alle fünf Sektionen, sonst liest die Rechnung NaN. */
-      if (!num(mo.liquid) || !num(mo.receivables) || !num(mo.investment) ||
-          !num(mo.tangible) || !num(mo.retirement)) return false;
+      /* Jede Sektion des Layouts, sonst liest die Rechnung NaN. */
+      for (var si = 0; si < m.sectionOrder.length; si++) {
+        if (!num(mo[m.sectionOrder[si]])) return false;
+      }
     }
     /* Ganzzahlig: months[0.5] ist undefined. `% 1`, weil ES5. */
     if (!num(m.currentIndex) || m.currentIndex % 1 !== 0) return false;
@@ -74,7 +78,6 @@
       if (!Object.prototype.hasOwnProperty.call(m.accounts, k)) continue;
       if (!accountList(m.accounts[k], m.months.length)) return false;
     }
-    if (!Array.isArray(m.sectionOrder) || !m.sectionOrder.length) return false;
     for (var j = 0; j < m.sectionOrder.length; j++) {
       if (!Array.isArray(m.accounts[m.sectionOrder[j]])) return false;
     }

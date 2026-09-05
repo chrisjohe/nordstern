@@ -238,22 +238,55 @@
     return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (day < 10 ? '0' + day : day);
   }
 
-  /* ------------------------------------------------ Aufbau von "Data Input" */
+  /* ------------------------------------------------------ Aufbau des Blatts */
 
-  /* Sektionen sind über zwei Beschriftungen in Spalte A verankert, nicht
-     über Zeilennummern; eine Schreibweise je Anker. */
-  var SECTIONS = [
-    { id: 'liquid',      head: 'liquid',      total: 'total liquid' },
-    { id: 'receivables', head: 'claims',      total: 'total claims' },
-    { id: 'investment',  head: 'investments', total: 'total investments' },
-    { id: 'tangible',    head: 'property',    total: 'total property' },
-    { id: 'retirement',  head: 'retirement',  total: 'total retirement' }
+  /* Zwei Layouts, eine Tabelle. Jedes nennt den Anker der Kopfzeile, seine
+     Sektionen (Kopf- und Summenzeile) und die vier einzelnen Anker; eine
+     Schreibweise je Anker, je Layout. Eine Sektion ohne Kopfzeile (head:
+     null) beginnt hinter der Summenzeile der Sektion davor: ihre Konten sind
+     die beschrifteten Zeilen zwischen den beiden Summen. Die Kopfzeile wählt
+     das Layout, nicht der Inhalt: das erste Label in Spalte A, das einen
+     Kopf-Anker trifft, entscheidet. */
+  var LAYOUTS = [
+    { id: 'nordstern', header: 'month',
+      sections: [
+        { id: 'liquid',      head: 'liquid',      total: 'total liquid' },
+        { id: 'receivables', head: 'claims',      total: 'total claims' },
+        { id: 'investment',  head: 'investments', total: 'total investments' },
+        { id: 'tangible',    head: 'property',    total: 'total property' },
+        { id: 'retirement',  head: 'retirement',  total: 'total retirement' }
+      ],
+      liabilities: 'liabilities',          // exakt — "liabilities *(-1)" ist eine Hilfszeile
+      liabTotal: 'total liabilities',
+      totalAssets: 'total assets',
+      netWorth: 'total net worth' },
+    /* Das Reddit-Blatt von 2016, von dem die heutige Mappe abstammt: die
+       Fonds stehen unter den liquiden Mitteln, es gibt keine Forderungen und
+       kein eigenes Depot, dafür Bildungskonten; zwei Blöcke haben keine
+       Kopfzeile. „Total Net Worth" steht oben, ausserhalb jeder Sektion. */
+    { id: 'origin', header: 'net worth by month (progress)',
+      sections: [
+        { id: 'liquid',     head: 'assets',            total: 'total liquid assets' },
+        { id: 'education',  head: null,                total: 'total education assets' },
+        { id: 'tangible',   head: null,                total: 'total hard assets' },
+        { id: 'retirement', head: 'retirement assets', total: 'total retirement assets' }
+      ],
+      liabilities: 'liabilities',
+      liabTotal: 'total liabilities',
+      totalAssets: 'total assets',
+      netWorth: 'total net worth' }
   ];
-  var ANCHOR_DATES      = 'month';
-  var ANCHOR_NETWORTH   = 'total net worth';
-  var ANCHOR_TOTALASSETS = 'total assets';
-  var ANCHOR_LIABILITIES = 'liabilities';          // exakt — "liabilities *(-1)" ist eine Hilfszeile
-  var ANCHOR_LIAB_TOTAL  = 'total liabilities';
+
+  function chooseLayout(L) {
+    var best = null, bestRow = Infinity;
+    LAYOUTS.forEach(function (lay) {
+      var r = L.map[lay.header];
+      if (r !== undefined && r < bestRow) { best = lay; bestRow = r; }
+    });
+    return best;
+  }
+
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
   /* map trägt je Beschriftung die erste Zeile, rows jedes Vorkommen:
      Kontonamen dürfen sich wiederholen, Anker nicht (need()). count zählt
@@ -272,16 +305,26 @@
     return { map: map, rows: rows, count: count };
   }
 
-  function parseDataInput(ws, errors, warnings, fmt) {
-    noteInit('Data Input');
+  function parseSheet(ws, sheetName, errors, warnings, fmt) {
+    noteInit(sheetName);
     var range = decodeRange(ws);
     var L = labelRows(ws, range);
-    /* Eine leere Mappe verfehlt sonst jeden der fünfzehn Anker einzeln —
-       fünfzehn Meldungen für denselben Befund. Eine genügt. */
+    /* Eine leere Mappe verfehlt sonst jeden Anker einzeln — ein Dutzend
+       Meldungen für denselben Befund. Eine genügt. */
     if (!ws['!ref'] || !L.count) {
-      errors.push('The sheet "Data Input" is empty.');
+      errors.push('The sheet "' + sheetName + '" is empty.');
       return null;
     }
+    var layout = chooseLayout(L);
+    if (!layout) {
+      errors.push('No header row found: no label in column A reads ' +
+        LAYOUTS.map(function (l) { return '"' + l.header + '" (' + l.id + ' layout)'; }).join(' or ') +
+        '. The header row carries the month dates and tells the reader which layout to expect.');
+      return null;
+    }
+    /* Je Lauf frische Objekte, damit die gefundenen Zeilen nicht in der
+       Tabelle hängen bleiben. */
+    var sections = layout.sections.map(function (s) { return { id: s.id, head: s.head, total: s.total }; });
 
     function need(anchor) {
       if (!(anchor in L.map)) { errors.push('Row "' + anchor + '" not found.'); return -1; }
@@ -294,18 +337,35 @@
       return L.map[anchor];
     }
 
-    var rowDates  = need(ANCHOR_DATES);
-    var rowNW     = need(ANCHOR_NETWORTH);
-    var rowTA     = need(ANCHOR_TOTALASSETS);
-    var rowLiab   = need(ANCHOR_LIABILITIES);
-    var rowLiabTot = need(ANCHOR_LIAB_TOTAL);
-    SECTIONS.forEach(function (s) { s._head = need(s.head); s._total = need(s.total); });
-    if (errors.length) return null;
+    var rowDates  = need(layout.header);
+    var rowNW     = need(layout.netWorth);
+    var rowTA     = need(layout.totalAssets);
+    var rowLiab   = need(layout.liabilities);
+    var rowLiabTot = need(layout.liabTotal);
+    sections.forEach(function (s) {
+      s._total = need(s.total);
+      s._head = s.head === null ? -1 : need(s.head);
+    });
+    if (errors.length) {
+      /* Welches Layout gelesen wurde und warum, sonst rätselt, wer eine
+         nordstern-Kopfzeile über Origin-Summen hat, wo "total liquid" bleibt. */
+      errors.unshift('Read as the ' + layout.id + ' layout, chosen by the row "' + layout.header +
+        '" (row ' + (L.map[layout.header] + 1) + ').');
+      return null;
+    }
+    /* Kopflose Sektionen: die Summenzeile der Sektion davor steht als Kopf. */
+    sections.forEach(function (s, i) {
+      if (s.head === null) { s._head = sections[i - 1]._total; s.head = sections[i - 1].total; s._headless = true; }
+    });
 
-    /* Kopf vor Summe, und die sechs Bereiche ohne Überlappung, sonst liest
-       eine Sektion fremde Ankerzeilen als Konten. */
-    var spans = SECTIONS.map(function (s) { return { head: s.head, total: s.total, h: s._head, t: s._total }; });
-    spans.push({ head: ANCHOR_LIABILITIES, total: ANCHOR_LIAB_TOTAL, h: rowLiab, t: rowLiabTot });
+    /* Kopf vor Summe, und die Bereiche ohne Überlappung, sonst liest eine
+       Sektion fremde Ankerzeilen als Konten. Eine kopflose Sektion beginnt
+       auf der Summenzeile der vorigen; dass beide sich dort berühren, ist
+       keine Überlappung. */
+    var spans = sections.map(function (s) {
+      return { head: s.head, total: s.total, h: s._head, t: s._total, headless: !!s._headless };
+    });
+    spans.push({ head: layout.liabilities, total: layout.liabTotal, h: rowLiab, t: rowLiabTot, headless: false });
     spans.forEach(function (sp) {
       if (sp.h >= sp.t) {
         errors.push('Row "' + sp.head + '" must come before row "' + sp.total + '" (rows ' +
@@ -316,16 +376,17 @@
 
     var sorted = spans.slice().sort(function (a, b) { return a.h - b.h; });
     for (var sv = 1; sv < sorted.length; sv++) {
-      if (sorted[sv].h <= sorted[sv - 1].t) {
+      var inside = sorted[sv].headless ? sorted[sv].h < sorted[sv - 1].t : sorted[sv].h <= sorted[sv - 1].t;
+      if (inside) {
         errors.push('Sections overlap: "' + sorted[sv].head + '" (row ' + (sorted[sv].h + 1) +
           ') lies inside "' + sorted[sv - 1].head + '" … "' + sorted[sv - 1].total + '" (rows ' +
           (sorted[sv - 1].h + 1) + ', ' + (sorted[sv - 1].t + 1) + ').');
       }
     }
     var singles = [
-      { name: ANCHOR_DATES, row: rowDates },
-      { name: ANCHOR_TOTALASSETS, row: rowTA },
-      { name: ANCHOR_NETWORTH, row: rowNW }
+      { name: layout.header, row: rowDates },
+      { name: layout.totalAssets, row: rowTA },
+      { name: layout.netWorth, row: rowNW }
     ];
     singles.forEach(function (a) {
       spans.forEach(function (sp) {
@@ -368,7 +429,7 @@
     }
 
     /* Konten je Sektion: alle beschrifteten Zeilen zwischen Kopf- und Summenzeile */
-    SECTIONS.forEach(function (s) {
+    sections.forEach(function (s) {
       s._rows = [];
       for (var r = s._head + 1; r < s._total; r++) {
         var raw = str(ws, r, 0).replace(/ /g, ' ').trim();
@@ -391,7 +452,7 @@
        Füllgrad taugt nicht als Kriterium, weil eine Fortschreibung fast so
        viele Kontozeilen füllt wie ein gelebter Monat. */
     var accountRows = [];
-    SECTIONS.forEach(function (s) { s._rows.forEach(function (a) { accountRows.push(a.row); }); });
+    sections.forEach(function (s) { s._rows.forEach(function (a) { accountRows.push(a.row); }); });
     liabRows.forEach(function (a) { accountRows.push(a.row); });
     if (!accountRows.length) {
       errors.push('No account rows found: every section is empty between its header row and its total row.');
@@ -455,13 +516,11 @@
        plausibles Blatt. */
     var curCol = cols[lastIdx].col;
     var curTotals = [
-      { row: rowTA, label: 'Total assets' },
-      { row: rowLiabTot, label: 'Total liabilities' },
-      { row: rowNW, label: 'Total net worth' }
+      { row: rowTA, label: cap(layout.totalAssets) },
+      { row: rowLiabTot, label: cap(layout.liabTotal) },
+      { row: rowNW, label: cap(layout.netWorth) }
     ];
-    SECTIONS.forEach(function (s) {
-      curTotals.push({ row: s._total, label: s.total.charAt(0).toUpperCase() + s.total.slice(1) });
-    });
+    sections.forEach(function (s) { curTotals.push({ row: s._total, label: cap(s.total) }); });
     for (var ct = 0; ct < curTotals.length; ct++) {
       var ec = cell(ws, curTotals[ct].row, curCol);
       if (ec && ec.t === 'e') {
@@ -529,23 +588,26 @@
         ' skipped: ' + emptyInside.join(', ') + '.');
     }
 
-    /* Monatsreihe */
+    /* Monatsreihe. Ein Monat trägt genau die Sektionen des Layouts. */
+    function sectionSum(m) {
+      var t = 0;
+      sections.forEach(function (s) { t += m[s.id]; });
+      return t;
+    }
     var months = used.map(function (mc) {
       var m = { key: mc.key, iso: mc.iso };
-      SECTIONS.forEach(function (s) { m[s.id] = num(ws, s._total, mc.col) || 0; });
+      sections.forEach(function (s) { m[s.id] = num(ws, s._total, mc.col) || 0; });
       m.totalAssets = num(ws, rowTA, mc.col);
       m.liabilities = num(ws, rowLiabTot, mc.col) || 0;
       m.netWorth = num(ws, rowNW, mc.col);
-      if (m.totalAssets == null) {
-        m.totalAssets = m.liquid + m.receivables + m.investment + m.tangible + m.retirement;
-      }
+      if (m.totalAssets == null) m.totalAssets = sectionSum(m);
       if (m.netWorth == null) m.netWorth = m.totalAssets - m.liabilities;
       return m;
     });
 
     /* Konten-Historien */
     var accounts = {};
-    SECTIONS.forEach(function (s) {
+    sections.forEach(function (s) {
       accounts[s.id] = s._rows.map(function (a) {
         return { name: a.name, values: used.map(function (mc) { return num(ws, a.row, mc.col) || 0; }) };
       });
@@ -585,13 +647,12 @@
           shown + ' in ' + worstKey + ').');
       }
     }
-    SECTIONS.forEach(function (s) { checkSums(s.id, accounts[s.id]); });
+    sections.forEach(function (s) { checkSums(s.id, accounts[s.id]); });
     checkSums('liabilities', accounts.liabilities);
 
     var badTA = 0, badNW = 0;
     months.forEach(function (m) {
-      var sum = m.liquid + m.receivables + m.investment + m.tangible + m.retirement;
-      if (Math.abs(sum - m.totalAssets) > EPS) badTA++;
+      if (Math.abs(sectionSum(m) - m.totalAssets) > EPS) badTA++;
       if (Math.abs((m.totalAssets - m.liabilities) - m.netWorth) > EPS) badNW++;
     });
     if (badTA) warnings.push('Total assets differ from the sum of sections in ' + badTA + ' month(s).');
@@ -602,7 +663,7 @@
       months: months,
       currentIndex: months.length - 1,
       accounts: accounts,
-      sectionOrder: SECTIONS.map(function (s) { return s.id; }),
+      sectionOrder: sections.map(function (s) { return s.id; }),
       skipped: skipped ? { count: skipped, from: skippedFrom } : null
     };
   }
@@ -663,7 +724,7 @@
     if (errors.length) return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
 
     var fmt = opts && typeof opts.fmt === 'function' ? opts.fmt : null;
-    var data = parseDataInput(wsData, errors, warnings, fmt);
+    var data = parseSheet(wsData, wb.SheetNames[0], errors, warnings, fmt);
     if (errors.length || !data) return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
 
     var currency = currencyResult(warnings, dispCode);
@@ -709,6 +770,7 @@
     parseArrayBuffer: parseArrayBuffer,
     _parseNumber: parseNumber,
     _openWorkbook: openWorkbook,
-    _currencyOfFormat: currencyOfFormat
+    _currencyOfFormat: currencyOfFormat,
+    LAYOUTS: LAYOUTS
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -21,7 +21,8 @@
     receivables: '#5f93cc',
     investment:  '#3987e5',
     tangible:    '#8f7fd0',
-    retirement:  '#2fbd8b'
+    retirement:  '#2fbd8b',
+    education:   '#e0b35c'
   };
 
   function polar(r, a) { return [C + Math.sin(a) * r, C - Math.cos(a) * r]; }
