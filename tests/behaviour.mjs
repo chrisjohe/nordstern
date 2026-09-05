@@ -273,6 +273,65 @@ sec('Ausgabenfeld klemmt beim Verlassen auf die Vorgabe');
   w.close();
 }
 
+/* ---------- 2c. Der Hinweis fragt nach einem Blick, nicht nach einer Eingabe ---------- */
+/* Wer das Blatt öffnet, hat die Ausgaben gesehen und Gelegenheit gehabt, sie zu
+   ändern — mehr verlangt der Hinweis unterm Berg nicht. Geöffnet wird über den
+   Kopf-Knopf, nicht über den Hinweis selbst, sonst bewiese das Verschwinden nur,
+   dass der Hinweis sich selbst wegklickt. */
+sec('Ausgaben-Hinweis verschwindet mit dem Öffnen des Blatts');
+const hintStore={...store};
+{ const {w,errors}=await boot({storage:hintStore});
+  const d=w.document;
+  ok(!!d.querySelector('.st-hint'),'Hinweis steht zu Beginn');
+  ok(w.NORDSTERN.app.state.settings.expensesSet===false,
+     'und ist ungesetzt: '+w.NORDSTERN.app.state.settings.expensesSet);
+
+  d.getElementById('btnSettings').dispatchEvent(new w.Event('click'));
+  ok(d.querySelector('.overlay').classList.contains('is-open'),'das Zahnrad öffnet das Blatt');
+
+  /* Geschlossen, ohne Tastatur oder Maus im Feld berührt zu haben — anders als
+     im nächsten Block, der eigens ein Blur ohne Änderung prüft. */
+  w.NORDSTERN.app.ui.settings.close();
+  await tick(30);
+  ok(!d.querySelector('.st-hint'),'Hinweis verschwindet, ohne dass etwas eingegeben wurde');
+  ok(w.NORDSTERN.app.state.settings.expensesSet===true,
+     'die Einstellung ist gesetzt: '+w.NORDSTERN.app.state.settings.expensesSet);
+  ok(JSON.parse(hintStore['nordstern.settings.v1']).expensesSet===true,
+     'und steht auch im gespeicherten Stand: '+hintStore['nordstern.settings.v1']);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+{ const {w,errors}=await boot({storage:hintStore});
+  const d=w.document;
+  ok(!d.querySelector('.st-hint'),'nach dem Neustart bleibt der Hinweis aus');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+{ /* Blur ohne Änderung — das Feld zeigt schon die Vorgabe, das Verlassen
+     ändert an der Zahl selbst nichts. */
+  const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  d.getElementById('btnSettings').dispatchEvent(new w.Event('click'));
+  d.getElementById('setExp').dispatchEvent(new w.Event('blur'));
+  ok(w.NORDSTERN.app.state.settings.monthlyExpenses===w.NORDSTERN.store.DEFAULT_EXPENSES,
+     'Blur ohne Eingabe lässt die Ausgaben bei der Vorgabe: '+w.NORDSTERN.app.state.settings.monthlyExpenses);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+{ /* Die Eingabe wirkt weiterhin sofort — das Blatt muss dafür nicht erst
+     verlassen werden (siehe Abschnitt 3). */
+  const {w,errors}=await boot();
+  const d=w.document;
+  d.getElementById('btnSettings').dispatchEvent(new w.Event('click'));
+  const inp=d.getElementById('setExp');
+  inp.focus();
+  inp.value='3000'; inp.dispatchEvent(new w.Event('input'));
+  ok(w.NORDSTERN.app.state.settings.monthlyExpenses===3000,
+     'Eingabe im Feld wirkt weiterhin sofort: '+w.NORDSTERN.app.state.settings.monthlyExpenses);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 3b. Währung ---------- */
 /* Die Formatierer selbst — eigenes, kurzlebiges Fenster, das am Ende
    verworfen wird. Sonst rechnete jede folgende Reihe in Dollar weiter, weil

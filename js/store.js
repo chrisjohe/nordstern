@@ -16,7 +16,7 @@
 
   var DEFAULT_SETTINGS = {
     monthlyExpenses: DEFAULT_EXPENSES,
-    expensesSet: false,        // hat je ein Mensch den Betrag bestätigt?
+    expensesSet: false,        // hat je ein Mensch das Blatt geöffnet und die Summe gesehen?
     animations: true,
     motionIntensity: 'normal', // 'ruhig' | 'normal'
     currency: 'EUR'

@@ -225,8 +225,8 @@
       expenses: {
         monthly: totalMonthly,
         annual: totalAnnual,
-        /* „Gesetzt" heisst: ein Mensch hat den Betrag bestätigt; bis dahin
-           bleibt der Hinweis unter dem Berg. */
+        /* „Gesetzt" heisst: ein Mensch hat das Blatt geöffnet und die Summe
+           gesehen; bis dahin bleibt der Hinweis unter dem Berg. */
         set: !!settings.expensesSet
       },
       contingency: contingency,

@@ -33,6 +33,9 @@
     var tabs = {};
     var panes = {};
     var active = SECTIONS[0].id;
+    /* Der jüngste Stand aus sync(), damit open() weiss, ob die Ausgaben
+       schon einmal gesehen wurden — ohne dafür extra beim Aufrufer nachzufragen. */
+    var lastSettings = null;
 
     function pane(id, children) {
       var p = U.make('section', {
@@ -376,7 +379,7 @@
       n = U.clamp(Math.round(Number(n) || 0), 0, 10000);
       if (!fromField && refs.expInput.value !== String(n)) refs.expInput.value = String(n);
       refs.expRange.value = String(n);
-      api.patchSettings({ monthlyExpenses: n, expensesSet: true });
+      api.patchSettings({ monthlyExpenses: n });
     }
 
     /* Was hinter dem Blatt liegt: die Hülle und der Vorhang, der sonst mit
@@ -395,6 +398,9 @@
 
     function open(id) {
       if (id) select(id);
+      /* Wer das Blatt öffnet, hat die Summe gesehen und Gelegenheit gehabt,
+         sie zu ändern — der Hinweis unterm Berg hat seinen Zweck erfüllt. */
+      if (lastSettings && !lastSettings.expensesSet) api.patchSettings({ expensesSet: true });
       lastFocus = document.activeElement;
       root.removeAttribute('inert');
       root.removeAttribute('aria-hidden');
@@ -446,6 +452,7 @@
       },
       isOpen: function () { return root.classList.contains('is-open'); },
       sync: function (v, model, settings) {
+        lastSettings = settings;
         /* Gilt auch ohne Modell (v === null) — die Wahl der Währung hängt an
            den Einstellungen, nicht am Import. */
         if (refs.currency !== document.activeElement && refs.currency.value !== settings.currency) {
