@@ -26,3 +26,8 @@ export/
 node_modules/
 .DS_Store
 *.log
+
+# --- Reference material -------------------------------------------------
+# Screenshot of the original Reddit spreadsheet the app is modelled on.
+# Kept locally for reference, not part of the project.
+reddit_origin_sheet.png
