@@ -434,20 +434,31 @@
       return null;
     }
 
-    /* Ein Fehlerwert in einer der drei Summenzeilen der aktuellen Spalte
-       bricht ab, statt still auf 0 zu fallen: diese Zahl trägt den
-       Kopfbereich. */
+    /* Ein Fehlerwert in einer der acht Summenzeilen der aktuellen Spalte
+       bricht ab, statt still auf 0 zu fallen: jede von ihnen trägt eine
+       Karte oder die FIRE-Leiter, nicht nur die Kopfzahlen. Unlesbarer
+       Text (statt einer Zahl) bricht ebenso ab; eine leere Zelle bleibt
+       erlaubt und fällt weiter auf 0 — eine leere „Total claims" ist ein
+       plausibles Blatt. */
     var curCol = cols[lastIdx].col;
     var curTotals = [
       { row: rowTA, label: 'Total assets' },
       { row: rowLiabTot, label: 'Total liabilities' },
       { row: rowNW, label: 'Total net worth' }
     ];
+    SECTIONS.forEach(function (s) {
+      curTotals.push({ row: s._total, label: s.total.charAt(0).toUpperCase() + s.total.slice(1) });
+    });
     for (var ct = 0; ct < curTotals.length; ct++) {
       var ec = cell(ws, curTotals[ct].row, curCol);
       if (ec && ec.t === 'e') {
         errors.push('"' + curTotals[ct].label + '" holds an Excel error value in the current month column (' +
           addr(curTotals[ct].row, curCol) + ').');
+        return null;
+      }
+      if (ec && ec.v != null && ec.v !== '' && ec.t !== 'e' && numRaw(ec) == null) {
+        errors.push('"' + curTotals[ct].label + '" holds text that is not an amount in the current month column (' +
+          addr(curTotals[ct].row, curCol) + '): "' + String(ec.v).slice(0, 40) + '".');
         return null;
       }
     }

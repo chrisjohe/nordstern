@@ -878,6 +878,57 @@ sec('Robustheit: Fehlerwerte, kaputte Daten, leere Mappe');
   ok(errTotal.errors.some(t=>/Total net worth/.test(t)&&/Excel error value/.test(t)),
      'die Meldung nennt Zeile und Grund: '+errTotal.errors.join(' | '));
 
+  /* A2: derselbe Stopp gilt für die fünf Sektionssummen, nicht nur die drei
+     Kopfzahlen — ein #REF! in „Total investments" liesse sonst den
+     Vermögensstand unberührt und die FIRE-Leiter still auf 0 fallen. */
+  const SECTION_TOTALS=[
+    {row:ROW.TOTALLIQUID,     label:'Total liquid'},
+    {row:ROW.TOTALCLAIMS,     label:'Total claims'},
+    {row:ROW.TOTALINVEST,     label:'Total investments'},
+    {row:ROW.TOTALPROPERTY,   label:'Total property'},
+    {row:ROW.TOTALRETIREMENT, label:'Total retirement'}
+  ];
+  SECTION_TOTALS.forEach(function(s){
+    const wsErrSection=full([[2026,1],[2026,2]]);
+    const a=EC(s.row,2);
+    wsErrSection[a]={t:'e', v:42, w:'#REF!'};                  // Monat 2 = die aktuelle Spalte
+    const errSection=parse(wsErrSection);
+    ok(!errSection.ok,'ein Fehlerwert in „'+s.label+'" der aktuellen Spalte bricht ab');
+    ok(errSection.errors.some(t=>t.indexOf(s.label)>=0&&/Excel error value/.test(t)&&t.indexOf(a)>=0),
+       'die Meldung nennt „'+s.label+'", den Grund und die Adresse '+a+': '+errSection.errors.join(' | '));
+  });
+
+  /* Unlesbarer Text statt einer Zahl in einer Summenzeile der aktuellen
+     Spalte bricht ebenso ab, statt sie wie eine leere Zelle auf 0 fallen
+     zu lassen. */
+  const wsTextSection=full([[2026,1],[2026,2]]);
+  const textAddr=EC(ROW.TOTALINVEST,2);
+  wsTextSection[textAddr]={t:'s', v:'n/a'};
+  const textSection=parse(wsTextSection);
+  ok(!textSection.ok,'unlesbarer Text in „Total investments" der aktuellen Spalte bricht ab');
+  ok(textSection.errors.some(t=>t.indexOf('Total investments')>=0&&/not an amount/.test(t)&&t.indexOf(textAddr)>=0),
+     'die Meldung nennt Zeile, Grund und Adresse '+textAddr+': '+textSection.errors.join(' | '));
+
+  /* Derselbe Fehlerwert in einer vergangenen Spalte bleibt eine Warnung —
+     der Stopp gilt nur der aktuellen Spalte. */
+  const wsErrPastSection=full([[2026,1],[2026,2]]);
+  wsErrPastSection[EC(ROW.TOTALINVEST,1)]={t:'e', v:42, w:'#REF!'};   // Monat 1, nicht die aktuelle Spalte
+  const errPastSection=parse(wsErrPastSection);
+  ok(errPastSection.ok,'derselbe Fehlerwert in einer vergangenen Spalte lehnt den Import nicht ab: '+
+     errPastSection.errors.join(' | '));
+  ok(errPastSection.warnings.some(t=>/Excel error values/.test(t)),
+     'er wird als Warnung benannt: '+errPastSection.warnings.join(' | '));
+
+  /* Eine leere Summenzelle in der aktuellen Spalte bleibt erlaubt: eine
+     leere „Total claims" ist ein plausibles Blatt, kein Fehler. */
+  const wsEmptyTotal=full([[2026,1],[2026,2]]);
+  delete wsEmptyTotal[EC(ROW.TOTALINVEST,2)];
+  const emptyTotal=parse(wsEmptyTotal);
+  ok(emptyTotal.ok,'eine leere Summenzelle in der aktuellen Spalte lehnt den Import nicht ab: '+
+     emptyTotal.errors.join(' | '));
+  ok(emptyTotal.model.months[1].investment===0,
+     'und die Sektion zählt als 0: '+emptyTotal.model.months[1].investment);
+
   const wsBadDate=full([[2026,1]]);
   wsBadDate[EC(ROW.MONTH,1)]={t:'d', v:new w.Date('x')};       // new Date('x') ist ungültig
   const badDate=parse(wsBadDate);
@@ -1266,12 +1317,30 @@ sec('Zahlen als Text');
      'dass sie Text war, steht in den Hinweisen: '+asText.warnings.join(' | '));
   ok(asNumber.warnings.length===0,'die Zahlenfassung schweigt: '+asNumber.warnings.join(' | '));
 
-  /* Was auf keine der beiden Schreibweisen passt, wird nicht halb gelesen. */
-  const broken=wb('1.234.56');
+  /* Was auf keine der beiden Schreibweisen passt, wird nicht halb gelesen —
+     in einer vergangenen Spalte bleibt das eine Warnung, keine Ablehnung.
+     Die aktuelle Spalte (Februar) bekommt darum lesbare Summen: sonst griffe
+     der Stopp aus A2 (unlesbarer Text in einer Summenzeile der aktuellen
+     Spalte) zuerst und die hiesige Prüfung käme nie zum Zug. */
+  const brokenSheet=XLSX.utils.aoa_to_sheet([
+    ['Month',        D(2026,1), D(2026,2)],
+    ['Liquid'],['  Cash',0,0],['Total liquid',0,0],
+    ['Claims'],['Total claims',0,0],
+    ['Investments'],['  Depot','1.234.56','1.234.56'],['Total investments','1.234.56',0],
+    ['Property'],['Total property',0,0],
+    ['Retirement'],['Total retirement',0,0],
+    ['Total assets','1.234.56',0],
+    ['Liabilities'],['  Loan',0,0],['Total liabilities',0,0],
+    ['Total net worth','1.234.56',0]
+  ],{cellDates:true});
+  const brokenWb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(brokenWb,brokenSheet,'Data Input');
+  const broken=w.NORDSTERN.importer.parseWorkbook(brokenWb,'text.xlsx');
+  ok(broken.ok,'unlesbarer Text in einer vergangenen Spalte lehnt den Import nicht ab: '+broken.errors.join(' | '));
   ok(broken.warnings.some(t=>/not a number/.test(t)),
      'Unleserliches wird benannt: '+broken.warnings.join(' | '));
-  ok(broken.model.months[1].investment===0,
-     'und zählt als leer, nicht als 1,234: '+broken.model.months[1].investment);
+  ok(broken.model.months[0].investment===0,
+     'und zählt als leer, nicht als 1,234: '+broken.model.months[0].investment);
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }
