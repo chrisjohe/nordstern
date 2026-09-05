@@ -1,7 +1,10 @@
 /* NORDSTERN: Prüfung des Einzeldatei-Baus.
    Baut frisch und stellt drei Fragen: Ist die Datei wirklich geschlossen?
    Steht darin Zeichen für Zeichen der Quelltext aus dem Ordner? Und läuft
-   die Anwendung daraus genauso — bis hin zur eingelesenen Mappe? */
+   die Anwendung daraus genauso — bis hin zur eingelesenen Mappe? Geschlossen
+   heisst dabei mehr als „nichts lädt nach": der Quelltext selbst — js/, css/
+   und index.html, nicht nur das gebaute Markup — wird auf jeden Aufruf und
+   jede Adresse durchsucht, die das Netz erreichen könnte. */
 import {boot, bootBundle, importFixture, ROOT} from './harness.mjs';
 import {execFileSync} from 'child_process';
 import fs from 'fs'; import path from 'path';
@@ -9,6 +12,126 @@ import fs from 'fs'; import path from 'path';
 let pass=0, fail=0;
 const ok=(c,m)=>{ if(c){pass++;} else {fail++; console.log('  ✗ '+m);} };
 const sec=t=>console.log('\n== '+t);
+
+/* Der Netz-Wächter: eine reine Funktion, unabhängig vom Bau prüfbar (siehe
+   unten, „Der Wächter erkennt jede Leck-Form"). sources sind die Dateien im
+   Ordner (js/ ohne vendor/, css/, index.html); html ist die fertig gebaute
+   Datei. Beide Seiten werden gegen dieselben Muster geprüft, weil ein Leck
+   in der Quelle genauso zählt wie eines, das erst der Bau hinterlässt.
+
+   Erkannt werden Aufruf-/Konstruktionsformen, nicht jede Erwähnung eines
+   Namens in Prosa — sonst schlüge der About-Text in settings.js an, der
+   „no fetch, no XMLHttpRequest, no WebSocket" aufzählt, ohne selbst etwas
+   aufzurufen. XMLHttpRequest liesse sich auch ohne „new" erzeugen; das
+   Muster verlangt „new" trotzdem, bewusst — sonst träfe es die Prosa. */
+const IDENTIFIER_CHECKS = [
+  [/\bfetch\s*\(/, 'fetch('],
+  [/\bnew\s+XMLHttpRequest\b/, 'new XMLHttpRequest'],
+  [/\bnew\s+WebSocket\b/, 'new WebSocket'],
+  [/\bnew\s+EventSource\b/, 'new EventSource'],
+  [/\.sendBeacon\b/, '.sendBeacon'],
+  [/\bimportScripts\s*\(/, 'importScripts('],
+  [/\bnew\s+Image\s*\(/, 'new Image('],
+  [/\bserviceWorker\b/, 'serviceWorker']
+];
+
+/* Jede Adresse hier mit eigenem Grund — wer eine weitere findet, meldet sie
+   statt sie stillschweigend zuzulassen (siehe unten, der Fund-freie Lauf). */
+const ALLOWED_URLS = new Set([
+  'https://www.apache.org/licenses/LICENSE-2.0',    // About: Lizenztext, mehrfach verlinkt
+  'https://github.com/chrisjohe/nordstern',          // About: Quelle von nordstern selbst
+  'https://git.sheetjs.com/sheetjs/sheetjs',         // About: Quelle von SheetJS
+  'https://github.com/google/material-design-icons', // About: Quelle der Symbole
+  'http://www.w3.org/2000/svg'                       // SVG-Namensraum — ein Name, kein Ladevorgang
+]);
+
+function urlFindings(rel, text) {
+  const out = [];
+  for (const m of text.matchAll(/https?:\/\/[^\s"'<>)]+/g)) {
+    if (!ALLOWED_URLS.has(m[0])) out.push({where: rel, what: 'Adresse ' + m[0]});
+  }
+  /* Protokoll-relativ (//host/…): nur hinter einem Anführungszeichen, „("
+     oder „=" — dort steht eine Adresse, die geladen würde. Ein
+     Zeilenkommentar „//TODO" ist keine, und „https://" fand die Regel
+     darüber schon. */
+  for (const m of text.matchAll(/(?<=["'(=])\/\/[a-zA-Z0-9][^\s"'<>)]*/g)) {
+    if (!ALLOWED_URLS.has(m[0])) out.push({where: rel, what: 'protokoll-relative Adresse ' + m[0]});
+  }
+  for (const m of text.matchAll(/url\(\s*([^)]*?)\s*\)/gi)) {
+    const arg = m[1].replace(/^['"]|['"]$/g, '');
+    if (!arg.startsWith('#')) out.push({where: rel, what: 'url(' + m[1] + ')'});
+  }
+  return out;
+}
+
+function identifierFindings(rel, text) {
+  const out = [];
+  for (const [re, label] of IDENTIFIER_CHECKS) if (re.test(text)) out.push({where: rel, what: label});
+  return out;
+}
+
+function linkRel(tag) { return (tag.match(/\srel\s*=\s*"([^"]*)"/i) || [])[1] || ''; }
+
+function leaks({sources, html}) {
+  let out = [];
+  for (const {rel, text} of sources) {
+    out = out.concat(identifierFindings(rel, text), urlFindings(rel, text));
+  }
+  const indexSrc = sources.find(s => s.rel === 'index.html');
+  if (indexSrc) {
+    for (const m of indexSrc.text.matchAll(/<link\b[^>]*>/gi)) {
+      if (/^(preload|prefetch|dns-prefetch|preconnect)$/i.test(linkRel(m[0]))) {
+        out.push({where: 'index.html', what: '<link>: ' + m[0]});
+      }
+    }
+  }
+
+  if (html) {
+    /* <style>- und <script>-Rümpfe werden wie eigene Quelldateien geprüft —
+       insbesondere fängt das ein url(https://…) in einem eingefalteten
+       Stylesheet, das die reine Markup-Prüfung unten gar nicht mehr sieht,
+       weil sie genau diese Blöcke herausschneidet. */
+    for (const m of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi))
+      out = out.concat(identifierFindings('gebaute Datei <style>', m[1]), urlFindings('gebaute Datei <style>', m[1]));
+    /* SheetJS bleibt aussen vor: es ist eine vendorte Bibliothek, keine
+       eigene Quelle, und trägt legitim eine Lizenzadresse (sheetjs.com) und
+       jede XML-Namensraum-URI, die .xlsx/.ods je gesehen haben — das sind
+       Namen im gelesenen Dateiformat, keine Ladeversuche. */
+    for (const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+      if (/data-src="js\/vendor\//.test(m[1])) continue;
+      out = out.concat(identifierFindings('gebaute Datei <script>', m[2]), urlFindings('gebaute Datei <script>', m[2]));
+    }
+
+    let markup = html, prev;
+    do { prev = markup; markup = markup.replace(/<(style|script)\b[\s\S]*?<\/\1>/g, ''); } while (markup !== prev);
+    out = out.concat(identifierFindings('gebaute Datei, Markup', markup), urlFindings('gebaute Datei, Markup', markup));
+    if (/http-equiv\s*=\s*"refresh"/i.test(markup)) out.push({where: 'gebaute Datei, Markup', what: 'meta http-equiv="refresh"'});
+    if (/\bsrcset\s*=/i.test(markup)) out.push({where: 'gebaute Datei, Markup', what: 'srcset='});
+    for (const m of markup.matchAll(/<link\b[^>]*>/gi)) {
+      const relAttr = linkRel(m[0]);
+      if (relAttr !== 'icon' && relAttr !== 'apple-touch-icon') out.push({where: 'gebaute Datei, Markup', what: '<link>: ' + m[0]});
+    }
+  }
+  return out;
+}
+
+function walk(dir) {
+  let out = [];
+  for (const name of fs.readdirSync(dir)) {
+    const abs = path.join(dir, name);
+    out = fs.statSync(abs).isDirectory() ? out.concat(walk(abs)) : out.concat([abs]);
+  }
+  return out;
+}
+function readSources() {
+  const files = [
+    ...walk(path.join(ROOT, 'js')).filter(f => f.endsWith('.js') && !f.split(path.sep).includes('vendor')),
+    ...walk(path.join(ROOT, 'css')).filter(f => f.endsWith('.css')),
+    path.join(ROOT, 'index.html')
+  ];
+  return files.map(f => ({rel: path.relative(ROOT, f).split(path.sep).join('/'), text: fs.readFileSync(f, 'utf8')}));
+}
+const findingsText = fs => fs.map(f => f.where + ': ' + f.what).join(' | ') || '(keiner)';
 
 sec('Der Bau läuft');
 const log=execFileSync('node',[path.join(ROOT,'tools/build.mjs')],{cwd:ROOT,encoding:'utf8'});
@@ -50,6 +173,45 @@ ok(csp.indexOf('http')<0,'CSP nennt keinen fremden Host: '+csp);
 ok(!/img\//.test(html),'kein Pfad in einen Bildordner, auch nicht im Skript');
 ok(!/new Image\(/.test(html),'nichts wird nachgeladen');
 ok(/SheetJS[\s\S]{0,200}Apache License 2\.0/.test(html),'die Lizenz von SheetJS reist mit');
+
+sec('Kein Netzwerkaufruf — weder im Ordner noch im Bau');
+const realFindings = leaks({sources: readSources(), html});
+ok(realFindings.length===0, 'keine Netzwerkspur in js/, css/, index.html oder der gebauten Datei: '+findingsText(realFindings));
+
+sec('Der Wächter erkennt jede Leck-Form');
+/* Jeder Fall hängt einen Leck-Ausdruck an eine winzige Quelle oder ein
+   Markup-Schnipsel und verlangt mindestens einen Fund, dessen Beschreibung
+   den Ausdruck nennt — der Wächter soll nicht nur „irgendetwas" finden. */
+const has=(fs,needle)=>fs.some(f=>f.what.indexOf(needle)>=0);
+const sourceCases=[
+  ['fetch(',              "function go(){ return fetch('https://x'); }",        'fetch('],
+  ['new XMLHttpRequest',  "var r = new XMLHttpRequest();",                       'new XMLHttpRequest'],
+  ['new WebSocket',       "var s = new WebSocket('wss://x');",                   'new WebSocket'],
+  ['navigator.sendBeacon',"navigator.sendBeacon('/x');",                         '.sendBeacon'],
+  ['new Image()',         "var im = new Image();",                              'new Image('],
+  ['new EventSource',     "var e = new EventSource('/e');",                     'new EventSource'],
+  ['importScripts',       "importScripts('x.js');",                             'importScripts('],
+  ['nackte https-Adresse',"var u = 'https://evil.example/';",                   'https://evil.example/'],
+  ['protokoll-relative Adresse', "var u = '//cdn.example/x.js';",               '//cdn.example/x.js'],
+  ['css url() in der Quelle', "a{background:url(https://x/y.png)}",            'url(https://x/y.png)']
+];
+for(const [label,snippet,needle] of sourceCases){
+  const found=leaks({sources:[{rel:'synthetic.js',text:snippet}],html:''});
+  ok(found.length>0 && has(found,needle), label+' wird in der Quelle erkannt: '+findingsText(found));
+}
+const htmlCases=[
+  ['meta http-equiv="refresh"', '<meta http-equiv="refresh" content="0;url=https://x">', 'refresh'],
+  ['srcset',                    '<img srcset="https://x/a.png 1x">',                     'srcset'],
+  ['<link rel="preload">',      '<link rel="preload" href="https://x/f.woff2">',         '<link>'],
+  ['url() in einem <style>',    '<style>a{background:url(https://x/y.png)}</style>',     'url(https://x/y.png)']
+];
+for(const [label,snippet,needle] of htmlCases){
+  const found=leaks({sources:[],html:snippet});
+  ok(found.length>0 && has(found,needle), label+' wird im Bau erkannt: '+findingsText(found));
+}
+const allowSnippet=[...ALLOWED_URLS].map(u=>"'"+u+"'").join('\n');
+const allowFindings=leaks({sources:[{rel:'synthetic-allow.js',text:allowSnippet}],html:''});
+ok(allowFindings.length===0,'die erlaubten Adressen bleiben ohne Fund: '+findingsText(allowFindings));
 
 sec('Der Quelltext ist unverändert eingefaltet');
 const blocks=[...html.matchAll(/<(style|script) data-src="([^"]+)">\n([\s\S]*?)\n<\/\1>/g)];
