@@ -2904,6 +2904,21 @@ sec('Berg: Farben aus Token');
   mtn.refreshTokens();
   ok(approxArr(mtn.palette().fillLo,[6,11,20,1]),'zurückgesetzt: wieder der Rückfall: '+JSON.stringify(mtn.palette().fillLo));
 
+  /* Sichtbarkeit bei Nacht: die Füllung bleibt am Himmel (der Berg ist ein
+     Linienwerk, keine Fläche), Form gibt die Schattenkontur, deshalb am Fuß
+     nicht unter 14 %; die gegangene Route bleibt das Hellste auf dem Berg. */
+  const pal1=mtn.palette();
+  const bgDeep=[7,12,23];
+  const sep=pal1.fillLo.slice(0,3).reduce((a,v,i)=>a+Math.abs(v-bgDeep[i]),0);
+  ok(sep<=8,'Fuß des Bergs bleibt am Himmel (Kanalabstand zu --bg-deep): '+sep);
+  ok(pal1.dimLo[3]>=0.14,'dunkelste Kontur am Fuß mindestens 14 %: '+pal1.dimLo[3]);
+  ok(pal1.dimHi[3]>pal1.dimLo[3]&&pal1.midHi[3]>pal1.midLo[3]&&pal1.litHi[3]>pal1.litLo[3],
+     'jede Konturstufe wird nach oben heller');
+  ok(pal1.routeDone[3]>pal1.litHi[3]&&pal1.litHi[3]>pal1.midHi[3]&&pal1.midHi[3]>pal1.dimHi[3],
+     'Route > Licht > Mitte > Schatten: '+[pal1.routeDone[3],pal1.litHi[3],pal1.midHi[3],pal1.dimHi[3]].join(' > '));
+  const hcDim=/--mtn-dim-lo:\s*rgba\([^)]*,\s*([\d.]+)\)/.exec(highBlock);
+  ok(hcDim&&parseFloat(hcDim[1])>pal1.dimLo[3],'hoher Kontrast hebt die Schattenkontur weiter an: '+(hcDim&&hcDim[1])+' > '+pal1.dimLo[3]);
+
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }

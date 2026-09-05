@@ -64,13 +64,16 @@
   /* Geländefüllung, unten (f=0) nach oben (f=1); mountain.js mischt linear. */
   --mtn-fill-lo:   #060b14;
   --mtn-fill-hi:   #122036;
-  /* Drei Konturstufen nach Lichteinfall, je unten/oben; Alpha mischt mit. */
+  /* Drei Konturstufen nach Lichteinfall, je unten/oben; Alpha mischt mit.
+     Die Füllung bleibt nahe am Himmel: der Berg soll als Linienwerk im Raum
+     stehen, nicht als Fläche. Form gibt allein die Schattenkontur, deshalb
+     ist sie am Fuß nicht unter 14 %. */
   --mtn-lit-lo:    rgba(127, 178, 229, 0.30);
   --mtn-lit-hi:    rgba(232, 242, 255, 0.74);
-  --mtn-mid-lo:    rgba(127, 178, 229, 0.17);
-  --mtn-mid-hi:    rgba(223, 234, 255, 0.44);
-  --mtn-dim-lo:    rgba(92, 134, 184, 0.09);
-  --mtn-dim-hi:    rgba(159, 192, 228, 0.23);
+  --mtn-mid-lo:    rgba(127, 178, 229, 0.19);
+  --mtn-mid-hi:    rgba(223, 234, 255, 0.46);
+  --mtn-dim-lo:    rgba(92, 134, 184, 0.14);
+  --mtn-dim-hi:    rgba(159, 192, 228, 0.28);
   /* Kompassteller und Reservering */
   --mtn-plate:     rgba(127, 178, 229, 0.26);
   --mtn-cardinal:  #c4d4ec;
