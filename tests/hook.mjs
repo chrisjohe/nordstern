@@ -17,6 +17,21 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; } else { fail++; console.log('  ✗ ' + m); } };
 
+/* --- ist der Haken in diesem Checkout überhaupt eingehängt? ------------- */
+/* Ohne .git gibt es nichts zu prüfen — z.B. aus einem npm-Tarball heraus.
+   .git ist bei einem Worktree eine Datei, kein Verzeichnis, deshalb reicht
+   hier "existiert". */
+if (fs.existsSync(path.join(ROOT, '.git'))) {
+  let hooksPath = '';
+  try {
+    hooksPath = execFileSync('git', ['config', '--get', 'core.hooksPath'],
+      { cwd: ROOT, encoding: 'utf8' }).trim();
+  } catch (e) { /* nicht gesetzt */ }
+  ok(hooksPath === '.githooks',
+    'core.hooksPath steht hier nicht auf .githooks, der Haken läuft nicht — ' +
+    '`npm install` (führt prepare aus) oder `git config core.hooksPath .githooks`');
+}
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nordstern-hook-'));
 const git = (...a) => execFileSync('git', a, { cwd: tmp, encoding: 'utf8', stdio: 'pipe' });
 
@@ -216,6 +231,25 @@ if (!real) {
 
 fs.rmSync(tmp, { recursive: true, force: true });
 ok(!fs.existsSync(tmp), 'das Wegwerf-Repository ist wieder weg');
+
+/* --- der prepare-Schritt: hängt den Haken von selbst ein ---------------- */
+/* Direkt das Skript aus package.json, nicht `npm run prepare` — dieser Test
+   soll auch ohne node_modules laufen. Zwei Richtungen: in einem Repository
+   hängt er den Haken ein, ausserhalb bricht er nicht ab. */
+const prepareScript = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts.prepare;
+
+const prepGit = fs.mkdtempSync(path.join(os.tmpdir(), 'nordstern-prepare-git-'));
+execFileSync('git', ['init', '-b', 'main', '-q'], { cwd: prepGit });
+let rp = spawnSync('sh', ['-c', prepareScript], { cwd: prepGit, encoding: 'utf8' });
+ok(rp.status === 0, 'prepare läuft in einem frischen Repository durch: ' + (rp.stderr || '').trim());
+const hooked = execFileSync('git', ['config', '--get', 'core.hooksPath'], { cwd: prepGit, encoding: 'utf8' }).trim();
+ok(hooked === '.githooks', 'und hängt den Haken dort ein: ' + hooked);
+fs.rmSync(prepGit, { recursive: true, force: true });
+
+const prepNoGit = fs.mkdtempSync(path.join(os.tmpdir(), 'nordstern-prepare-nogit-'));
+rp = spawnSync('sh', ['-c', prepareScript], { cwd: prepNoGit, encoding: 'utf8' });
+ok(rp.status === 0, 'und bricht ausserhalb eines Repositories nicht ab: ' + (rp.stderr || '').trim());
+fs.rmSync(prepNoGit, { recursive: true, force: true });
 
 console.log('\n' + pass + ' bestanden, ' + fail + ' fehlgeschlagen');
 process.exit(fail ? 1 : 0);

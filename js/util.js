@@ -225,7 +225,7 @@
 
   /* Eine Fassung, an einer Stelle. Ohne Bauschritt kann nichts sie aus
      package.json holen, also steht sie hier. */
-  NS.VERSION = '1.1.10';
+  NS.VERSION = '1.1.11';
 
   /* Formatierer müssen vor dem ersten eur()/pct()-Aufruf existieren, auch
      wenn util.js allein geladen wird. */

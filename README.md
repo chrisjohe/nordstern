@@ -296,7 +296,7 @@ handing on the build redistributes SheetJS rather than merely using it.
 ## Tests
 
 ```
-npm install     # jsdom, for the tests only
+npm install     # jsdom, for the tests; also enables the commit hook below
 npm test
 ```
 
@@ -337,7 +337,9 @@ are refused outside the lines the licence needs them in — copyright, trademark
 and attribution. Both of these run without a workbook, so they work in CI and
 on any machine.
 
-Turn on the commit hook and it runs before every commit:
+`npm install` turns the commit hook on for you (the `prepare` script), so it
+runs before every commit. `npm test` refuses to pass while the hook is off.
+Without `npm install`, or to turn it on by hand:
 
 ```
 git config core.hooksPath .githooks

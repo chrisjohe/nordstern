@@ -51,11 +51,16 @@ machine too.
 ```
 git clone https://github.com/chrisjohe/nordstern
 cd nordstern
-npm install          # jsdom, for the tests
+npm install          # jsdom, for the tests — also enables the commit hook (prepare)
 npm test             # ~600 assertions, all headless
 npm run build        # → export/nordstern.html
 open index.html      # or just double-click it
 ```
+
+`npm install` runs `prepare`, which sets `core.hooksPath` to `.githooks` if
+this is a git checkout. `npm test` refuses to pass while the hook is off; see
+`tests/hook.mjs` below. The manual command further down still works, e.g.
+after cloning without `npm install`.
 
 There is no dev server and nothing to watch. Edit a file, reload the page.
 
@@ -72,15 +77,18 @@ There is no dev server and nothing to watch. Edit a file, reload the page.
 | `tests/build.mjs` | the single-file build is self-contained and data-free |
 | `tests/hook.mjs` | the pre-commit hook bites — both of its locks |
 
-`tests/privacy.mjs` runs separately (`npm run privacy`) because it needs a
-real workbook to be useful. It skips cleanly when there isn't one.
+`tests/privacy.mjs` runs separately (`npm run privacy`) because its needle
+scan against a real workbook needs one to be useful and skips cleanly
+without one. Its image and person checks need no workbook, so they run in
+CI too (`node tests/privacy.mjs`, no flags).
 
 `tests/smoke.mjs` runs separately too (`npm run smoke`), by hand: it asserts
 nothing and instead prints a masked walk-through of the whole page against a
 DOM, with a real import — point `NORDSTERN_WORKBOOK=…` at a real workbook to
 see it render without ever printing a figure.
 
-Turn the commit hook on once, and it will run that guard for you:
+`npm install` turns the commit hook on for you, via `prepare`. Without it,
+or on a machine that skipped `npm install`:
 
 ```
 git config core.hooksPath .githooks
