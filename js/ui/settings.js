@@ -343,12 +343,14 @@
         if (refs.expInput.value === '') return;          // Feld gerade leergeräumt
         setExpenses(Number(refs.expInput.value), true);
       });
+      refs.expInput.addEventListener('change', function () { persistExpenses(refs.expInput.value); });
       refs.expInput.addEventListener('blur', function () {
         // Beim Verlassen zeigt das Feld, was tatsächlich angewendet wurde
         // (geklemmt auf 0..10000) — nicht mehr, was zuletzt getippt wurde.
-        setExpenses(refs.expInput.value);
+        persistExpenses(refs.expInput.value);
       });
       refs.expRange.addEventListener('input', function () { setExpenses(Number(refs.expRange.value)); });
+      refs.expRange.addEventListener('change', function () { persistExpenses(refs.expRange.value); });
       refs.currency.addEventListener('change', function () {
         api.patchSettings({ currency: refs.currency.value });
       });
@@ -375,10 +377,63 @@
       refs.calmState.textContent = refs.calm.checked ? 'on' : 'off';
     }
 
-    function setExpenses(n, fromField) {
-      n = U.clamp(Math.round(Number(n) || 0), 0, 10000);
+    /* Ziehen am Regler feuert `input` mehrmals pro Bild — jedes Ereignis eine
+       volle Neuberechnung samt Speicherschreiben wäre spürbar zäh. Also wird
+       nur das Bild (Feld, Regler) sofort nachgezogen; die abgeleitete
+       Neuberechnung sammelt sich in einem einzigen rAF-Fenster, geschrieben
+       wird erst bei change/blur (persistExpenses). Fällt requestAnimationFrame
+       aus (kein Fenster, z.B. in einem Werkzeug ohne Bühne), tut's ein
+       Zeitgeber mit 16 ms — ungefähr ein Bild bei 60 Hz. */
+    var hasRaf = typeof global.requestAnimationFrame === 'function';
+    function scheduleFrame(fn) {
+      return hasRaf ? global.requestAnimationFrame(fn) : global.setTimeout(fn, 16);
+    }
+    function cancelFrame(id) {
+      if (hasRaf) { if (typeof global.cancelAnimationFrame === 'function') global.cancelAnimationFrame(id); }
+      else global.clearTimeout(id);
+    }
+
+    var expPending = null;
+    var expFrameId = null;
+
+    function flushExpensesFrame() {
+      expFrameId = null;
+      var n = expPending;
+      expPending = null;
+      api.patchSettings({ monthlyExpenses: n }, { transient: true });
+    }
+
+    function cancelExpensesFrame() {
+      if (expFrameId === null) return;
+      cancelFrame(expFrameId);
+      expFrameId = null;
+    }
+
+    function clampExpenses(n) {
+      return U.clamp(Math.round(Number(n) || 0), 0, 10000);
+    }
+
+    function renderExpenses(n, fromField) {
       if (!fromField && refs.expInput.value !== String(n)) refs.expInput.value = String(n);
       refs.expRange.value = String(n);
+    }
+
+    function setExpenses(n, fromField) {
+      n = clampExpenses(n);
+      renderExpenses(n, fromField);
+      expPending = n;
+      if (expFrameId === null) expFrameId = scheduleFrame(flushExpensesFrame);
+    }
+
+    /* change/blur: das Bild steht schon (setExpenses hat es beim letzten
+       Eingabe-Ereignis gezeichnet), hier zählt nur, dass der Endstand
+       geschrieben wird — ein wartendes Bild wird zuerst verworfen, sonst
+       überschriebe es den geschriebenen Stand gleich wieder. */
+    function persistExpenses(n) {
+      n = clampExpenses(n);
+      cancelExpensesFrame();
+      expPending = null;
+      renderExpenses(n);
       api.patchSettings({ monthlyExpenses: n });
     }
 

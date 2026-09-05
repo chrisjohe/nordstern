@@ -38,5 +38,5 @@ jobs:
       - name: No spreadsheet may enter the repository
         # A second lock beside .gitignore, for tracked files.
         run: |
-          bad=$(git ls-files | grep -Ei '\.(xlsx|xlsm|xlsb|ods|numbers|csv)$' | grep -v '^examples/' || true)
+          bad=$(git ls-files | grep -Ei '\.(xlsx|xlsm|xlsb|xls|ods|numbers|csv)$' | grep -v '^examples/' || true)
           if [ -n "$bad" ]; then echo "::error::tracked spreadsheet outside examples/: $bad"; exit 1; fi

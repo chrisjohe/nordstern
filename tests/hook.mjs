@@ -49,7 +49,7 @@ for (const f of ['.githooks/pre-commit', 'tests/privacy.mjs',
   fs.copyFileSync(path.join(ROOT, f), path.join(tmp, f));
 }
 fs.chmodSync(path.join(tmp, '.githooks/pre-commit'), 0o755);
-fs.writeFileSync(path.join(tmp, '.gitignore'), 'excel/\n*.xlsx\n!examples/*.xlsx\n');
+fs.writeFileSync(path.join(tmp, '.gitignore'), 'excel/\n*.xlsx\n*.xls\n!examples/*.xlsx\n');
 
 git('init', '-b', 'main', '-q');
 git('config', 'core.hooksPath', '.githooks');
@@ -74,6 +74,40 @@ ok(r.status !== 0, 'eine Tabelle ausserhalb examples/ wird abgewiesen');
 ok(/spreadsheet is staged/.test(r.stdout + r.stderr), 'und der Grund steht da');
 git('reset', '-q');
 fs.unlinkSync(path.join(tmp, 'secret.xlsx'));
+
+/* --- eine .xls ausserhalb examples/ scheitert schon an der Endung ------ */
+/* .xls ist das aeltere BIFF-Format; die Endungsprüfung muss es genauso
+   abweisen wie .xlsx, unabhängig davon, was in der Datei steht. */
+fs.writeFileSync(path.join(tmp, 'notes.xls'), Buffer.from('not even a real workbook'));
+git('add', '-f', 'notes.xls');
+r = commit('xls extension');
+ok(r.status !== 0, 'eine .xls ausserhalb examples/ wird abgewiesen');
+ok(/spreadsheet is staged/.test(r.stdout + r.stderr), 'und der Grund steht da');
+git('reset', '-q');
+fs.unlinkSync(path.join(tmp, 'notes.xls'));
+
+/* --- eine als notes.dat getarnte Tabelle scheitert an den Bytes -------- */
+/* Eine Umbenennung schlägt die Endungsprüfung oben, nicht die ersten vier
+   Bytes: die Beispielmappe ist ein Zip-Container, das steht in ihr selbst,
+   nicht im Dateinamen. */
+fs.copyFileSync(path.join(ROOT, 'examples/nordstern-example.xlsx'), path.join(tmp, 'notes.dat'));
+git('add', '-f', 'notes.dat');
+r = commit('disguised as dat');
+ok(r.status !== 0, 'eine als notes.dat getarnte Tabelle wird trotzdem abgewiesen');
+ok(/zip\/Office container/i.test(r.stdout + r.stderr), 'und nennt den Zip/Office-Grund');
+git('reset', '-q');
+fs.unlinkSync(path.join(tmp, 'notes.dat'));
+
+/* --- eine BIFF/OLE2-Datei (Alt-Excel) scheitert ebenso an den Bytes ---- */
+const OLE2 = Buffer.concat([
+  Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]), Buffer.alloc(64)]);
+fs.writeFileSync(path.join(tmp, 'data.bin'), OLE2);
+git('add', '-f', 'data.bin');
+r = commit('ole2 disguise');
+ok(r.status !== 0, 'eine BIFF/OLE2-Datei wird abgewiesen, auch ohne Tabellen-Endung');
+ok(/BIFF\/OLE2/i.test(r.stdout + r.stderr), 'und nennt den BIFF/OLE2-Grund');
+git('reset', '-q');
+fs.unlinkSync(path.join(tmp, 'data.bin'));
 
 /* --- die Beispielmappe muss durchgehen --------------------------------- */
 /* Der Riegel darf nicht pauschal auf .xlsx losgehen — sonst liesse sich die
@@ -123,6 +157,32 @@ fs.writeFileSync(path.join(tmp, 'tests/privacy-images.txt'), '# leer\n');
 git('add', '-A');
 r = commit('drop image');
 ok(r.status === 0, 'und ohne Bild ist wieder Ruhe');
+
+/* --- ein SVG ohne Prüfeintrag muss ebenso scheitern -------------------- */
+/* Ein Screenshot lässt sich als <image>/base64 in ein SVG einbetten — der
+   Wächter muss also auch bei einem Vektorbild darauf bestehen, dass jemand
+   hineingesehen hat, genau wie bei einem PNG. */
+const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1"/></svg>\n';
+fs.writeFileSync(path.join(tmp, 'docs/icon.svg'), SVG);
+git('add', '-f', 'docs/icon.svg');
+r = commit('unchecked svg');
+ok(r.status !== 0, 'ein SVG ohne Prüfeintrag wird abgewiesen');
+ok(/privacy-images/.test(r.stdout + r.stderr), 'und sagt, wo der Eintrag hingehört');
+
+/* --- mit Eintrag geht dasselbe SVG durch -------------------------------- */
+fs.writeFileSync(path.join(tmp, 'tests/privacy-images.txt'),
+  '# Prüfeinträge\n' + sum(Buffer.from(SVG)) +
+  '  docs/icon.svg  # ein einzelnes <rect>, kein <image>, kein base64\n');
+git('add', '-A');
+r = commit('checked svg');
+ok(r.status === 0, 'mit Prüfeintrag geht das SVG durch: ' + (r.stdout + r.stderr).trim().split('\n')[0]);
+/* fs.unlinkSync statt `git rm`: Letzteres räumt ein leer gewordenes docs/
+   gleich mit weg, das der nächste Bildtest aber wieder braucht. */
+fs.unlinkSync(path.join(tmp, 'docs/icon.svg'));
+fs.writeFileSync(path.join(tmp, 'tests/privacy-images.txt'), '# leer\n');
+git('add', '-A');
+r = commit('drop svg');
+ok(r.status === 0, 'und danach ist wieder Ruhe');
 
 /* --- ein Satz über einen Menschen muss scheitern ----------------------- */
 /* Der Riegel gegen Zahlen greift hier nicht: „X ist der Vermögensstand von

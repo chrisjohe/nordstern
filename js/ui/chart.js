@@ -51,9 +51,16 @@
     var head = U.make('div', { class: 'panel-head' }, [
       U.make('h2', { class: 'panel-title', text: 'History' }), tools
     ]);
-    var body = U.make('div', { class: 'chart-body' });
+    /* Interaktiv, nicht bloss ein Bild: role="img" verspräche unveränderliche
+       Pixel, aber der Chart lässt sich mit den Pfeiltasten abtasten. */
+    var body = U.make('div', { class: 'chart-body', tabindex: '0', role: 'group',
+      'aria-label': 'History chart, use arrow keys to read values' });
     var tip = U.make('div', { class: 'chart-tip', 'aria-hidden': 'true' });
+    /* Für Vorleseprogramme: derselbe Wert, den das Fadenkreuz gerade zeigt,
+       nur als Text statt als Punkt auf der Fläche. */
+    var live = U.make('div', { class: 'chart-live', 'aria-live': 'polite' });
     body.appendChild(tip);
+    body.appendChild(live);
     root.appendChild(head);
     root.appendChild(body);
 
@@ -104,6 +111,8 @@
     function render() {
       if (!state.view) return;
       body.querySelectorAll('svg').forEach(function (n) { n.remove(); });
+      var oldEmpty = body.querySelector('.chart-empty');
+      if (oldEmpty) oldEmpty.remove();
       /* Die Geometrie gehört zur Zeichnung; verschwindet die Zeichnung, muss
          die Geometrie mit — sonst liest der Zeiger noch das alte Workbook. */
       state.geom = null;
@@ -115,7 +124,15 @@
       /* Alles darunter rechnet mit `value`, ohne zu wissen, welche Reihe
          gilt. */
       var src = slice();
-      if (src.length < 2) return;
+      if (src.length < 2) {
+        /* Zwei Gründe für die leere Fläche, ein Satz für jeden: fehlt es der
+           ganzen Reihe an Punkten, oder nur dem gewählten Zeitraum. */
+        var msg = state.view.series.length < 2
+          ? 'One snapshot so far. The line starts with the second month.'
+          : 'Fewer than two months in this range. Switch to All.';
+        body.appendChild(U.make('p', { class: 'chart-empty', text: msg }));
+        return;
+      }
       var sr = seriesDef(state.series);
       var data = src.map(function (d) {
         return {
@@ -348,18 +365,12 @@
         yaCursor: g.querySelector('#nsYaCursor') };
     }
 
-    function onMove(ev) {
+    /* Das eigentliche Abtasten, unabhängig davon, wie der Index zustande kam
+       — Zeiger oder Pfeiltaste. `i` zeigt in `geo.data`. */
+    function probe(i) {
       var geo = state.geom;
       if (!geo) return;
-      var r = body.getBoundingClientRect();
-      var x = ev.clientX - r.left;
-      /* Nächstgelegener Punkt: die Abstände sind ungleich, und mitten in
-         einer Lücke gilt der nähere Rand. */
-      var frac = (x - geo.pad.l) / (geo.w - geo.pad.l - geo.pad.r);
-      var i = 0;
-      for (var k = 1; k < geo.at.length; k++) {
-        if (Math.abs(geo.at[k] - frac) < Math.abs(geo.at[i] - frac)) i = k;
-      }
+      state.hoverIdx = i;
       var d = geo.data[i];
       var px = geo.X(i), py = geo.Y(d.value);
       geo.cross.setAttribute('opacity', '1');
@@ -406,20 +417,62 @@
       /* Das Fenster hängt über dem Punkt, den es beschreibt, und darf dabei
          über Schalter und Kapitelwort hinauslaufen: am Rand abgefangen läge
          es genau dort, wo die Linie hinwill, oben rechts. */
+      var r = body.getBoundingClientRect();
       var tw = tip.offsetWidth || 190;
       var th = tip.offsetHeight || 96;
       tip.style.left = U.clamp(px - tw / 2, 4, geo.w - tw - 4) + 'px';
       tip.style.top = Math.max(py - th - 14, -(r.top - 4)) + 'px';
+
+      /* Dieselbe Auskunft, für ein Vorleseprogramm statt für das Auge. */
+      live.textContent = U.monthLong(d.key) + ': ' + U.eur(d.value);
+    }
+
+    function onMove(ev) {
+      var geo = state.geom;
+      if (!geo) return;
+      var r = body.getBoundingClientRect();
+      var x = ev.clientX - r.left;
+      /* Nächstgelegener Punkt: die Abstände sind ungleich, und mitten in
+         einer Lücke gilt der nähere Rand. */
+      var frac = (x - geo.pad.l) / (geo.w - geo.pad.l - geo.pad.r);
+      var i = 0;
+      for (var k = 1; k < geo.at.length; k++) {
+        if (Math.abs(geo.at[k] - frac) < Math.abs(geo.at[i] - frac)) i = k;
+      }
+      probe(i);
     }
 
     function onLeave() {
       if (state.geom) state.geom.cross.setAttribute('opacity', '0');
       tip.classList.remove('is-on');
       body.classList.remove('is-probing');
+      state.hoverIdx = null;
+      live.textContent = '';
+    }
+
+    /* Dieselbe Fläche per Pfeiltaste abtasten: links/rechts um einen Monat,
+       Pos1/Ende an die Ränder. Ohne bisherigen Punkt beginnt es beim letzten
+       — dem, der auch ohne Zutun schon zu sehen ist. */
+    function onKey(ev) {
+      var geo = state.geom;
+      if (!geo) return;
+      var n = geo.data.length;
+      var i = state.hoverIdx;
+      if (i == null) i = n - 1;
+      if (ev.key === 'ArrowLeft') i = Math.max(0, i - 1);
+      else if (ev.key === 'ArrowRight') i = Math.min(n - 1, i + 1);
+      else if (ev.key === 'Home') i = 0;
+      else if (ev.key === 'End') i = n - 1;
+      else if (ev.key === 'Escape') { onLeave(); body.blur(); return; }
+      else return;
+      ev.preventDefault();
+      probe(i);
     }
 
     body.addEventListener('pointermove', onMove);
     body.addEventListener('pointerleave', onLeave);
+    body.addEventListener('keydown', onKey);
+    body.addEventListener('blur', onLeave);
 
     /* Der Beobachter meldet sich beim Start einmal mit derselben Grösse;
        ein Neubau dann wiederholte die Ankunft der Linie. Also nur bei
@@ -436,9 +489,13 @@
       clear: function () {
         state.view = null; state.arrive = false;
         body.querySelectorAll('svg').forEach(function (n) { n.remove(); });
+        var oldEmpty = body.querySelector('.chart-empty');
+        if (oldEmpty) oldEmpty.remove();
         /* Dieselbe Regel wie in render(): keine Zeichnung, keine Geometrie. */
         state.geom = null;
+        state.hoverIdx = null;
         tip.classList.remove('is-on');
+        live.textContent = '';
       },
       setData: function (view, arrive) { state.view = view; if (arrive) state.arrive = true; render(); }
     };

@@ -319,15 +319,59 @@ const hintStore={...store};
   w.close();
 }
 { /* Die Eingabe wirkt weiterhin sofort — das Blatt muss dafür nicht erst
-     verlassen werden (siehe Abschnitt 3). */
+     verlassen werden (siehe Abschnitt 3). Seit U3 sammelt sich die Ableitung
+     in einem einzigen rAF-Fenster (siehe 2d); ein Bild abwarten reicht. */
   const {w,errors}=await boot();
   const d=w.document;
   d.getElementById('btnSettings').dispatchEvent(new w.Event('click'));
   const inp=d.getElementById('setExp');
   inp.focus();
   inp.value='3000'; inp.dispatchEvent(new w.Event('input'));
+  await tick(30);
   ok(w.NORDSTERN.app.state.settings.monthlyExpenses===3000,
      'Eingabe im Feld wirkt weiterhin sofort: '+w.NORDSTERN.app.state.settings.monthlyExpenses);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 2d. Der Ausgaben-Regler fasst eine Geste zu einem Bild zusammen ---------- */
+/* Ziehen am Regler feuerte früher pro Ereignis eine volle Neuberechnung samt
+   Speicherschreiben. Jetzt zeichnet jedes Ereignis nur noch Feld und Regler
+   sofort nach; die abgeleitete Neuberechnung sammelt sich in einem einzigen
+   rAF-Fenster, geschrieben wird erst bei change (Regler) bzw. blur (Feld). */
+sec('Ausgaben-Regler fasst eine Geste zu einem Bild zusammen');
+const dragStore={...store};
+{ const {w,errors}=await boot({storage:dragStore});
+  const d=w.document;
+  d.getElementById('btnSettings').dispatchEvent(new w.Event('click'));
+  const range=d.querySelector('.field-range');
+  const inp=d.getElementById('setExp');
+  const stored=()=>JSON.parse(dragStore['nordstern.settings.v1']).monthlyExpenses;
+
+  let calls=0;
+  const orig=w.NORDSTERN.app.ui.cards.setData;
+  w.NORDSTERN.app.ui.cards.setData=function(){ calls++; return orig.apply(this,arguments); };
+
+  /* Zwanzig Ereignisse, als zöge jemand am Regler — heute löst jedes für
+     sich eine Neuberechnung aus, das ist genau der Missstand aus U3. */
+  for(let i=1;i<=20;i++){ range.value=String(1000+i*50); range.dispatchEvent(new w.Event('input')); }
+  await tick(60);
+  ok(calls>=1&&calls<=2,'ein Bild pro Geste, nicht zwanzig Neuberechnungen: '+calls);
+  ok(inp.value==='2000','das Feld zeigt sofort den letzten Wert der Geste: '+inp.value);
+  ok(stored()!==2000,'aber noch nichts geschrieben, solange nur gezogen wird: '+dragStore['nordstern.settings.v1']);
+
+  range.dispatchEvent(new w.Event('change'));
+  ok(stored()===2000,'change schreibt den Endstand des Reglers: '+dragStore['nordstern.settings.v1']);
+
+  calls=0;
+  for(let i=1;i<=10;i++){ inp.value=String(3000+i*10); inp.dispatchEvent(new w.Event('input')); }
+  await tick(60);
+  ok(calls>=1&&calls<=2,'dasselbe gilt fürs Zahlenfeld: '+calls+' Neuberechnungen');
+  ok(stored()!==3100,'auch hier erst nach dem Verlassen gespeichert: '+dragStore['nordstern.settings.v1']);
+
+  inp.dispatchEvent(new w.Event('blur'));
+  ok(stored()===3100,'blur schreibt den Endstand des Zahlenfelds: '+dragStore['nordstern.settings.v1']);
+
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }
@@ -1573,6 +1617,91 @@ sec('Chart-Geometrie nach leerer Zeichnung');
   w.close();
 }
 
+/* ---------- 6c. Leere Fläche nennt den Grund, Tastatur liest die Werte ---------- */
+sec('Verlauf ohne genug Punkte, per Tastatur abtastbar');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  /* Dasselbe Werkzeug wie in „Zeitlücken im Verlauf": ein Modell mit genau
+     den gewünschten Monatsschlüsseln, Werte aus dem geladenen Beispiel. */
+  const base=JSON.parse(JSON.stringify(w.NORDSTERN.store.loadModel()));
+  const cut=(keys)=>{
+    const m=JSON.parse(JSON.stringify(base));
+    m.months=m.months.slice(0,keys.length).map((mo,i)=>({...mo,key:keys[i],iso:keys[i]+'-01'}));
+    Object.keys(m.accounts).forEach(k=>
+      m.accounts[k]=m.accounts[k].map(a=>({...a,values:a.values.slice(0,keys.length)})));
+    m.currentIndex=keys.length-1;
+    return m;
+  };
+  const show=(keys)=>{ w.NORDSTERN.app.state.model=cut(keys); w.NORDSTERN.app.refresh(); };
+  const empty=()=>d.querySelector('.chart-empty');
+  const click=b=>b.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  const clickText=(sel,text)=>click([...d.querySelectorAll(sel)].find(b=>b.textContent===text));
+
+  /* U2 — ein einziger Schnappschuss: nichts zeigt sich, ohne zu sagen, warum. */
+  show(['2020-06']); await tick(20);
+  ok(!!empty(),'ein Monat insgesamt: die Fläche nennt den Grund statt leer zu bleiben');
+  ok(empty().textContent==='One snapshot so far. The line starts with the second month.',
+     'Text benennt den Einzelstand: '+empty().textContent);
+  ok(!d.querySelector('.chart-body svg'),'keine Zeichnung bei nur einem Monat');
+
+  /* Genug Punkte insgesamt (drei), aber weit auseinander: in der
+     Vorauswahl „5 years" bleibt vom letzten Punkt aus nur der letzte selbst
+     übrig — zwei fehlen zum Ziehen einer Linie. */
+  show(['2010-01','2015-01','2025-01']); await tick(20);
+  ok(!!empty(),'zu wenige Monate im gewählten Zeitraum: auch das bekommt einen Satz');
+  ok(empty().textContent==='Fewer than two months in this range. Switch to All.',
+     'Text nennt den Zeitraum und den Ausweg: '+empty().textContent);
+  ok(!d.querySelector('.chart-body svg'),'keine Zeichnung, solange der Zeitraum zu eng ist');
+
+  clickText('.range .range-btn','All'); await tick(20);
+  ok(!empty(),'auf „All" reichen die drei Monate: Platzhalter fort');
+  ok(!!d.querySelector('.chart-body svg'),'und die Zeichnung steht wieder');
+
+  /* U6 — sechs volle Monate, damit die Fläche wieder eine Linie zeigt und
+     sich mit der Tastatur abtasten lässt. */
+  show(['2024-01','2024-02','2024-03','2024-04','2024-05','2024-06']); await tick(20);
+  const body=d.querySelector('.chart-body');
+  const view=()=>w.NORDSTERN.app.state.view;
+  const U=w.NORDSTERN.util;
+  const live=()=>d.querySelector('.chart-live').textContent;
+  const say=i=>U.monthLong(view().series[i].key)+': '+U.eur(view().series[i].value);
+  const key=k=>body.dispatchEvent(new w.KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true}));
+  const hover=x=>{ const e=new w.Event('pointermove'); e.clientX=x; e.clientY=100; body.dispatchEvent(e); };
+
+  ok(body.getAttribute('tabindex')==='0','die Fläche steht in der Tabreihenfolge: '+body.getAttribute('tabindex'));
+  ok(body.getAttribute('role')==='group','als Gruppe, nicht als starres Bild: '+body.getAttribute('role'));
+  ok(body.getAttribute('aria-label')==='History chart, use arrow keys to read values',
+     'die Ansage erklärt die Pfeiltasten: '+body.getAttribute('aria-label'));
+
+  body.focus();
+  ok(d.activeElement===body,'der Fokus steht auf der Fläche');
+  ok(live()==='','vor der ersten Taste ist noch nichts abgetastet');
+
+  /* Ohne bisherigen Punkt beginnt es beim letzten (Juni) — Pfeil-links geht
+     von dort einen Monat zurück, auf Mai. */
+  key('ArrowLeft');
+  ok(live()===say(4),'Pfeil-links ohne Vorwahl: der Monat vor dem letzten — '+live());
+  key('ArrowRight');
+  ok(live()===say(5),'Pfeil-rechts geht zurück auf den letzten Monat — '+live());
+  key('Home');
+  ok(live()===say(0),'Pos1 springt auf den ersten Monat — '+live());
+  key('End');
+  ok(live()===say(5),'Ende springt auf den letzten Monat — '+live());
+
+  key('Escape');
+  ok(live()==='','Escape leert die Ansage wie onLeave() es beim Zeiger tut');
+  ok(d.querySelector('.chart-cross').getAttribute('opacity')==='0','und nimmt das Fadenkreuz mit fort');
+  ok(!body.classList.contains('is-probing'),'die Fläche gilt nicht mehr als abgetastet');
+
+  /* Der Zeiger bleibt bedienbar — derselbe Weg wie zuvor, jetzt über probe(). */
+  hover(5000);
+  ok(live()===say(5),'der Zeiger tastet weiterhin ab, ganz rechts der letzte Monat — '+live());
+  ok(d.querySelector('.chart-tip').classList.contains('is-on'),'und das Tooltip zeigt wie gewohnt');
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 7. Alle Meilensteine erreicht / kein Vorjahr ---------- */
 sec('Randfälle im Modell');
 { const {w}=await boot({storage:{...store}});
@@ -1865,6 +1994,9 @@ sec('Delete local data lässt nichts stehen');
   const expIn=d.querySelector('#setExp');
   expIn.value='640';
   expIn.dispatchEvent(new w.Event('input',{bubbles:true}));
+  /* Seit U3 schreibt ein blosses `input` nicht mehr sofort (siehe 2d) —
+     das Verlassen des Felds tut es, wie beim echten Tippen. */
+  expIn.dispatchEvent(new w.Event('blur'));
   await tick(30);
   ok(Object.keys(store3).length===2,'vorher liegen Modell und Einstellungen im Speicher: '+Object.keys(store3).join(' · '));
   ok(/640/.test(store3['nordstern.settings.v1']||''),'und der Ausgabenbetrag steht drin');
@@ -1993,6 +2125,108 @@ sec('About: Fassung');
   ok(w.NORDSTERN.VERSION===pkg.version,'NORDSTERN.VERSION und package.json stimmen überein: '+w.NORDSTERN.VERSION+' / '+pkg.version);
   ok(head.querySelector('.about-ver').textContent==='Version '+pkg.version+' \u00b7 Apache-2.0',
      'und die Zeile darunter sagt es: '+head.querySelector('.about-ver').textContent);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 17. U4: reduzierte Bewegung deckt auch Übergänge ab ---------- */
+sec('U4: reduzierte Bewegung deckt auch Übergänge ab');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  d.documentElement.setAttribute('data-motion','off');
+  const dur=el=>w.getComputedStyle(el).transitionDuration;
+
+  ok(dur(d.querySelector('.card-inner'))==='0.01s','.card-inner steht bei aus still: '+dur(d.querySelector('.card-inner')));
+  ok(dur(d.querySelector('.card-bar i'))==='0.01s','.card-bar i steht bei aus still: '+dur(d.querySelector('.card-bar i')));
+  const card=d.querySelector('.card');
+  card.classList.add('is-linked');
+  ok(dur(card)==='0.01s','eine verknüpfte Karte steht bei aus still: '+dur(card));
+  ok(dur(d.querySelector('.sheet'))==='0.01s','.sheet steht bei aus still: '+dur(d.querySelector('.sheet')));
+  ok(dur(d.querySelector('.sheet-scrim'))==='0.01s','der Scrim steht bei aus still: '+dur(d.querySelector('.sheet-scrim')));
+  ok(dur(d.querySelector('.toast'))==='0.01s','der Toast steht bei aus still: '+dur(d.querySelector('.toast')));
+  ok(dur(d.querySelector('.drop-veil'))==='0.01s','der Drop-Schleier steht bei aus still: '+dur(d.querySelector('.drop-veil')));
+
+  /* jsdom löst die Kurzform `transition: … var(--ease-out)` nicht auf — mit
+     eingeschalteter Bewegung liefert getComputedStyle hierfür durchweg 0s,
+     unabhängig vom tatsächlichen Wert im Blatt. Für den „on"-Fall bleibt
+     deshalb nur der Quelltext: die .sheet-Regel ausserhalb von
+     data-motion="off" trägt weiterhin die vollen .34s. */
+  const css=fs.readFileSync(new URL('../css/components.css',import.meta.url),'utf8');
+  const sheetRule=(css.match(/\n\.sheet\s*\{[^}]*\}/)||[''])[0];
+  ok(/transition:[^;]*\.34s/.test(sheetRule),
+     'mit Bewegung bleibt .sheet bei .34s: '+sheetRule.replace(/\s+/g,' ').trim());
+
+  /* Und der data-motion="off"-Block deckt tatsächlich jeden bewegten
+     Selektor ab — auch dort, wo jsdom bei getComputedStyle nicht mitspielt
+     (Pseudo-Elemente sind dort gar nicht implementiert, .sw-track::after
+     lässt sich deshalb nur im Quelltext prüfen). */
+  const offBlocks=css.match(/:root\[data-motion="off"\][^{}]*\{[^}]*transition-duration:\s*\.01s;[^}]*\}/g)||[];
+  const offText=offBlocks.join('\n');
+  ['.card-inner','.card-bar i','.card.is-linked','.chart-ya-stub','.chart-ya-full',
+   '.orbit-arc','.sheet-scrim','.sheet','.sw-track::after','.drop-veil','.toast'
+  ].forEach(sel=>ok(offText.includes(sel),'data-motion="off" deckt '+sel+' ab: '+offText.replace(/\s+/g,' ')));
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 18. U5: Kontrast der Stationslabel im Chart ---------- */
+sec('U5: Kontrast der Stationslabel im Chart');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  const click=b=>b.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  const clickText=(sel,text)=>click([...d.querySelectorAll(sel)].find(b=>b.textContent===text));
+  clickText('.series .range-btn','Invested'); await tick(20);
+  /* 1.500 €/Monat bringt eine fünfte, noch nicht erreichte Station
+     („semi") neben die vier erreichten ins Fenster — siehe Abschnitt
+     „Stationslinien im Verlauf". Nur so gibt es überhaupt ein unerreichtes
+     Label zu prüfen. */
+  const setExp=v=>{ var inp=d.getElementById('setExp'); inp.value=String(v); inp.dispatchEvent(new w.Event('input')); };
+  setExp(1500); await tick(30);
+  const stations=[...d.querySelectorAll('.chart-station')];
+  const unreached=stations.find(s=>!s.classList.contains('is-reached'));
+  const reached=stations.find(s=>s.classList.contains('is-reached'));
+  ok(!!unreached&&!!reached,'sowohl eine erreichte als auch eine unerreichte Station stehen im Fenster');
+
+  const hexToRgb=h=>{h=h.replace('#','');return [0,2,4].map(i=>parseInt(h.substr(i,2),16));};
+  const srgbLin=c=>{c/=255;return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4);};
+  const relLum=([r,g,b])=>{const [R,G,B]=[r,g,b].map(srgbLin);return 0.2126*R+0.7152*G+0.0722*B;};
+  const ratio=(l1,l2)=>{const a=Math.max(l1,l2),b=Math.min(l1,l2);return (a+0.05)/(b+0.05);};
+  const blend=(fg,bg,alpha)=>fg.map((c,i)=>alpha*c+(1-alpha)*bg[i]);
+
+  /* Die Token kommen aus tokens.css, nicht aus einer hier fest verdrahteten
+     Zahl — ändert sich ein Farbwert dort, rechnet der Test mit dem neuen. */
+  const tokenCss=fs.readFileSync(new URL('../css/tokens.css',import.meta.url),'utf8');
+  const tokenHex=name=>{const m=tokenCss.match(new RegExp('--'+name+':\\s*(#[0-9a-fA-F]{6})'));return m&&m[1];};
+  const tokens={'--ink-3':tokenHex('ink-3'),'--ink-4':tokenHex('ink-4'),'--ink-mute':tokenHex('ink-mute')};
+  const bgVoid=hexToRgb(tokenHex('bg-void'));
+
+  const labelContrast=node=>{
+    const cs=w.getComputedStyle(node);
+    const varName=(cs.fill.match(/var\((--[\w-]+)\)/)||[])[1];
+    const hex=varName&&tokens[varName];
+    ok(!!hex,'die Label-Füllfarbe löst sich auf ein bekanntes Token auf: '+cs.fill);
+    const alpha=parseFloat(cs.opacity);
+    const blended=blend(hexToRgb(hex),bgVoid,isNaN(alpha)?1:alpha);
+    return {varName,ratio:ratio(relLum(blended),relLum(bgVoid))};
+  };
+
+  const un=labelContrast(unreached.querySelector('text'));
+  ok(un.ratio>=4.5,'unerreichtes Stationslabel hält 4,5:1 gegen --bg-void: '+un.ratio.toFixed(2)+':1 ('+un.varName+')');
+  ok(un.varName!=='--ink-mute','unerreichtes Label trägt kein --ink-mute mehr: '+un.varName);
+
+  const re=labelContrast(reached.querySelector('text'));
+  ok(re.ratio>=4.5,'erreichtes Stationslabel hält 4,5:1 gegen --bg-void: '+re.ratio.toFixed(2)+':1 ('+re.varName+')');
+
+  /* Die Quelle bestätigt es unabhängig von jsdoms var()-Auflösung: die
+     Textregel nennt --ink-mute nicht mehr, die Linienregel — kein Text,
+     nur eine gestrichelte Schwelle — trägt ihn unverändert weiter. */
+  const css=fs.readFileSync(new URL('../css/components.css',import.meta.url),'utf8');
+  const textRule=(css.match(/\.chart-station text\s*\{[^}]*\}/)||[''])[0];
+  const lineRule=(css.match(/\.chart-station line\s*\{[^}]*\}/)||[''])[0];
+  ok(!textRule.includes('--ink-mute'),'.chart-station text referenziert --ink-mute nicht mehr: '+textRule.replace(/\s+/g,' '));
+  ok(lineRule.includes('--ink-mute'),'.chart-station line trägt --ink-mute weiterhin — sie ist kein Text: '+lineRule.replace(/\s+/g,' '));
+
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }

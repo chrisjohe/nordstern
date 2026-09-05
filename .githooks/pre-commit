@@ -22,13 +22,42 @@ fail() {
 # --- 1. No spreadsheet leaves this machine ------------------------------
 staged=$(git diff --cached --name-only --diff-filter=ACMR)
 
-bad=$(printf '%s\n' "$staged" | grep -Ei '\.(xlsx|xlsm|xlsb|ods|numbers|csv)$' | grep -v '^examples/' || true)
+bad=$(printf '%s\n' "$staged" | grep -Ei '\.(xlsx|xlsm|xlsb|xls|ods|numbers|csv)$' | grep -v '^examples/' || true)
 [ -z "$bad" ] || fail "A spreadsheet is staged that is not the example workbook:" $bad \
   "" "If this really is meant to be public, put it in examples/ and make sure" \
   "every figure in it is invented."
 
 bad=$(printf '%s\n' "$staged" | grep -E '^(excel|backup)/' || true)
 [ -z "$bad" ] || fail "Staged from a directory that must never be committed:" $bad
+
+# A rename defeats the extension check above but not the bytes: .xlsx, .docx,
+# .zip and their cousins all start with the same 4 bytes, and the older
+# .xls/.doc/.ppt family starts with the OLE2 signature. This needs no node,
+# so it also covers a machine that has none — see the node-free branch below.
+oldifs=$IFS
+IFS='
+'
+for f in $staged; do
+  [ -n "$f" ] || continue
+  case "$f" in
+    examples/*.xlsx|examples/*.xlsm|examples/*.xlsb|examples/*.xls|examples/*.ods|examples/*.numbers|examples/*.csv)
+      continue ;;
+  esac
+  sig=$(git show ":$f" 2>/dev/null | head -c 8 | od -An -tx1 | tr -d ' \t\n')
+  case "$sig" in
+    504b0304*)
+      IFS=$oldifs
+      fail "Looks like a zip/Office container, staged as a plain file:" "$f" \
+        "" "The extension does not decide this — the bytes do."
+      ;;
+    d0cf11e0a1b11ae1*)
+      IFS=$oldifs
+      fail "Looks like a BIFF/OLE2 file (old-format spreadsheet), staged as a plain file:" "$f" \
+        "" "The extension does not decide this — the bytes do."
+      ;;
+  esac
+done
+IFS=$oldifs
 
 # --- 2. No figure out of a real workbook --------------------------------
 # The guard decides for itself whether it applies: with no workbook in excel/

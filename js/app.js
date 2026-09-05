@@ -178,9 +178,14 @@
     ui.settings.close();
   }
 
-  function patchSettings(patch) {
+  /* `opts.transient` gilt für den Regler beim Ziehen: der Zustand zieht mit
+     und die Bühne rendert neu, aber es wird nichts geschrieben — sonst
+     schriebe jedes Eingabe-Ereignis synchron in den localStorage. Geschrieben
+     wird erst, wenn settings.js selbst wieder ohne `transient` ruft
+     (change/blur am Regler bzw. Zahlenfeld). */
+  function patchSettings(patch, opts) {
     for (var k in patch) state.settings[k] = patch[k];
-    NS.store.saveSettings(state.settings);
+    if (!opts || !opts.transient) NS.store.saveSettings(state.settings);
     applyMotion();
     applyCurrency();
     refresh();

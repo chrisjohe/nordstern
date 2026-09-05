@@ -29,7 +29,7 @@ function findWorkbook() {
   if (process.env.NORDSTERN_WORKBOOK) return process.env.NORDSTERN_WORKBOOK;
   const dir = path.join(ROOT, 'excel');
   if (!fs.existsSync(dir)) return null;
-  const f = fs.readdirSync(dir).filter((n) => /\.(xlsx|xlsm|xlsb|ods|numbers)$/i.test(n)).sort()[0];
+  const f = fs.readdirSync(dir).filter((n) => /\.(xlsx|xlsm|xlsb|xls|ods|numbers)$/i.test(n)).sort()[0];
   return f ? path.join(dir, f) : null;
 }
 const WORKBOOK = findWorkbook();
@@ -126,7 +126,7 @@ function bytesOf(rel) {
    Diese Prüfung läuft ohne Mappe, also auch in der CI und auf jedem fremden
    Rechner: Sie fragt nicht, ob private Zahlen im Bild stehen, sondern ob
    überhaupt jemand hingesehen hat. */
-const IMAGE = /\.(png|jpe?g|webp|gif|avif|bmp|tiff?|pdf)$/i;
+const IMAGE = /\.(png|jpe?g|webp|gif|avif|bmp|tiff?|pdf|svg|ico|heic|heif|jxl)$/i;
 
 /* Die eigenen Regeldateien: unter --staged aus dem Index, sonst oder wenn sie
    dort fehlen (frisches Repository) von der Platte. Die Bilderliste, die der
@@ -223,7 +223,7 @@ const prx = new Map([...persons].map(([n]) =>
 /* Wo der Name hingehört: in die Urheber- und Markenzeilen. */
 const LICENCE = /(copyright|\u00a9|trademarks? of|"author"\s*:|developed by|licen[cs])/i;
 
-const BINARY = /\.(xlsx|xlsm|xlsb|ods|numbers|png|jpe?g|webp|gif|pdf|zip|woff2?|ttf|otf)$/i;
+const BINARY = /\.(xlsx|xlsm|xlsb|xls|ods|numbers|png|jpe?g|webp|gif|pdf|svg|ico|heic|heif|jxl|zip|woff2?|ttf|otf)$/i;
 
 /* Text oder nichts: Binärdateien, zu grosse Dateien und die Ausnahmeliste
    selbst (die steht voller Nadeln, das ist ihr Zweck) bleiben draussen. */
@@ -329,19 +329,42 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
    liest sie mit. */
 const rx = new Map([...needles].map(([n, w]) => [n, new RegExp('(?<![\\w.,])' + esc(n) + '(?![\\w.,])')]));
 
+const SPREADSHEET_EXT = /\.(xlsx|xlsm|xlsb|xls|ods|numbers|csv)$/i;
+
+/* Eine Umbenennung schlägt die Endungsprüfung, nicht die Bytes: .xlsx, .docx,
+   .zip und Verwandte beginnen alle mit derselben Zip-Signatur; das ältere
+   .xls/.doc/.ppt-Familienformat mit der OLE2-Signatur. Vier bzw. acht Bytes
+   reichen, mehr zu lesen wäre nur langsamer. */
+const ZIP_SIG = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+const OLE2_SIG = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+
 const scanned = [];
 const hits = imageHits.concat(personHits);   // Bilder und Personenbezug zählen mit
 
 for (const rel of files) {
+  if (rel === 'tests/privacy-allow.txt') continue;   // steht voller Nadeln, das ist ihr Zweck
+  const buf = bytesOf(rel);
+
+  /* Die Bytes zuerst, unabhängig von der Endung: eine als notes.dat getarnte
+     Mappe hat keine der Endungen unten, aber die Signatur verrät sie. Die
+     Beispielmappe selbst — eine .xlsx unter examples/ — ist ebenfalls ein
+     Zip-Container und bleibt bewusst ausgenommen. */
+  if (buf && buf.length >= 4 && !(rel.startsWith('examples/') && SPREADSHEET_EXT.test(rel))) {
+    const head = buf.subarray(0, 8);
+    if (head.subarray(0, 4).equals(ZIP_SIG)) {
+      hits.push({ rel, line: 0, needle: rel, what: 'sieht aus wie ein Zip/Office-Container' });
+    } else if (head.length === 8 && head.equals(OLE2_SIG)) {
+      hits.push({ rel, line: 0, needle: rel, what: 'sieht aus wie eine BIFF/OLE2-Datei (Alt-Tabellenformat)' });
+    }
+  }
+
   if (BINARY.test(rel)) {
     /* Eine Tabelle im Repository ist ausschließlich die Beispielmappe. */
-    if (/\.(xlsx|xlsm|xlsb|ods|numbers|csv)$/i.test(rel) && !rel.startsWith('examples/')) {
+    if (SPREADSHEET_EXT.test(rel) && !rel.startsWith('examples/')) {
       hits.push({ rel, line: 0, needle: rel, what: 'Tabellendatei außerhalb von examples/' });
     }
     continue;
   }
-  if (rel === 'tests/privacy-allow.txt') continue;   // steht voller Nadeln, das ist ihr Zweck
-  const buf = bytesOf(rel);
   if (!buf || buf.length > 8 * 1024 * 1024) continue;
   const text = buf.toString('utf8');
   scanned.push(rel);

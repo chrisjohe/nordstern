@@ -70,6 +70,56 @@ function identifierFindings(rel, text) {
   return out;
 }
 
+/* <style>- und <script>-Blöcke werden ohne Regex herausgelöst. Ein Muster
+   wie <script\b[^>]*>…</script> übersieht „</script >" und stolpert über ein
+   „>" in einem Attribut; CodeQL meldet es als HTML-Filter, der sich umgehen
+   lässt (js/bad-tag-filter). Hier wird nichts gefiltert, sondern der eigene
+   Bau zerlegt — der Tokenizer, der das End-Tag mit beliebigem Leerraum vor
+   dem „>" und Anführungszeichen im Start-Tag kennt, ist trotzdem der
+   ehrlichere Weg. Liefert die Blöcke und das Markup ohne sie. */
+function splitBlocks(html) {
+  /* Nur ASCII absenken: toLowerCase() verändert bei manchen Zeichen die
+     Länge (İ wird zu i̇), und SheetJS trägt solche — die Indizes aus lower
+     müssen aber Zeichen für Zeichen auf html passen. */
+  const lower = html.replace(/[A-Z]/g, c => c.toLowerCase());
+  const blocks = [];
+  let markup = '', i = 0;
+  const isEdge = c => c === '>' || c === '/' || /\s/.test(c);
+  for (;;) {
+    let at = -1, tag = null;
+    for (const t of ['script', 'style']) {
+      let p = lower.indexOf('<' + t, i);
+      while (p >= 0 && !isEdge(lower.charAt(p + 1 + t.length))) p = lower.indexOf('<' + t, p + 1);
+      if (p >= 0 && (at < 0 || p < at)) { at = p; tag = t; }
+    }
+    if (at < 0) break;
+    /* Ende des Start-Tags: das erste „>" ausserhalb von Anführungszeichen. */
+    let q = null, openEnd = -1;
+    for (let k = at + 1 + tag.length; k < html.length; k++) {
+      const c = html.charAt(k);
+      if (q) { if (c === q) q = null; }
+      else if (c === '"' || c === "'") q = c;
+      else if (c === '>') { openEnd = k; break; }
+    }
+    if (openEnd < 0) break;
+    /* End-Tag: „</tag", dann nur Leerraum, dann „>". */
+    let close = -1, next = -1, k = openEnd + 1;
+    while (k < html.length) {
+      const c = lower.indexOf('</' + tag, k);
+      if (c < 0) break;
+      const gt = html.indexOf('>', c + 2 + tag.length);
+      if (gt >= 0 && /^\s*$/.test(html.slice(c + 2 + tag.length, gt))) { close = c; next = gt + 1; break; }
+      k = c + 1;
+    }
+    if (close < 0) break;
+    blocks.push({ tag, attrs: html.slice(at + 1 + tag.length, openEnd), body: html.slice(openEnd + 1, close) });
+    markup += html.slice(i, at);
+    i = next;
+  }
+  markup += html.slice(i);
+  return { blocks, markup };
+}
+
 function linkRel(tag) { return (tag.match(/\srel\s*=\s*"([^"]*)"/i) || [])[1] || ''; }
 
 function leaks({sources, html}) {
@@ -90,20 +140,17 @@ function leaks({sources, html}) {
     /* <style>- und <script>-Rümpfe werden wie eigene Quelldateien geprüft —
        insbesondere fängt das ein url(https://…) in einem eingefalteten
        Stylesheet, das die reine Markup-Prüfung unten gar nicht mehr sieht,
-       weil sie genau diese Blöcke herausschneidet. */
-    for (const m of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi))
-      out = out.concat(identifierFindings('gebaute Datei <style>', m[1]), urlFindings('gebaute Datei <style>', m[1]));
-    /* SheetJS bleibt aussen vor: es ist eine vendorte Bibliothek, keine
-       eigene Quelle, und trägt legitim eine Lizenzadresse (sheetjs.com) und
-       jede XML-Namensraum-URI, die .xlsx/.ods je gesehen haben — das sind
-       Namen im gelesenen Dateiformat, keine Ladeversuche. */
-    for (const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
-      if (/data-src="js\/vendor\//.test(m[1])) continue;
-      out = out.concat(identifierFindings('gebaute Datei <script>', m[2]), urlFindings('gebaute Datei <script>', m[2]));
+       weil sie genau diese Blöcke herausschneidet. SheetJS bleibt aussen
+       vor: eine vendorte Bibliothek, keine eigene Quelle, und sie trägt
+       legitim eine Lizenzadresse (sheetjs.com) und jede XML-Namensraum-URI,
+       die .xlsx/.ods je gesehen haben — Namen im gelesenen Dateiformat,
+       keine Ladeversuche. */
+    const { blocks, markup } = splitBlocks(html);
+    for (const b of blocks) {
+      if (b.tag === 'script' && /data-src="js\/vendor\//.test(b.attrs)) continue;
+      const where = 'gebaute Datei <' + b.tag + '>';
+      out = out.concat(identifierFindings(where, b.body), urlFindings(where, b.body));
     }
-
-    let markup = html, prev;
-    do { prev = markup; markup = markup.replace(/<(style|script)\b[\s\S]*?<\/\1>/g, ''); } while (markup !== prev);
     out = out.concat(identifierFindings('gebaute Datei, Markup', markup), urlFindings('gebaute Datei, Markup', markup));
     if (/http-equiv\s*=\s*"refresh"/i.test(markup)) out.push({where: 'gebaute Datei, Markup', what: 'meta http-equiv="refresh"'});
     if (/\bsrcset\s*=/i.test(markup)) out.push({where: 'gebaute Datei, Markup', what: 'srcset='});
@@ -146,8 +193,7 @@ ok(!/<script[^>]*\ssrc=/i.test(html),'kein <script src=> mehr');
 /* Jede Adresse in der Datei muss entweder ein Anker nach draußen sein (die
    Lizenzverweise in „about") oder gar nicht laden. Ein relativer Pfad in
    einem Ladeattribut wäre eine zweite Datei — und damit kein Bau mehr. */
-let markup=html,prev;
-do{prev=markup;markup=markup.replace(/<(style|script)\b[\s\S]*?<\/\1>/g,'');}while(markup!==prev);
+const markup=splitBlocks(html).markup;
 /* favicon.png ist die bewusste Ausnahme: Safari zeigt keine data:-Symbole,
    also bleibt sie eine relative Datei, die auf Pages neben der Seite liegt;
    die Prüfung unten zählt sie gesondert. Hier zählen nur Pfade, die eine
@@ -203,12 +249,24 @@ const htmlCases=[
   ['meta http-equiv="refresh"', '<meta http-equiv="refresh" content="0;url=https://x">', 'refresh'],
   ['srcset',                    '<img srcset="https://x/a.png 1x">',                     'srcset'],
   ['<link rel="preload">',      '<link rel="preload" href="https://x/f.woff2">',         '<link>'],
-  ['url() in einem <style>',    '<style>a{background:url(https://x/y.png)}</style>',     'url(https://x/y.png)']
+  ['url() in einem <style>',    '<style>a{background:url(https://x/y.png)}</style>',     'url(https://x/y.png)'],
+  /* Die beiden Formen, an denen ein Regex scheitert: Leerraum im End-Tag
+     und ein „>" in einem Attribut. Der Block muss trotzdem sauber
+     herausgelöst werden, sonst bliebe das Leck dahinter im Markup versteckt
+     oder das im Rumpf ungelesen. */
+  ['srcset hinter „</script >"', '<script>var a=1;</script ><img srcset="https://x/a.png 1x">', 'srcset'],
+  ['fetch in einem Block mit „>" im Attribut', '<SCRIPT data-x="a>b">fetch(\'https://x\')</SCRIPT>', 'fetch(']
 ];
 for(const [label,snippet,needle] of htmlCases){
   const found=leaks({sources:[],html:snippet});
   ok(found.length>0 && has(found,needle), label+' wird im Bau erkannt: '+findingsText(found));
 }
+/* Und der Tokenizer selbst: der Bau zerfällt in genau die Blöcke, die er
+   trägt, und das Markup enthält keinen mehr. */
+const split=splitBlocks(html);
+ok(split.blocks.length>0&&split.blocks.every(b=>b.tag==='style'||b.tag==='script'),split.blocks.length+' Blöcke im Bau');
+ok(!/<(script|style)\b/i.test(split.markup),'das Markup ohne Blöcke trägt kein <script> und kein <style> mehr');
+ok(splitBlocks('<p>x</p>').blocks.length===0&&splitBlocks('<p>x</p>').markup==='<p>x</p>','ohne Blöcke bleibt das Markup, wie es war');
 const allowSnippet=[...ALLOWED_URLS].map(u=>"'"+u+"'").join('\n');
 const allowFindings=leaks({sources:[{rel:'synthetic-allow.js',text:allowSnippet}],html:''});
 ok(allowFindings.length===0,'die erlaubten Adressen bleiben ohne Fund: '+findingsText(allowFindings));

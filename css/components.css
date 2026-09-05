@@ -157,9 +157,15 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
    fängt nichts ab, das Fadenkreuz misst weiter über die ganze Chart-Fläche. */
 .chart-stations { pointer-events: none; }
 .chart-station line { stroke: var(--ink-mute); stroke-width: 1; stroke-dasharray: 2 5; opacity: .55; }
-.chart-station text { font-size: 9px; fill: var(--ink-mute); letter-spacing: .06em; }
+/* --ink-mute ist keine Schriftfarbe (siehe tokens.css) — die gestrichelte
+   Linie darf sie tragen, das Label nicht. --ink-4 hält 4,95:1 gegen
+   --bg-void, knapp über der 4,5:1-Grenze; dafür bleibt es bei voller
+   Deckkraft — jede Transparenz würde es wieder darunter drücken. Erreichte
+   Stationen gehen eine Stufe heller auf --ink-3 (7:1), damit der Unterschied
+   zu den unerreichten sichtbar bleibt. */
+.chart-station text { font-size: 9px; fill: var(--ink-4); letter-spacing: .06em; }
 .chart-station.is-reached line { opacity: .9; }
-.chart-station.is-reached text { fill: var(--ink-4); }
+.chart-station.is-reached text { fill: var(--ink-3); }
 .chart-xlab text { font-size: 9px; fill: var(--ink-4); text-anchor: middle; letter-spacing: .08em; }
 .chart-line { stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 .chart-glow { stroke: var(--ice); stroke-width: 5; opacity: .16; filter: blur(3px); }
@@ -266,6 +272,24 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .tip-val { font-size: 17px; font-weight: 500; margin: 1px 0 5px; font-variant-numeric: tabular-nums; }
 .tip-row { display: flex; justify-content: space-between; gap: 14px; font-size: 11px; color: var(--ink-3); }
 .tip-row b { color: var(--ink-2); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* Zu wenig Punkte, um eine Linie zu ziehen — die Fläche bleibt nicht leer,
+   sie nennt den Grund. */
+.chart-empty {
+  position: absolute; inset: 0; margin: 0; padding: 0 24px;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; font-size: 12px; color: var(--ink-4);
+}
+/* Tastatur-Fokus auf der Fläche selbst: dasselbe Blau wie die Kurve, damit
+   der Ring als Teil des Charts liest, nicht als fremdes Formular-Element. */
+.chart-body:focus-visible { outline: 2px solid var(--ice); outline-offset: -2px; }
+/* Die Live-Region ist für Vorleseprogramme da, nicht fürs Auge: aus dem
+   Fluss genommen und auf einen Pixel geklemmt statt display:none, das
+   nähme sie auch dem Vorleser weg. */
+.chart-live {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
 
 /* ================================================================== Orbit = */
 .block--orbit { padding-top: 2px; min-height: 0; }
@@ -412,7 +436,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   transition: transform .62s var(--ease-out);
 }
 .card.is-flipped .card-inner { transform: rotateY(180deg); }
-:root[data-motion="off"] .card-inner { transition-duration: .01s; }
 
 .card-face {
   position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
@@ -523,6 +546,29 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .card-badge.is-reached { color: var(--aurora); background: var(--aurora-veil); }
 .card-badge.is-current { color: var(--star); background: rgba(198,222,255,.12); }
 .card-badge.is-future  { color: var(--ink-3); background: rgba(146,180,228,.07); }
+
+/* Reduzierte Bewegung deckt nicht nur `animation` ab, sondern jede
+   `transition`, die etwas verschiebt oder in der Größe ändert — eine
+   Sheet-Flanke, ein füllender Balken, eine hebende Karte, ein Schalterknauf,
+   ein Ein-/Ausblenden über mehr als eine Wimper. Eine Restdauer statt 0s hält
+   `transitionend` auslösbar, ohne dass sich sichtbar etwas bewegt. Farb- und
+   Rahmenfarb-Übergänge (`.icon-btn`, `.range-btn`, `.legend-row`, `.sheet-link`,
+   `.field-num` …) bleiben aussen vor: sie tönen nur um, sie bewegen nichts. */
+:root[data-motion="off"] .card-inner,
+:root[data-motion="off"] .card-bar i,
+:root[data-motion="off"] .card.is-linked,
+:root[data-motion="off"] .chart-ya-stub,
+:root[data-motion="off"] .chart-ya-full,
+:root[data-motion="off"] .orbit-arc,
+:root[data-motion="off"] .sheet-scrim,
+:root[data-motion="off"] .sheet,
+:root[data-motion="off"] .drop-veil,
+:root[data-motion="off"] .toast {
+  transition-duration: .01s;
+}
+/* Eigene Regel: mit dem Pseudo-Element in derselben Selektorliste verwirft
+   jsdom (die Test-Engine) die ganze Gruppe. */
+:root[data-motion="off"] .sw-track::after { transition-duration: .01s; }
 
 /* ============================================================ Overlay/Gate = */
 /* Über dem Vorhang (60), unter Ablegefläche (70) und Meldung (80): die
