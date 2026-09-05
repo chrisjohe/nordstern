@@ -141,11 +141,22 @@ const checked = new Map();                       // Pfad → { sum, why }
 {
   const buf = configBytes('tests/privacy-images.txt');
   if (buf) {
-    buf.toString('utf8').split('\n').forEach((raw) => {
+    buf.toString('utf8').split('\n').forEach((raw, i) => {
       const body = raw.replace(/\s*#.*$/, '').trim();
       if (!body) return;
       const m = body.match(/^([0-9a-f]{64})\s+(.+)$/i);
-      if (m) checked.set(m[2].trim(), { sum: m[1].toLowerCase(), why: raw.slice(raw.indexOf('#') + 1).trim() });
+      if (!m) return;
+      /* Wie bei den Ausnahmen: ohne "#" würde slice(0) die ganze Zeile zur
+         Begründung machen. Der Kopf der Datei verlangt die Angabe, wie
+         geprüft wurde, also zählt nur ein "#" mit nicht-leerem Rest. */
+      const hash = raw.indexOf('#');
+      const why = hash >= 0 ? raw.slice(hash + 1).trim() : '';
+      if (!why) {
+        console.log('tests/privacy-images.txt:' + (i + 1) + ': Prüfeintrag ohne Angabe, wie geprüft wurde: „' +
+          raw.trim() + '". Jede Zeile braucht ein "#" mit der Angabe dahinter.');
+        process.exit(1);
+      }
+      checked.set(m[2].trim(), { sum: m[1].toLowerCase(), why });
     });
   }
 }

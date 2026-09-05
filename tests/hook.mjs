@@ -316,6 +316,26 @@ git('add', '-A');
 r = commit('restore allow file');
 ok(r.status === 0, 'mit Begründung ist wieder Ruhe: ' + (r.stdout + r.stderr).trim().split('\n')[0]);
 
+/* --- ein Bildeintrag ohne Begründung (G8) ------------------------------ */
+/* Derselbe Riss wie bei G5, in der Bilderliste: ohne "#" wird die ganze
+   Zeile zur Begründung, mit leerem Rest hinter dem "#" bleibt sie leer. Der
+   Kopf von tests/privacy-images.txt verlangt, dass dasteht, wie geprüft
+   wurde — eine Prüfsumme allein sagt nicht, dass jemand hingesehen hat. */
+for (const [label, line] of [['ohne "#"', '  docs/x.png\n'], ['mit leerem "#"', '  docs/x.png  #\n']]) {
+  fs.writeFileSync(path.join(tmp, 'tests/privacy-images.txt'), '# Prüfeinträge\n' + sum(PNG) + line);
+  fs.appendFileSync(path.join(tmp, 'README.md'), '\nimage line ' + label + '\n');
+  git('add', '-A');
+  r = commit('bare image line');
+  ok(r.status !== 0, 'ein Bildeintrag ' + label + ' lässt keinen Commit durch: ' + r.status);
+  ok(/privacy-images\.txt:2\b/.test(r.stdout + r.stderr),
+    'und nennt die Zeile: ' + (r.stdout + r.stderr).trim().split('\n').slice(0, 3).join(' | '));
+  git('reset', '-q');
+}
+fs.writeFileSync(path.join(tmp, 'tests/privacy-images.txt'), '# leer\n');
+git('add', '-A');
+r = commit('restore image list');
+ok(r.status === 0, 'ohne den Eintrag ist wieder Ruhe: ' + (r.stdout + r.stderr).trim().split('\n')[0]);
+
 /* --- der Personen-Scan meldet jeden Treffer, nicht nur den ersten (G6) -- */
 /* Zwei Zeilen mit demselben Namen in derselben Datei müssen zwei Zeilen im
    Bericht ergeben, sonst versteht niemand aus der Meldung, wie viel
