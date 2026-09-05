@@ -633,6 +633,42 @@ sec('Import: eine spät eintreffende erste Auswahl überschreibt die zweite nich
   w.close();
 }
 
+/* „Delete local data" während ein FileReader noch liest (A13): der Speicher
+   ist leer, der Vorhang zu — und dann kommt `onload` und zeichnet und
+   speichert die gelöschte Mappe wieder. forget() muss den laufenden Import
+   entwerten, so wie eine zweite Auswahl die erste entwertet (importSeq). */
+sec('Import: Löschen entwertet einen noch laufenden Import');
+{ const {w,errors,mem}=await boot();
+  const d=w.document;
+  const pending=[];
+  w.FileReader=function () { pending.push(this); };
+  w.FileReader.prototype.readAsArrayBuffer=function (file) { this.file=file; };
+  const buf=fs.readFileSync(FIXTURE);
+  const ab=buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength);
+
+  const picker=d.getElementById('filePicker');
+  Object.defineProperty(picker,'files',{value:[new w.File([ab],'slow.xlsx')],configurable:true});
+  picker.dispatchEvent(new w.Event('change'));
+  ok(pending.length===1,'die Auswahl hat einen Reader angelegt: '+pending.length);
+
+  w.NORDSTERN.app.ui.settings.open();
+  w.confirm=()=>true;
+  d.querySelector('button.btn-danger').dispatchEvent(new w.Event('click'));
+  ok(Object.keys(mem).every(k=>!k.startsWith('nordstern.')),'nach dem Löschen ist der Speicher leer: '+Object.keys(mem).join());
+
+  pending[0].result=ab; pending[0].onload();      // der Reader wird erst jetzt fertig
+  await tick(30);
+  ok(w.NORDSTERN.app.state.model===null,'der verspätete Import stellt kein Modell her');
+  ok(w.NORDSTERN.store.loadModel()===null,'und schreibt nichts in den Speicher');
+  ok(!Object.keys(mem).some(k=>k.includes('model')),'kein Modellschlüssel liegt wieder da: '+Object.keys(mem).join());
+  ok(!d.getElementById('gate').hidden&&d.getElementById('gateTitle').textContent==='No data yet',
+     'der Vorhang bleibt zu und sagt "No data yet": '+d.getElementById('gateTitle').textContent);
+  ok(d.querySelector('.meta-import').textContent==='no import',
+     'der Status bleibt bei "no import": '+d.querySelector('.meta-import').textContent);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 4. Card ↔ Berg ---------- */
 sec('Verbindung Card ↔ Berg');
 { const {w,errors}=await boot({storage:{...store}});

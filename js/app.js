@@ -169,6 +169,10 @@
      schon gezeichnet und rendern bei `null` gar nicht erst neu, blieben also
      dahinter sichtbar, jedes Modul muss deshalb einzeln leergeräumt werden. */
   function forget() {
+    /* Ein FileReader, der noch liest, käme sonst nach dem Löschen mit
+       `onload` zurück und zeichnete und speicherte die Mappe erneut. Die
+       Marke entwertet ihn, wie eine zweite Auswahl die erste entwertet. */
+    importSeq++;
     NS.store.clearAll();
     state.model = null; state.view = null;
     state.settings = NS.store.loadSettings();       // mit den Vorgaben als Grund
