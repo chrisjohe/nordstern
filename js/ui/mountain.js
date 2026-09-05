@@ -479,16 +479,12 @@
     var levels = buildContours(field);
     var route = buildRoute(field);
 
-    /* Projizierte Punkte je Level (Scratch, einmal alloziert) */
+    /* Projizierte Punkte je Level (Scratch, einmal alloziert); die Farbe kommt
+       erst aus paintLevels(), sobald pal (weiter unten) gefüllt ist. */
     levels.forEach(function (lv) {
       lv.loops.forEach(function (lp) {
         lp.px = new Float32Array(lp.n); lp.py = new Float32Array(lp.n);
       });
-      var f = lv.index / (LEVELS - 1);
-      lv.fill = U.mix('#060b14', '#122036', f * f * 0.85 + f * 0.15);
-      lv.strokeLit = rgba(U.mix('#7fb2e5', '#e8f2ff', f), 0.30 + 0.44 * f);
-      lv.strokeMid = rgba(U.mix('#7fb2e5', '#dfeaff', f), 0.17 + 0.27 * f);
-      lv.strokeDim = rgba(U.mix('#5c86b8', '#9fc0e4', f), 0.09 + 0.14 * f);
       lv.z = lv.level * Z_MAX;
     });
 
@@ -510,19 +506,102 @@
     };
 
     /* ---------------------------------------------------------- Farbhelfer */
-    function rgba(c, a) { var C = U.hex(c); return 'rgba(' + C[0] + ',' + C[1] + ',' + C[2] + ',' + a.toFixed(3) + ')'; }
-
-    /* Ringfarben kommen aus den Tokens, damit Warm und Grün nur an einer
-       Stelle festgelegt sind. Fehlt der Wert (alte Engine, Testumgebung),
-       greift der Rückfallwert. */
-    function token(name, fb) {
-      try {
-        var v = global.getComputedStyle(global.document.documentElement).getPropertyValue(name).trim();
-        return /^#[0-9a-fA-F]{6}$/.test(v) ? v : fb;
-      } catch (e) { return fb; }
+    /* Eine Leinwand löst keine CSS-Variablen auf: jeder Ton wird einmal per
+       getComputedStyle gelesen und als [r,g,b,a] zwischengehalten. Erlaubt
+       sind #rrggbb, rgb(...) und rgba(...) — genug, um auch aus hohem
+       Kontrast oder einem künftigen hellen Thema zu lesen. Fehlt der Wert,
+       ist er leer oder ungültig (alte Engine, Testumgebung, ein Tippfehler
+       im Token), läuft derselbe Parser über den Rückfalltext, damit Token und
+       Rückfall stets im gleichen Format vorliegen. */
+    function parseColor(v) {
+      if (!v) return null;
+      v = v.trim();
+      var m = /^#([0-9a-fA-F]{6})$/.exec(v);
+      if (m) {
+        return [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16), 1];
+      }
+      m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/.exec(v);
+      if (m) return [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3]), m[4] != null ? parseFloat(m[4]) : 1];
+      return null;
     }
-    var RGB_OK = U.hex(token('--aurora', '#2fbd8b')).join(',');
-    var RGB_WARN = U.hex(token('--amber', '#d46a2e')).join(',');
+    function token(name, fb) {
+      var raw = '';
+      try {
+        raw = global.getComputedStyle(global.document.documentElement).getPropertyValue(name);
+      } catch (e) { raw = ''; }
+      return parseColor(raw) || parseColor(fb);
+    }
+    /** Linear zwischen zwei [r,g,b,a]-Farben, t geklemmt — Alpha mischt mit,
+        damit ein einzelnes Tokenpaar Farbe UND Deckkraft trägt (siehe
+        paintLevels()). */
+    function mixC(A, B, t) {
+      var u = U.clamp(t, 0, 1);
+      return [
+        A[0] + (B[0] - A[0]) * u,
+        A[1] + (B[1] - A[1]) * u,
+        A[2] + (B[2] - A[2]) * u,
+        A[3] + (B[3] - A[3]) * u
+      ];
+    }
+    /** [r,g,b,a] → 'rgba(...)'; aMul multipliziert die Deckkraft zusätzlich
+        (Fade-Effekte, Puls), ohne dass jede Aufrufstelle selbst mischt. */
+    function css(C, aMul) {
+      var a = aMul == null ? C[3] : C[3] * aMul;
+      return 'rgba(' + Math.round(C[0]) + ',' + Math.round(C[1]) + ',' + Math.round(C[2]) + ',' + a.toFixed(3) + ')';
+    }
+
+    /* Alle Leinwandfarben an einer Stelle: die --mtn-*-Tokens (css/tokens.css)
+       plus die drei allgemeinen Marken, die der Berg mitbenutzt. loadPalette()
+       läuft einmal beim Aufbau und erneut aus refreshTokens(), das app.js bei
+       jedem Kontrastwechsel aufruft. */
+    var pal = null;
+    function loadPalette() {
+      pal = {
+        fillLo:       token('--mtn-fill-lo',       '#060b14'),
+        fillHi:       token('--mtn-fill-hi',       '#122036'),
+        litLo:        token('--mtn-lit-lo',        'rgba(127, 178, 229, 0.30)'),
+        litHi:        token('--mtn-lit-hi',        'rgba(232, 242, 255, 0.74)'),
+        midLo:        token('--mtn-mid-lo',        'rgba(127, 178, 229, 0.17)'),
+        midHi:        token('--mtn-mid-hi',        'rgba(223, 234, 255, 0.44)'),
+        dimLo:        token('--mtn-dim-lo',        'rgba(92, 134, 184, 0.09)'),
+        dimHi:        token('--mtn-dim-hi',        'rgba(159, 192, 228, 0.23)'),
+        plate:        token('--mtn-plate',         'rgba(127, 178, 229, 0.26)'),
+        cardinal:     token('--mtn-cardinal',      '#c4d4ec'),
+        track:        token('--mtn-track',         'rgba(127, 178, 229, 0.13)'),
+        pulseOk:      token('--mtn-pulse-ok',      '#beffe4'),
+        pulseWarn:    token('--mtn-pulse-warn',    '#ffd696'),
+        routeOpen:    token('--mtn-route-open',    'rgba(163, 180, 207, 0.34)'),
+        routeHi:      token('--mtn-route-hi',      'rgba(234, 242, 255, 0.55)'),
+        routeDone:    token('--mtn-route-done',    'rgba(198, 222, 255, 0.92)'),
+        glow:         token('--mtn-glow',          '#7fb2e5'),
+        pole:         token('--mtn-pole',          'rgba(198, 222, 255, 0.58)'),
+        poleFuture:   token('--mtn-pole-future',   'rgba(127, 178, 229, 0.42)'),
+        pinBg:        token('--mtn-pin-bg',        'rgba(6, 11, 20, 0.92)'),
+        badgeReached: token('--mtn-badge-reached', 'rgba(8, 30, 24, 0.95)'),
+        badgeCurrent: token('--mtn-badge-current', 'rgba(11, 21, 38, 0.97)'),
+        badgeFuture:  token('--mtn-badge-future',  'rgba(8, 13, 24, 0.92)'),
+        aurora:       token('--aurora', '#2fbd8b'),
+        amber:        token('--amber',  '#d46a2e'),
+        star:         token('--star',   '#eaf2ff'),
+        ice:          token('--ice',    '#7fb2e5')
+      };
+    }
+    /* Geländefarben je Höhenlinie: die Füllung bleibt deckend (fillLo/Hi sind
+       Hex-Token, Alpha 1), damit ein tieferes Band die Rückseite eines
+       höheren verdeckt; die drei Konturtöne mischen linear nach Lichteinfall
+       — siehe drawTerrain(). Getrennt von loadPalette(), weil hier über
+       `levels` gelaufen wird statt über feste Tokennamen. */
+    function paintLevels() {
+      levels.forEach(function (lv) {
+        var f = lv.index / (LEVELS - 1);
+        lv.fill = css(mixC(pal.fillLo, pal.fillHi, f * f * 0.85 + f * 0.15));
+        lv.strokeLit = css(mixC(pal.litLo, pal.litHi, f));
+        lv.strokeMid = css(mixC(pal.midLo, pal.midHi, f));
+        lv.strokeDim = css(mixC(pal.dimLo, pal.dimHi, f));
+      });
+    }
+    loadPalette();
+    paintLevels();
 
     /* ------------------------------------------------------------ Kamera */
     var cam = makeCam(state.yaw, state.pitch, 0, 0, 1);
@@ -601,7 +680,7 @@
       var i, p;
       /* Teilung — mit Lücken dort, wo die Himmelsrichtungen liegen */
       ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(127,178,229,0.26)';
+      ctx.strokeStyle = css(pal.plate);
       ctx.beginPath();
       for (i = 0; i < 120; i++) {
         var an = i / 120 * Math.PI * 2;
@@ -645,7 +724,7 @@
         var fade = U.clamp(0.34 + 0.66 * (p0.d + 1.2) / 2.4, 0.48, 1);
         ctx.save();
         ctx.transform(-tsx, -tsy, -osx, -osy, p0.x, p0.y);
-        ctx.fillStyle = 'rgba(196,212,236,' + fade.toFixed(2) + ')';
+        ctx.fillStyle = css(pal.cardinal, fade);
         ctx.fillText(CARDINALS[i][0], 0, 0);
         ctx.restore();
       }
@@ -678,7 +757,7 @@
 
       /* Laufbahn */
       ctx.lineWidth = 3.2;
-      ctx.strokeStyle = 'rgba(127,178,229,0.13)';
+      ctx.strokeStyle = css(pal.track);
       ctx.beginPath();
       var pts = state.ringPts || (state.ringPts = new Float32Array(2 * 145));
       for (i = 0; i <= 144; i++) {
@@ -691,20 +770,20 @@
       /* Zielmarke bei 100 % */
       p = project(0, RING_R, 0.004);
       var pin = project(0, RING_R + 0.055, 0.004);
-      ctx.strokeStyle = 'rgba(' + (reached ? RGB_OK : RGB_WARN) + ',' + (reached ? 0.75 : 0.68) + ')';
+      ctx.strokeStyle = css(reached ? pal.aurora : pal.amber, reached ? 0.75 : 0.68);
       ctx.lineWidth = 1.4;
       ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(pin.x, pin.y); ctx.stroke();
 
       if (pct <= 0) return;
       var last = Math.max(1, Math.round(144 * pct));
-      var col = reached ? RGB_OK : RGB_WARN;
+      var col = reached ? pal.aurora : pal.amber;
       var hot = state.ringHover ? 0.28 : 0;
 
       /* Erreichter Anteil */
       ctx.lineCap = 'round';
       ctx.lineWidth = reached ? 4.4 : 3.8;
-      ctx.strokeStyle = 'rgba(' + col + ',' + (0.62 + hot).toFixed(2) + ')';
-      ctx.shadowColor = 'rgba(' + col + ',' + (reached ? 0.55 : 0.35) + ')';
+      ctx.strokeStyle = css(col, 0.62 + hot);
+      ctx.shadowColor = css(col, reached ? 0.55 : 0.35);
       ctx.shadowBlur = (reached ? 16 : 9) * (state.motion ? 1 : 0.7);
       ctx.beginPath();
       for (i = 0; i <= last; i++) {
@@ -724,7 +803,7 @@
         if (i1 > i0) {
           var fade = ph > 0.72 ? 1 - (ph - 0.72) / 0.28 : 1;
           ctx.lineWidth = reached ? 5.2 : 4.6;
-          ctx.strokeStyle = 'rgba(' + (reached ? '190,255,228' : '255,214,150') + ',' + (0.55 * fade).toFixed(3) + ')';
+          ctx.strokeStyle = css(reached ? pal.pulseOk : pal.pulseWarn, 0.55 * fade);
           ctx.beginPath();
           for (i = i0; i <= i1; i++) {
             p = ringAt(i);
@@ -818,7 +897,7 @@
       /* offener Teil — zurückhaltend gestrichelt */
       ctx.setLineDash([2.5, 5]);
       ctx.lineWidth = 1.4;
-      ctx.strokeStyle = 'rgba(163,180,207,0.34)';
+      ctx.strokeStyle = css(pal.routeOpen);
       ctx.beginPath();
       if (pathRuns(0, route.n - 1)) ctx.stroke();
       ctx.setLineDash([]);
@@ -833,8 +912,8 @@
           var iA = Math.floor(U.clamp(tA, 0, 1) * (route.n - 1));
           var iB = Math.floor(U.clamp(tB, 0, 1) * (route.n - 1));
           ctx.lineWidth = 3.4;
-          ctx.strokeStyle = 'rgba(234,242,255,0.55)';
-          ctx.shadowColor = 'rgba(127,178,229,0.8)';
+          ctx.strokeStyle = css(pal.routeHi);
+          ctx.shadowColor = css(pal.glow, 0.8);
           ctx.shadowBlur = 14;
           ctx.beginPath();
           if (pathRuns(iA, iB)) ctx.stroke();
@@ -846,8 +925,8 @@
       var upto = Math.floor(U.clamp(t, 0, 1) * (route.n - 1));
       if (t > 0) {
         ctx.lineWidth = 2.1;
-        ctx.strokeStyle = 'rgba(198,222,255,0.92)';
-        ctx.shadowColor = 'rgba(127,178,229,0.65)';
+        ctx.strokeStyle = css(pal.routeDone);
+        ctx.shadowColor = css(pal.glow, 0.65);
         ctx.shadowBlur = 10;
         ctx.beginPath();
         if (pathRuns(0, upto)) ctx.stroke();
@@ -857,9 +936,9 @@
         var head = routeAt(route, t);
         if (visible(head.x, head.y, head.z)) {
           p = project(head.x, head.y, head.z);
-          ctx.fillStyle = '#eaf2ff';
+          ctx.fillStyle = css(pal.star);
           ctx.beginPath(); ctx.arc(p.x, p.y, 3.4, 0, 6.2832); ctx.fill();
-          ctx.strokeStyle = 'rgba(234,242,255,0.35)';
+          ctx.strokeStyle = css(pal.star, 0.35);
           ctx.lineWidth = 1;
           ctx.beginPath(); ctx.arc(p.x, p.y, 7.5, 0, 6.2832); ctx.stroke();
         }
@@ -902,7 +981,7 @@
         var s = m.s;
         var isHover = state.hover === s.id, isSel = state.selected === s.id;
         var alpha = m.hidden && !isHover && !isSel ? 0.34 : 1;
-        var col = s.status === 'reached' ? '#2fbd8b' : s.status === 'current' ? '#eaf2ff' : '#7fb2e5';
+        var col = s.status === 'reached' ? css(pal.aurora) : s.status === 'current' ? css(pal.star) : css(pal.ice);
         var dim = s.status === 'future' ? 0.66 : 1;
         var r = m.r;
 
@@ -910,7 +989,7 @@
         /* Verdeckte Masten werden gestrichelt — der Pin bleibt anklickbar,
            der Berg bleibt trotzdem undurchsichtig. */
         if (m.hidden) ctx.setLineDash([2, 3]);
-        ctx.strokeStyle = s.status === 'future' ? 'rgba(127,178,229,0.42)' : 'rgba(198,222,255,0.58)';
+        ctx.strokeStyle = s.status === 'future' ? css(pal.poleFuture) : css(pal.pole);
         ctx.lineWidth = 1.1;
         ctx.beginPath(); ctx.moveTo(m.bx, m.by); ctx.lineTo(m.hx, m.hy + r); ctx.stroke();
         ctx.setLineDash([]);
@@ -919,7 +998,7 @@
         if (!m.hidden) {
           var fr = (isHover || isSel) ? 4.6 : 3.7;
           ctx.beginPath(); ctx.arc(m.bx, m.by, fr, 0, 6.2832);
-          ctx.fillStyle = 'rgba(6,11,20,0.92)';
+          ctx.fillStyle = css(pal.pinBg);
           ctx.fill();
           ctx.lineWidth = 1.5;
           ctx.strokeStyle = col;
@@ -927,8 +1006,8 @@
         }
 
         ctx.beginPath(); ctx.arc(m.hx, m.hy, r, 0, 6.2832);
-        ctx.fillStyle = s.status === 'reached' ? 'rgba(8,30,24,0.95)'
-          : s.status === 'current' ? 'rgba(11,21,38,0.97)' : 'rgba(8,13,24,0.92)';
+        ctx.fillStyle = s.status === 'reached' ? css(pal.badgeReached)
+          : s.status === 'current' ? css(pal.badgeCurrent) : css(pal.badgeFuture);
         ctx.fill();
         ctx.lineWidth = (isHover || isSel) ? 2 : 1.3;
         ctx.strokeStyle = col;
@@ -942,7 +1021,7 @@
         ctx.restore();
 
         if (s.status === 'current') {
-          ctx.strokeStyle = 'rgba(234,242,255,0.28)';
+          ctx.strokeStyle = css(pal.star, 0.28);
           ctx.lineWidth = 1;
           ctx.beginPath(); ctx.arc(m.hx, m.hy, r + 4.5, 0, 6.2832); ctx.stroke();
         }
@@ -1127,12 +1206,12 @@
         state.needsDraw = true;
       },
       setPaused: function (p) { state.paused = !!p; if (!p) state.idle = 0; },
-      /* Ring- und Amber-Ton liegen als Cache im Speicher; ein Wechsel der
-         Tokens zur Laufzeit muss ihn neu füllen, sonst zeichnet der Canvas
-         weiter mit den alten Werten. */
+      /* Die Palette liegt als Cache im Speicher (pal, lv.fill/strokeLit/…);
+         ein Wechsel der Tokens zur Laufzeit (Kontrastschalter) muss ihn neu
+         füllen, sonst zeichnet der Canvas weiter mit den alten Werten. */
       refreshTokens: function () {
-        RGB_OK = U.hex(token('--aurora', '#2fbd8b')).join(',');
-        RGB_WARN = U.hex(token('--amber', '#d46a2e')).join(',');
+        loadPalette();
+        paintLevels();
         state.needsDraw = true;
       },
       setHover: function (id) {
@@ -1159,7 +1238,9 @@
           paused: !!state.paused, motion: state.motion, yaw: state.yaw, pitch: state.pitch,
           ringFill: state.ringFill, markers: state.hits.length,
           hiddenMarkers: state.hits.filter(function (h) { return h.hidden; }).length };
-      }
+      },
+      /* Nur für kopflose Prüfungen — der eingelesene Farbsatz. */
+      palette: function () { return pal; }
     };
   }
 

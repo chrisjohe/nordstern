@@ -2838,5 +2838,75 @@ sec('U5: Kontrast der Stationslabel im Chart');
   w.close();
 }
 
+/* ---------- 19. Berg: Farben aus Token ---------- */
+sec('Berg: Farben aus Token');
+{
+  const MTN_TOKENS=['--mtn-fill-lo','--mtn-fill-hi','--mtn-lit-lo','--mtn-lit-hi','--mtn-mid-lo','--mtn-mid-hi',
+    '--mtn-dim-lo','--mtn-dim-hi','--mtn-plate','--mtn-cardinal','--mtn-track','--mtn-pulse-ok','--mtn-pulse-warn',
+    '--mtn-route-open','--mtn-route-hi','--mtn-route-done','--mtn-glow','--mtn-pole','--mtn-pole-future',
+    '--mtn-pin-bg','--mtn-badge-reached','--mtn-badge-current','--mtn-badge-future'];
+  const tokenCss=fs.readFileSync(new URL('../css/tokens.css',import.meta.url),'utf8');
+  /* Der erste bare `:root { … }`-Block ist der Auslieferungszustand; das
+     Kontrastblatt steht darunter unter einem eigenen Selektor. */
+  const rootBlock=(tokenCss.match(/:root\s*\{[^}]*\}/)||[''])[0];
+  MTN_TOKENS.forEach(t=>ok(rootBlock.includes(t+':'),':root deklariert '+t));
+
+  const highBlock=(tokenCss.match(/:root\[data-contrast="high"\]\s*\{[^}]*\}/)||[''])[0];
+  ['--mtn-fill-lo','--mtn-lit-lo','--mtn-dim-lo','--mtn-route-open'].forEach(t=>
+    ok(highBlock.includes(t+':'),'hoher Kontrast überschreibt '+t));
+
+  /* Kein Farbwert mehr im Quelltext ausserhalb eines token(...)-Aufrufs.
+     Kommentare (auch mehrzeilige) fallen weg, bevor gesucht wird — sie
+     beschreiben den Parser nur in Worten. Die verbleibende Ausnahme ist die
+     Rückgabezeile von css(): sie baut die Zeichenkette aus Variablen, ohne
+     eine einzige Zahl fest einzusetzen, kenntlich an "Math.round(C[0])". */
+  const mtnSrc=fs.readFileSync(new URL('../js/ui/mountain.js',import.meta.url),'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g,'');
+  const literalLines=mtnSrc.split('\n').filter(line=>{
+    if(!/rgba?\(|#[0-9a-fA-F]{6}/.test(line)) return false;
+    if(line.includes('token(')) return false;
+    if(line.includes('Math.round(C[0])')) return false;
+    return true;
+  });
+  ok(literalLines.length===0,'keine Farbliterale ausserhalb von token(...): '+literalLines.join(' | '));
+
+  const approxArr=(a,b,eps)=>Array.isArray(a)&&a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<=(eps||0.01));
+
+  const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  const mtn=w.NORDSTERN.app.ui.mountain;
+  ok(typeof mtn.palette==='function','ui.mountain.palette() ist verfügbar');
+  const pal0=mtn.palette();
+  ok(approxArr(pal0.fillLo,[6,11,20,1]),'fillLo entspricht dem heutigen Literal: '+JSON.stringify(pal0.fillLo));
+  ok(approxArr(pal0.litHi,[232,242,255,0.74]),'litHi entspricht dem heutigen Literal: '+JSON.stringify(pal0.litHi));
+
+  /* Token-Runde: jsdom löst ein per style.setProperty gesetztes Custom
+     Property bei getComputedStyle direkt auf (kurz geprüft, kein Mock
+     nötig) — der Test setzt also direkt am Wurzelelement und ruft
+     refreshTokens() wie app.js es bei einem Kontrastwechsel tut. */
+  d.documentElement.style.setProperty('--mtn-fill-lo','rgba(1, 2, 3, 0.5)');
+  mtn.refreshTokens();
+  ok(approxArr(mtn.palette().fillLo,[1,2,3,0.5]),'Token schlägt Rückfall: '+JSON.stringify(mtn.palette().fillLo));
+
+  d.documentElement.style.setProperty('--mtn-fill-lo','#ff0000');
+  mtn.refreshTokens();
+  ok(approxArr(mtn.palette().fillLo,[255,0,0,1]),'#rrggbb: '+JSON.stringify(mtn.palette().fillLo));
+
+  d.documentElement.style.setProperty('--mtn-fill-lo','rgb(10,20,30)');
+  mtn.refreshTokens();
+  ok(approxArr(mtn.palette().fillLo,[10,20,30,1]),'rgb(...) ohne Alpha: '+JSON.stringify(mtn.palette().fillLo));
+
+  d.documentElement.style.setProperty('--mtn-fill-lo','blue');
+  mtn.refreshTokens();
+  ok(approxArr(mtn.palette().fillLo,[6,11,20,1]),'ungültiger Wert fällt zurück: '+JSON.stringify(mtn.palette().fillLo));
+
+  d.documentElement.style.removeProperty('--mtn-fill-lo');
+  mtn.refreshTokens();
+  ok(approxArr(mtn.palette().fillLo,[6,11,20,1]),'zurückgesetzt: wieder der Rückfall: '+JSON.stringify(mtn.palette().fillLo));
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 console.log('\n'+pass+' bestanden, '+fail+' fehlgeschlagen');
 process.exit(fail?1:0);

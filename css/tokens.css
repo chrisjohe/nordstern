@@ -54,6 +54,42 @@
 
   --violet:       #9085e9;
 
+  /* --- Berg: Leinwandfarben ----------------------------------------------
+     Der Bergcanvas löst keine CSS-Variablen selbst auf (Canvas 2D kennt kein
+     `var()`); js/ui/mountain.js liest diese Token einmal per getComputedStyle
+     und hält sie im Speicher, wieder eingelesen aus refreshTokens(), das
+     app.js bei jedem Kontrastwechsel aufruft. Ohne eigene Token bliebe das
+     Gelände aussen vor, wenn hoher Kontrast oder ein künftiges helles Thema
+     jeden anderen Ton verändert. */
+  /* Geländefüllung, unten (f=0) nach oben (f=1); mountain.js mischt linear. */
+  --mtn-fill-lo:   #060b14;
+  --mtn-fill-hi:   #122036;
+  /* Drei Konturstufen nach Lichteinfall, je unten/oben; Alpha mischt mit. */
+  --mtn-lit-lo:    rgba(127, 178, 229, 0.30);
+  --mtn-lit-hi:    rgba(232, 242, 255, 0.74);
+  --mtn-mid-lo:    rgba(127, 178, 229, 0.17);
+  --mtn-mid-hi:    rgba(223, 234, 255, 0.44);
+  --mtn-dim-lo:    rgba(92, 134, 184, 0.09);
+  --mtn-dim-hi:    rgba(159, 192, 228, 0.23);
+  /* Kompassteller und Reservering */
+  --mtn-plate:     rgba(127, 178, 229, 0.26);
+  --mtn-cardinal:  #c4d4ec;
+  --mtn-track:     rgba(127, 178, 229, 0.13);
+  --mtn-pulse-ok:  #beffe4;
+  --mtn-pulse-warn:#ffd696;
+  /* Route: offen, hervorgehoben, gegangen; Schein darunter */
+  --mtn-route-open:rgba(163, 180, 207, 0.34);
+  --mtn-route-hi:  rgba(234, 242, 255, 0.55);
+  --mtn-route-done:rgba(198, 222, 255, 0.92);
+  --mtn-glow:      #7fb2e5;
+  /* Marker: Mast, Fußpunkt, Plakettengrund je Zustand */
+  --mtn-pole:      rgba(198, 222, 255, 0.58);
+  --mtn-pole-future: rgba(127, 178, 229, 0.42);
+  --mtn-pin-bg:    rgba(6, 11, 20, 0.92);
+  --mtn-badge-reached: rgba(8, 30, 24, 0.95);
+  --mtn-badge-current: rgba(11, 21, 38, 0.97);
+  --mtn-badge-future:  rgba(8, 13, 24, 0.92);
+
   /* --- Typografie ------------------------------------------------------- */
   /* Geometrische Grotesk, kein Inter/Roboto/Arial, in absteigender
      Verfügbarkeit: macOS, dann Office, dann der freie Nachbau, den die meisten
@@ -99,7 +135,8 @@
    Schalter im Blatt oder aus "prefers-contrast: more". Nur Token, keine
    Komponente: Schrift heller, Linien kräftiger, Grund dunkler, wo es
    einen Token dafür gibt. Bei "normal" bleibt der Auslieferungszustand
-   unverändert. */
+   unverändert. Der Berg liest seine --mtn-*-Token ebenso und liest sie über
+   refreshTokens() neu ein, sobald dieser Block greift. */
 :root[data-contrast="high"] {
   --ink:          #ffffff;
   --ink-2:        #dbe5f6;
@@ -116,4 +153,18 @@
   --bg-surface:   #030711;
   --bg-raise:     #060c1c;
   --bg-sunk:      #000206;
+
+  --mtn-fill-lo:   #02050c;
+  --mtn-fill-hi:   #16274a;
+  --mtn-lit-lo:    rgba(150, 195, 240, 0.48);
+  --mtn-lit-hi:    rgba(240, 246, 255, 0.92);
+  --mtn-mid-lo:    rgba(150, 195, 240, 0.30);
+  --mtn-mid-hi:    rgba(230, 238, 255, 0.62);
+  --mtn-dim-lo:    rgba(120, 160, 210, 0.20);
+  --mtn-dim-hi:    rgba(180, 208, 240, 0.38);
+  --mtn-plate:     rgba(150, 195, 240, 0.42);
+  --mtn-track:     rgba(150, 195, 240, 0.24);
+  --mtn-route-open:rgba(190, 205, 230, 0.55);
+  --mtn-pole:      rgba(210, 228, 255, 0.78);
+  --mtn-pole-future: rgba(150, 195, 240, 0.62);
 }
