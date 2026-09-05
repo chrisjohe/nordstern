@@ -124,16 +124,31 @@
         NS.store.saveSettings(state.settings);
         applyCurrency();
       }
-      hideGate();
-      state.arriving = true;
-      refresh();
-      ui.settings.setStatus(res.warnings.length ? 'warn' : 'ok',
-        res.warnings.length ? res.warnings.length + (res.warnings.length === 1 ? ' note' : ' notes') : 'import ok');
-      var msg = res.warnings.length
-        ? 'Read — with ' + res.warnings.length + ' note(s), see settings.'
-        : 'Read: ' + res.model.months.length + ' months up to ' + U.monthLong(res.model.months[res.model.currentIndex].key) + '.';
-      if (switchedTo) msg += ' Amounts shown in ' + switchedTo + ' (from the workbook’s number formats).';
-      toast(msg, res.warnings.length ? 'warn' : 'ok');
+      /* Zweiter Boden auch hier, getrennt von dem in boot(): dort wird ein
+         gespeichertes Modell nur still wiederhergestellt, hier zieht sich
+         gerade der Vorhang und die Bühne baut sich zum ersten Mal auf. Wirft
+         ein Modul dabei, bliebe die Bühne halb gezeichnet, kein Vorhang mehr
+         davor, der Status noch auf "reading …", ohne jede Meldung. */
+      try {
+        hideGate();
+        state.arriving = true;
+        refresh();
+        ui.settings.setStatus(res.warnings.length ? 'warn' : 'ok',
+          res.warnings.length ? res.warnings.length + (res.warnings.length === 1 ? ' note' : ' notes') : 'import ok');
+        var msg = res.warnings.length
+          ? 'Read — with ' + res.warnings.length + ' note(s), see settings.'
+          : 'Read: ' + res.model.months.length + ' months up to ' + U.monthLong(res.model.months[res.model.currentIndex].key) + '.';
+        if (switchedTo) msg += ' Amounts shown in ' + switchedTo + ' (from the workbook’s number formats).';
+        toast(msg, res.warnings.length ? 'warn' : 'ok');
+      } catch (e) {
+        state.model = null;
+        state.arriving = false;
+        showGate('Something went wrong while drawing',
+          'The workbook was read, but the page could not be drawn from it. The file was not modified.',
+          [String(e && e.message || e)]);
+        ui.settings.setStatus('error', 'render error');
+        toast('The page could not be drawn. See the message on the curtain.', 'error');
+      }
       if (!saved.ok) toast('Could not be stored locally: ' + saved.reason, 'warn');
     };
     fr.readAsArrayBuffer(file);

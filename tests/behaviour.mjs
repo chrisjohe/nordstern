@@ -809,6 +809,50 @@ sec('Unbrauchbarer Import bei bereits geladenem Modell');
   w.close();
 }
 
+/* ---------- 5c. Zweiter Boden beim Rendern nach dem Import ---------- */
+/* js/store.js prüft beim Laden nur, woran die Anwendung bekanntermassen
+   hängt — wirft ein Modul trotzdem, wenn readFile() die frisch gelesene
+   Mappe zum ersten Mal auf die Bühne bringt, war der Vorhang schon fort:
+   ohne eigenen Fang bliebe die Bühne halb gezeichnet, kein Vorhang mehr
+   davor, der Status noch auf "reading …", ohne jede Meldung. */
+sec('Zweiter Boden: ein werfendes Modul nach dem Import zieht den Vorhang wieder zu');
+{ const {w,errors}=await boot();
+  const d=w.document;
+  const XLSX=w.XLSX;
+  const months=[[2026,1],[2026,2]];
+  const picker=d.getElementById('filePicker');
+
+  const origSetData=w.NORDSTERN.app.ui.chart.setData;
+  w.NORDSTERN.app.ui.chart.setData=function(){ throw new Error('boom'); };
+  const file=new w.File([XLSX.write(tinyWorkbook(w,months),{type:'array',bookType:'xlsx'})],'gut.xlsx');
+  Object.defineProperty(picker,'files',{value:[file],configurable:true});
+  picker.dispatchEvent(new w.Event('change'));
+  await tick(120);
+
+  ok(!d.getElementById('gate').hidden,'der Vorhang ist wieder da, statt einer halb gezeichneten Bühne');
+  ok(d.querySelectorAll('.gate-err').length===1&&d.querySelector('.gate-err').textContent.includes('boom'),
+     'er nennt den Grund: '+(d.querySelector('.gate-err')&&d.querySelector('.gate-err').textContent));
+  ok(d.querySelector('.sheet-status .meta-import').textContent==='render error'&&
+     d.querySelector('.sheet-status .meta-import').className.includes('is-error'),
+     'der Status meldet den Fehler: '+d.querySelector('.sheet-status .meta-import').textContent);
+  ok(w.NORDSTERN.app.state.model===null,'im Zustand steht kein Modell mehr');
+  ok(d.getElementById('toast').textContent.includes('could not be drawn')&&
+     d.getElementById('toast').className.includes('is-error'),
+     'der Toast nennt den Fehler: '+d.getElementById('toast').textContent);
+  ok(errors.length===0,'kein unbehandelter Fehler entkommt: '+errors.join(' | '));
+
+  /* Ohne werfendes Modul bleibt der übliche Weg offen. */
+  w.NORDSTERN.app.ui.chart.setData=origSetData;
+  const file2=new w.File([XLSX.write(tinyWorkbook(w,months),{type:'array',bookType:'xlsx'})],'gut2.xlsx');
+  Object.defineProperty(picker,'files',{value:[file2],configurable:true});
+  picker.dispatchEvent(new w.Event('change'));
+  await tick(120);
+  ok(d.getElementById('gate').hidden,'ohne werfendes Modul bleibt der Vorhang zu');
+  ok(!!w.NORDSTERN.app.state.model,'und das Modell steht wieder');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 6a. Blattname: Aliase und Einzelblatt-Fallback ---------- */
 /* „Data Input" ist der erste Name der Liste, nicht der einzige — und eine
    Mappe mit nur einem Blatt braucht überhaupt keinen Treffer. Erst zwei
