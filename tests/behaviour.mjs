@@ -372,10 +372,10 @@ sec('Voller Speicher: Löschen geht trotzdem');
 }
 
 /* ---------- 2c. Der Hinweis fragt nach einem Blick, nicht nach einer Eingabe ---------- */
-/* Wer das Blatt öffnet, hat die Ausgaben gesehen und Gelegenheit gehabt, sie zu
-   ändern — mehr verlangt der Hinweis unterm Berg nicht. Geöffnet wird über den
-   Kopf-Knopf, nicht über den Hinweis selbst, sonst bewiese das Verschwinden nur,
-   dass der Hinweis sich selbst wegklickt. */
+/* Wer das Blatt auf dem Ausgaben-Paneel öffnet, hat die Summe gesehen und
+   Gelegenheit gehabt, sie zu ändern — mehr verlangt der Hinweis unterm Berg
+   nicht. Geöffnet wird über den Kopf-Knopf, nicht über den Hinweis selbst, sonst
+   bewiese das Verschwinden nur, dass der Hinweis sich selbst wegklickt. */
 sec('Ausgaben-Hinweis verschwindet mit dem Öffnen des Blatts');
 const hintStore={...store};
 { const {w,errors}=await boot({storage:hintStore});
@@ -396,6 +396,32 @@ const hintStore={...store};
      'die Einstellung ist gesetzt: '+w.NORDSTERN.app.state.settings.expensesSet);
   ok(JSON.parse(hintStore['nordstern.settings.v1']).expensesSet===true,
      'und steht auch im gespeicherten Stand: '+hintStore['nordstern.settings.v1']);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+/* Gesehen heisst: das Paneel mit der Summe stand offen. Wer das Blatt auf
+   „about" oder „display" öffnet und wieder schliesst, hatte den Betrag nie
+   vor Augen; der Hinweis bleibt (U11). Erst der Wechsel auf „expenses"
+   zählt, auch aus einem anderen Paneel heraus. */
+sec('Ausgaben-Hinweis bleibt, solange das Ausgaben-Paneel nicht offen war');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  const S=w.NORDSTERN.app.ui.settings;
+  ok(!!d.querySelector('.st-hint'),'Hinweis steht zu Beginn');
+  S.open('about');
+  ok(d.querySelector('.sheet-sec[data-sec="about"]').hidden===false,'das Blatt steht auf about');
+  S.close(); await tick(30);
+  ok(w.NORDSTERN.app.state.settings.expensesSet===false,
+     'about öffnen und schliessen setzt nichts: '+w.NORDSTERN.app.state.settings.expensesSet);
+  ok(!!d.querySelector('.st-hint'),'der Hinweis steht noch');
+  S.open('display');
+  ok(w.NORDSTERN.app.state.settings.expensesSet===false,'display auch nicht');
+  d.querySelector('.sheet-nav-item[aria-controls="setPane-expenses"]').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  ok(d.querySelector('.sheet-sec[data-sec="expenses"]').hidden===false,'der Klick wechselt auf expenses');
+  ok(w.NORDSTERN.app.state.settings.expensesSet===true,
+     'und erst jetzt gilt die Summe als gesehen: '+w.NORDSTERN.app.state.settings.expensesSet);
+  S.close(); await tick(30);
+  ok(!d.querySelector('.st-hint'),'der Hinweis ist weg');
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }

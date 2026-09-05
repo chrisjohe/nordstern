@@ -33,7 +33,7 @@
     var tabs = {};
     var panes = {};
     var active = SECTIONS[0].id;
-    /* Der jüngste Stand aus sync(), damit open() weiss, ob die Ausgaben
+    /* Der jüngste Stand aus sync(), damit select() weiss, ob die Ausgaben
        schon einmal gesehen wurden — ohne dafür extra beim Aufrufer nachzufragen. */
     var lastSettings = null;
 
@@ -57,6 +57,10 @@
         panes[s.id].hidden = !on;
       });
       if (moveFocus) tabs[id].focus();
+      /* Gesehen heisst: das Paneel mit der Summe stand offen, nicht das
+         Blatt irgendwo. Wer hier ankommt, hatte Gelegenheit, sie zu ändern;
+         der Hinweis unterm Berg hat seinen Zweck erfüllt. */
+      if (id === 'expenses' && lastSettings && !lastSettings.expensesSet) api.patchSettings({ expensesSet: true });
     }
 
     /* ↑/↓ und Pos1/Ende wandern durch die Namen; die Liste ist ein
@@ -463,10 +467,7 @@
     var lastFocus = null;
 
     function open(id) {
-      if (id) select(id);
-      /* Wer das Blatt öffnet, hat die Summe gesehen und Gelegenheit gehabt,
-         sie zu ändern — der Hinweis unterm Berg hat seinen Zweck erfüllt. */
-      if (lastSettings && !lastSettings.expensesSet) api.patchSettings({ expensesSet: true });
+      select(id || active);
       lastFocus = document.activeElement;
       root.removeAttribute('inert');
       root.removeAttribute('aria-hidden');
