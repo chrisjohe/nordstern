@@ -344,6 +344,33 @@ sec('Ausgabenfeld klemmt beim Verlassen auf die Vorgabe');
   w.close();
 }
 
+/* ---------- 2b'. Voller Speicher ---------- */
+/* Die Probe beim Start schrieb einen Schlüssel; warf sie QuotaExceededError,
+   galt der ganze Speicher als unerreichbar — und „Delete local data" löschte
+   nichts, obwohl removeItem noch ginge und die Einträge noch dalägen (A14).
+   Erreichbar heisst lesbar; ob sich schreiben lässt, weiss jeder Schreibzugriff
+   selbst. store.js wird hier nach dem Start gegen den Stub neu geladen, weil
+   die Probe genau einmal läuft, beim Laden der Datei. */
+sec('Voller Speicher: Löschen geht trotzdem');
+{ const {w,errors}=await boot();
+  const mem={...store, 'nordstern.settings.v1': JSON.stringify({...w.NORDSTERN.store.DEFAULT_SETTINGS, monthlyExpenses: 1234})};
+  const quota=()=>{ const e=new w.Error('full'); e.name='QuotaExceededError'; throw e; };
+  Object.defineProperty(w,'localStorage',{configurable:true,value:{
+    getItem:k=>k in mem?mem[k]:null, setItem:quota, removeItem:k=>{delete mem[k];},
+    key:i=>Object.keys(mem)[i]??null, get length(){return Object.keys(mem).length;}}});
+  w.eval(fs.readFileSync('js/store.js','utf8'));
+  const S=w.NORDSTERN.store;
+  ok(S.loadModel()!==null,'ein voller Speicher ist noch lesbar: das Modell kommt an');
+  ok(S.loadSettings().monthlyExpenses===1234,'und die Einstellungen auch: '+S.loadSettings().monthlyExpenses);
+  const r=S.saveModel(S.loadModel());
+  ok(r.ok===false&&r.reason==='Local storage is full.','Schreiben meldet den vollen Speicher: '+JSON.stringify(r));
+  const n=S.clearAll();
+  ok(n===2,'clearAll() entfernt beide eigenen Schlüssel und zählt sie: '+n);
+  ok(Object.keys(mem).every(k=>!k.startsWith('nordstern.')),'im Speicher liegt nichts mehr von uns: '+Object.keys(mem).join());
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
 /* ---------- 2c. Der Hinweis fragt nach einem Blick, nicht nach einer Eingabe ---------- */
 /* Wer das Blatt öffnet, hat die Ausgaben gesehen und Gelegenheit gehabt, sie zu
    ändern — mehr verlangt der Hinweis unterm Berg nicht. Geöffnet wird über den

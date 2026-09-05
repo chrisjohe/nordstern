@@ -34,14 +34,13 @@
   var LS = null;
   try { LS = global.localStorage || null; } catch (e) { LS = null; }
 
+  /* Erreichbar heisst lesbar. Eine Schreibprobe sagte bei vollem Speicher
+     „nicht da" und hätte auch das Löschen abgeschaltet, obwohl removeItem
+     noch ginge und die Einträge noch dalägen. Ob sich schreiben lässt,
+     erfährt jeder Schreibzugriff selbst und meldet es dann. */
   function available() {
     if (!LS) return false;
-    try {
-      var k = '__ns_probe__';
-      LS.setItem(k, '1');
-      LS.removeItem(k);
-      return true;
-    } catch (e) { return false; }
+    try { LS.getItem('__ns_probe__'); return true; } catch (e) { return false; }
   }
 
   var ok = available();
