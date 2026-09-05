@@ -353,6 +353,14 @@
       }
       return null;
     }
+    /* Mindestens eine Spalte ist gültig, aber eine andere Kopfzelle war
+       nicht leer und trotzdem kein Datum: die Spalte wurde stillschweigend
+       übersprungen (A3), das muss sichtbar werden. */
+    if (badDateN) {
+      warnings.push(badDateN + ' header cell' + (badDateN === 1 ? ' holds' : 's hold') +
+        ' something other than a date and ' + (badDateN === 1 ? 'its column was' : 'their columns were') +
+        ' skipped (first: ' + badDateAt + '). A month column needs a date-formatted cell in the header row.');
+    }
 
     /* Konten je Sektion: alle beschrifteten Zeilen zwischen Kopf- und Summenzeile */
     SECTIONS.forEach(function (s) {

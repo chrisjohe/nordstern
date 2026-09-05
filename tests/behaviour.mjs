@@ -941,6 +941,37 @@ sec('Robustheit: Fehlerwerte, kaputte Daten, leere Mappe');
   ok(!textDate.ok&&textDate.errors.some(t=>/1 non-empty cell was not a date, first: B1/.test(t)),
      'ein Datum als Text ebenso wenig: '+textDate.errors.join(' | '));
 
+  /* A3: dieselbe kaputte Kopfzelle, aber mit noch genug gültigen Datumsspalten
+     daneben — dann darf der Import laufen, muss die verschwundene Spalte
+     aber als Warnung benennen, statt sie wortlos fallen zu lassen. */
+  const wsBadHeaderCol=full([[2026,6],[2026,7],[2026,8]]);
+  wsBadHeaderCol[EC(ROW.MONTH,3)]={t:'s', v:'2026-08-31'};     // Text statt Datum, dritte Spalte
+  const badHeaderCol=parse(wsBadHeaderCol);
+  ok(badHeaderCol.ok,'zwei von drei Monatsspalten reichen zum Import: '+badHeaderCol.errors.join(' | '));
+  ok(badHeaderCol.model.months.length===2,
+     'die dritte Spalte fehlt im Modell, statt stillschweigend mitgezählt zu werden: '+badHeaderCol.model.months.length);
+  ok(badHeaderCol.model.months[badHeaderCol.model.currentIndex].key.slice(-7)==='2026-07',
+     '„jetzt" fällt auf den letzten gelesenen Monat zurück, nicht den ungelesenen August: '+
+     badHeaderCol.model.months[badHeaderCol.model.currentIndex].key);
+  ok(badHeaderCol.warnings.some(t=>/^1 header cell holds something other than a date/.test(t)&&t.indexOf('D1')>=0),
+     'die übersprungene Spalte wird benannt, mit ihrer Adresse D1: '+badHeaderCol.warnings.join(' | '));
+
+  /* Zwei kaputte Kopfzellen: die Warnung zählt beide und nennt die erste
+     Adresse, nicht nur „irgendeine". */
+  const wsBadHeaderCols2=full([[2026,6],[2026,7],[2026,8]]);
+  wsBadHeaderCols2[EC(ROW.MONTH,2)]={t:'s', v:'not a date'};
+  wsBadHeaderCols2[EC(ROW.MONTH,3)]={t:'n', v:12345};          // < 20000: faellt nicht unter den Seriennummer-Fallback in readDate
+  const badHeaderCols2=parse(wsBadHeaderCols2);
+  ok(badHeaderCols2.ok,'eine verbleibende Monatsspalte reicht zum Import: '+badHeaderCols2.errors.join(' | '));
+  ok(badHeaderCols2.warnings.some(t=>/^2 header cells hold/.test(t)&&t.indexOf('C1')>=0),
+     'zwei kaputte Kopfzellen werden gezählt, mit der Adresse der ersten, C1: '+badHeaderCols2.warnings.join(' | '));
+
+  /* Drei gültige Kopfzellen erzeugen keine solche Warnung. */
+  const wsGoodHeaders=full([[2026,6],[2026,7],[2026,8]]);
+  const goodHeaders=parse(wsGoodHeaders);
+  ok(goodHeaders.ok&&!goodHeaders.warnings.some(t=>/header cell/.test(t)),
+     'drei gültige Kopfzellen bleiben ohne Warnung: '+goodHeaders.warnings.join(' | '));
+
   /* Eine Spalte, deren Kontozeilen ausschließlich unlesbaren Text tragen, ist
      kein Schnappschuss — hasData() darf sich nicht am rohen Zellinhalt
      orientieren, sondern muss dieselbe Zahl sehen, die auch num() sähe. */
