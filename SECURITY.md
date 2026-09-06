@@ -11,9 +11,13 @@ and no analytics anywhere in the source.
 You do not have to take that on faith:
 
 * The single-file build in `export/nordstern.html` carries a
-  Content-Security-Policy of `default-src 'none'; connect-src 'none';
-  form-action 'none'; base-uri 'none'`. The **browser** enforces it. Open the
-  network tab and watch nothing happen.
+  Content-Security-Policy of `default-src 'none'; script-src 'unsafe-inline';
+  style-src 'unsafe-inline'; img-src 'self'; connect-src 'none';
+  form-action 'none'; base-uri 'none'`. The **browser** enforces it: every
+  connection, script load, form target and change of navigation base is
+  forbidden; the sole exception is an image request to the page's own
+  origin, needed for the tab icon, and the source holds no such request.
+  Open the network tab and watch nothing happen beyond that icon.
 * `npm test` includes `tests/build.mjs`, which fails the build if any loading
   path, font host, `@import` or `data:` URI appears in the output.
 

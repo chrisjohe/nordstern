@@ -32,7 +32,21 @@ const IDENTIFIER_CHECKS = [
   [/\.sendBeacon\b/, '.sendBeacon'],
   [/\bimportScripts\s*\(/, 'importScripts('],
   [/\bnew\s+Image\s*\(/, 'new Image('],
-  [/\bserviceWorker\b/, 'serviceWorker']
+  [/\bserviceWorker\b/, 'serviceWorker'],
+  /* Dynamische Ressourcen-Zuweisung: ein Aufruf wie
+     document.createElement('img').src = '/x?v=' + wert bliebe sonst unentdeckt
+     (Codex-Audit). Ausgenommen bleibt die Zuweisung eines selbst gebauten
+     Knotens (U.make(…)/make(…)) an eine gleichnamige Objekteigenschaft, wie
+     refs.src = U.make('dd', …) in settings.js sie benutzt — dort steht kein
+     Element rechts einer URL-Eigenschaft, sondern ein zwischengespeicherter
+     Verweis auf ein DOM-Element in einem eigenen Objekt. */
+  [/\.\s*(?:src|srcset)\s*=(?!=)(?!\s*(?:U\.)?make\()/, '.src ='],
+  [/setAttribute\(\s*['"](?:src|srcset|href|xlink:href|data|poster|action|formaction)['"]/, 'setAttribute('],
+  [/createElement\(\s*['"](?:img|picture|source|video|audio|track|iframe|frame|object|embed|link|script)['"]/, 'createElement('],
+  [/\b(?:U\.)?make\(\s*['"](?:img|picture|source|video|audio|track|iframe|frame|object|embed|link|script)['"]/, 'make('],
+  [/\bsvg\(\s*['"](?:image|use)['"]/, 'svg('],
+  [/\bImage\s*\(/, 'Image('],
+  [/\bdocument\.write\s*\(/, 'document.write(']
 ];
 
 /* Jede Adresse hier mit eigenem Grund — wer eine weitere findet, meldet sie
@@ -239,7 +253,18 @@ const sourceCases=[
   ['importScripts',       "importScripts('x.js');",                             'importScripts('],
   ['nackte https-Adresse',"var u = 'https://evil.example/';",                   'https://evil.example/'],
   ['protokoll-relative Adresse', "var u = '//cdn.example/x.js';",               '//cdn.example/x.js'],
-  ['css url() in der Quelle', "a{background:url(https://x/y.png)}",            'url(https://x/y.png)']
+  ['css url() in der Quelle', "a{background:url(https://x/y.png)}",            'url(https://x/y.png)'],
+  ['Zuweisung an .src (Codex-Fund)',
+   "document.createElement('img').src = '/audit-example?value=' + value",     '.src ='],
+  ['Zuweisung an .srcset',           "im.srcset = url;",                       '.src ='],
+  ['setAttribute(\'src\', …)',       "el.setAttribute('src', url);",           'setAttribute('],
+  ['setAttribute(\'formaction\', …)',"el.setAttribute('formaction', url);",    'setAttribute('],
+  ['createElement(\'img\')',         "var im = document.createElement('img');",'createElement('],
+  ['createElement(\'script\')',      "document.createElement('script');",      'createElement('],
+  ['U.make(\'img\', …)',             "U.make('img', { src: url });",          'make('],
+  ['svg(\'image\', …)',              "U.svg('image', { href: url });",        'svg('],
+  ['Image() ohne new',               "var im = Image();",                     'Image('],
+  ['document.write(',                "document.write('<img src=\"'+url+'\">');",'document.write(']
 ];
 for(const [label,snippet,needle] of sourceCases){
   const found=leaks({sources:[{rel:'synthetic.js',text:snippet}],html:''});
@@ -255,7 +280,12 @@ const htmlCases=[
      herausgelöst werden, sonst bliebe das Leck dahinter im Markup versteckt
      oder das im Rumpf ungelesen. */
   ['srcset hinter „</script >"', '<script>var a=1;</script ><img srcset="https://x/a.png 1x">', 'srcset'],
-  ['fetch in einem Block mit „>" im Attribut', '<SCRIPT data-x="a>b">fetch(\'https://x\')</SCRIPT>', 'fetch(']
+  ['fetch in einem Block mit „>" im Attribut', '<SCRIPT data-x="a>b">fetch(\'https://x\')</SCRIPT>', 'fetch('],
+  /* Der Codex-Fund selbst, im Rumpf eines <script>-Blocks: identifierFindings
+     läuft auch dort (siehe leaks()), also muss dieselbe Zuweisung im Bau
+     genauso auffallen wie in der Quelle oben. */
+  ['Zuweisung an .src in einem <script>-Block',
+   "<script>document.createElement('img').src = '/audit-example?value=' + value;</script>", '.src =']
 ];
 for(const [label,snippet,needle] of htmlCases){
   const found=leaks({sources:[],html:snippet});

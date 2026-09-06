@@ -16,8 +16,9 @@ the route to the next milestone and the reserve ring.](docs/screenshot.png)
 
 **Hosted:** <https://chrisjohe.github.io/nordstern> — one self-contained HTML
 file. Your spreadsheet never leaves the tab; the page has a
-Content-Security-Policy that forbids the browser to make any outbound request
-at all.
+Content-Security-Policy that forbids every connection, script load and form
+target, with one narrow exception: a same-origin image request, kept only for
+the tab icon.
 
 **Local:** clone the repository and double-click `index.html`. Or run
 `npm run build` and take `export/nordstern.html` anywhere — a USB stick, an
@@ -293,8 +294,10 @@ default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';
 img-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'
 ```
 
-`img-src 'self'` is only for the icon file — the page's own origin, nothing
-else — the rest still forbids any outbound request.
+`img-src 'self'` allows an image request to the page's own origin, needed
+only for the icon file; the source contains none, and `tests/build.mjs`
+checks that no code adds one. Everything else in the policy forbids any
+connection, script load, form target or change of navigation base.
 
 The SheetJS licence sits as a comment above the folded-in script, because
 handing on the build redistributes SheetJS rather than merely using it.

@@ -53,9 +53,15 @@
     var state = { view: null, openId: null };
 
     function build(ms) {
+      /* Die Card ist ein einziger Knopf, ihre Kinder sind für Vorleser reine
+         Präsentation — `aria-expanded` allein sagt nichts über Sinn, Zahlen
+         oder Status. `aria-describedby` holt genau die drei Stellen zurück,
+         nie die ganze Rückseite (die trüge Namen und das Kreuz doppelt). */
+      var idBase = 'card-' + ms.id;
       var art = U.make('article', {
         class: 'card', 'data-id': ms.id, tabindex: '0', role: 'button',
-        'aria-expanded': 'false'
+        'aria-expanded': 'false',
+        'aria-describedby': idBase + '-meaning ' + idBase + '-facts ' + idBase + '-foot'
       });
       var inner = U.make('div', { class: 'card-inner' });
 
@@ -74,16 +80,21 @@
           U.make('h3', { class: 'card-name', text: ms.name }),
           closeMark()
         ]),
-        U.make('p', { class: 'card-meaning', text: ms.meaning }),
-        U.make('dl', { class: 'card-facts' }, [
-          U.make('dt', { text: 'Target' }), U.make('dd', { class: 'f-target num' }),
+        U.make('p', { class: 'card-meaning', id: idBase + '-meaning', text: ms.meaning }),
+        /* Die Leerzeichen zwischen den Zeilen tragen nichts zum Bild bei —
+           `.card-facts` ist ein Grid, das reinen Leerraum nicht als Kind
+           rendert, siehe css/components.css — sie sorgen nur dafür, dass
+           Ziel, Betrag und Status beim Verketten der Texte für
+           `aria-describedby` nicht aneinanderkleben. */
+        U.make('dl', { class: 'card-facts', id: idBase + '-facts' }, [
+          U.make('dt', { text: 'Target' }), ' ', U.make('dd', { class: 'f-target num' }), ' ',
           U.make('dt', { class: 'f-value-lab', title: ms.basisLabel }, [
             'Now ', U.make('i', { text: BASIS_LABEL[ms.basis] })
-          ]),
+          ]), ' ',
           U.make('dd', { class: 'f-value num' })
         ]),
-        U.make('div', { class: 'card-back-foot' }, [
-          U.make('span', { class: 'card-badge' }),
+        U.make('div', { class: 'card-back-foot', id: idBase + '-foot' }, [
+          U.make('span', { class: 'card-badge' }), ' ',
           U.make('b', { class: 'f-pct num' })
         ]),
         U.make('div', { class: 'card-bar' }, [U.make('i', {})])

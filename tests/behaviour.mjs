@@ -2535,7 +2535,7 @@ sec('Verlauf ohne genug Punkte, per Tastatur abtastbar');
   const view=()=>w.NORDSTERN.app.state.view;
   const U=w.NORDSTERN.util;
   const live=()=>d.querySelector('.chart-live').textContent;
-  const say=i=>U.monthLong(view().series[i].key)+': '+U.eur(view().series[i].value);
+  const say=i=>U.monthLong(view().series[i].key)+': '+U.eur(view().series[i].value)+'.';
   const key=k=>body.dispatchEvent(new w.KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true}));
   const hover=x=>{ const e=new w.Event('pointermove'); e.clientX=x; e.clientY=100; body.dispatchEvent(e); };
 
@@ -2551,13 +2551,13 @@ sec('Verlauf ohne genug Punkte, per Tastatur abtastbar');
   /* Ohne bisherigen Punkt beginnt es beim letzten (Juni) — Pfeil-links geht
      von dort einen Monat zurück, auf Mai. */
   key('ArrowLeft');
-  ok(live()===say(4),'Pfeil-links ohne Vorwahl: der Monat vor dem letzten — '+live());
+  ok(live().startsWith(say(4)),'Pfeil-links ohne Vorwahl: der Monat vor dem letzten — '+live());
   key('ArrowRight');
-  ok(live()===say(5),'Pfeil-rechts geht zurück auf den letzten Monat — '+live());
+  ok(live().startsWith(say(5)),'Pfeil-rechts geht zurück auf den letzten Monat — '+live());
   key('Home');
-  ok(live()===say(0),'Pos1 springt auf den ersten Monat — '+live());
+  ok(live().startsWith(say(0)),'Pos1 springt auf den ersten Monat — '+live());
   key('End');
-  ok(live()===say(5),'Ende springt auf den letzten Monat — '+live());
+  ok(live().startsWith(say(5)),'Ende springt auf den letzten Monat — '+live());
 
   key('Escape');
   ok(live()==='','Escape leert die Ansage wie onLeave() es beim Zeiger tut');
@@ -2566,7 +2566,7 @@ sec('Verlauf ohne genug Punkte, per Tastatur abtastbar');
 
   /* Der Zeiger bleibt bedienbar — derselbe Weg wie zuvor, jetzt über probe(). */
   hover(5000);
-  ok(live()===say(5),'der Zeiger tastet weiterhin ab, ganz rechts der letzte Monat — '+live());
+  ok(live().startsWith(say(5)),'der Zeiger tastet weiterhin ab, ganz rechts der letzte Monat — '+live());
   ok(d.querySelector('.chart-tip').classList.contains('is-on'),'und das Tooltip zeigt wie gewohnt');
 
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
@@ -2592,13 +2592,13 @@ sec('Tastatur nach Mappenwechsel: kein Absturz auf einen verschwundenen Index');
   const view=()=>w.NORDSTERN.app.state.view;
   const U=w.NORDSTERN.util;
   const live=()=>d.querySelector('.chart-live').textContent;
-  const say=i=>U.monthLong(view().series[i].key)+': '+U.eur(view().series[i].value);
+  const say=i=>U.monthLong(view().series[i].key)+': '+U.eur(view().series[i].value)+'.';
   const key=k=>body.dispatchEvent(new w.KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true}));
 
   body.focus();
   ok(d.activeElement===body,'der Fokus steht auf der Fläche');
   key('End');
-  ok(live()===say(7),'Ende tastet den letzten der acht Monate ab — '+live());
+  ok(live().startsWith(say(7)),'Ende tastet den letzten der acht Monate ab — '+live());
 
   /* Jetzt die kleine Mappe: zwei Monate statt acht, derselbe Weg wie ein
      echter Reimport (neues Modell, refresh()). */
@@ -2613,16 +2613,16 @@ sec('Tastatur nach Mappenwechsel: kein Absturz auf einen verschwundenen Index');
 
   key('ArrowLeft');
   ok(errors.length===0,'Pfeil-links auf den verkleinerten Datensatz wirft nicht: '+errors.join(' | '));
-  ok(live()===say(0),'und trifft den ersten der zwei neuen Monate — '+live());
+  ok(live().startsWith(say(0)),'und trifft den ersten der zwei neuen Monate — '+live());
 
   key('ArrowRight');
-  ok(live()===say(1),'Pfeil-rechts geht auf den zweiten — '+live());
+  ok(live().startsWith(say(1)),'Pfeil-rechts geht auf den zweiten — '+live());
 
   key('Home');
-  ok(live()===say(0),'Pos1 auf den ersten — '+live());
+  ok(live().startsWith(say(0)),'Pos1 auf den ersten — '+live());
 
   key('End');
-  ok(live()===say(1),'Ende auf den letzten der zwei — '+live());
+  ok(live().startsWith(say(1)),'Ende auf den letzten der zwei — '+live());
 
   ok(errors.length===0,'keine Fehler insgesamt: '+errors.join(' | '));
   w.close();
@@ -3813,6 +3813,216 @@ sec('Chart: Gitterzahl bei der Beispielmappe zwischen 2 und 12');
 }
 
 /* ---------- 5. Lesefenster nennt dieselben Zeilen wie das Fadenkreuz-Fenster ---------- */
+sec('Chart: die Live-Ansage trägt jede Zeile des Lesefensters');
+{ const {w,errors}=await boot();
+  importFixture(w);
+  const d=w.document;
+  const body=d.querySelector('.chart-body');
+  const live=d.querySelector('.chart-live');
+  const clickSeries=name=>{
+    const b=[...d.querySelectorAll('.series .range-btn')].find(x=>x.textContent===name);
+    b.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  };
+  const probeOnce=async()=>{
+    body.focus();
+    body.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
+    await tick(20);
+  };
+  for (const name of ['Net','Total','Invested']) {
+    clickSeries(name);
+    await tick(20);
+    await probeOnce();
+    const tip=d.querySelector('.chart-tip');
+    const key=N(tip.querySelector('.tip-key').textContent);
+    const val=N(tip.querySelector('.tip-val').textContent);
+    const rows=[...tip.querySelectorAll('.tip-row')].map(r=>({
+      lab: N(r.querySelector('span').textContent),
+      txt: N(r.querySelector('b').textContent)
+    }));
+    ok(rows.length===3,'drei Zeilen im Lesefenster (zwei Einordnungen plus Vorjahr) bei „'+name+'": '+rows.length);
+    const liveText=N(live.textContent);
+    ok(liveText.includes(key),'die Ansage nennt den Monat bei „'+name+'": '+liveText);
+    ok(liveText.includes(val),'und den Wert bei „'+name+'": '+liveText);
+    rows.forEach(r=>{
+      ok(liveText.includes(r.lab),'Zeile „'+r.lab+'" steht auch in der Ansage ('+name+'): '+liveText);
+      ok(liveText.includes(r.txt),'und ihr Text „'+r.txt+'" ebenso ('+name+'): '+liveText);
+    });
+  }
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 5b. Lesefenster: der Vorjahres-Sonderfall „kein Vorjahreswert" ---------- */
+sec('Chart: die Ansage nennt auch "no year-ago value"');
+{ const {w,errors}=await boot();
+  const months=[[2024,1],[2024,2]];             // nur zwei Monate: kein Punkt liegt 12 Monate zurück
+  const cash=[100,200];
+  const res=w.NORDSTERN.importer.parseWorkbook(levelWorkbook(w,months,cash),'short.xlsx');
+  ok(res.ok,'Import gelingt: '+ (res.errors||[]).join(' | '));
+  w.NORDSTERN.app.state.model=res.model;
+  w.NORDSTERN.app.refresh();
+  w.document.getElementById('gate').hidden=true;
+  await tick(30);
+  const d=w.document;
+  const body=d.querySelector('.chart-body');
+  body.focus();
+  body.dispatchEvent(new w.KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true}));
+  await tick(20);
+  const tip=d.querySelector('.chart-tip');
+  const ya=[...tip.querySelectorAll('.tip-row')].find(r=>/vs\./.test(r.textContent));
+  ok(ya&&/no year-ago value/.test(ya.textContent),'das Lesefenster sagt, dass kein Vorjahr da ist: '+(ya&&ya.textContent));
+  ok(ya.querySelector('b').classList.contains('muted'),'und markiert das gedämpft: '+ya.querySelector('b').className);
+  const live=d.querySelector('.chart-live');
+  ok(/no year-ago value/.test(live.textContent),'die Ansage übernimmt denselben Satz: '+live.textContent);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6. Origin-Mappe: die Chart-Beschriftung sagt "Liquid" ---------- */
+sec('Chart: ohne Depot heisst die Reihe "Liquid", nicht "Invested"');
+{ const {w,errors}=await boot();
+  const originMonths=[[2015,2],[2015,3],[2015,4],[2015,5]];
+  const d=w.document;
+
+  /* Zuerst die gewöhnliche Beispielmappe: die Reihe heisst "Invested". */
+  importFixture(w);
+  const investedBtn=()=>[...d.querySelectorAll('.series .range-btn')].find(b=>b.getAttribute('data-series')==='invested');
+  ok(investedBtn().textContent==='Invested','mit Depot heisst der Schalter „Invested": '+investedBtn().textContent);
+  ok(investedBtn().title.startsWith('Invested assets'),'und sein Titel beginnt entsprechend: '+investedBtn().title);
+  investedBtn().dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await tick(20);
+  ok(d.querySelector('.chart-svg').getAttribute('aria-label').startsWith('Invested assets'),
+     'das SVG-Label ebenso: '+d.querySelector('.chart-svg').getAttribute('aria-label'));
+
+  /* Dann die Origin-Mappe (kein Investments-Abschnitt): dieselbe Reihe
+     heisst jetzt „Liquid" — der Schalter, sein Titel und das SVG-Label. */
+  const res=w.NORDSTERN.importer.parseWorkbook(originWorkbook(w,originMonths),'origin.xlsx');
+  ok(res.ok,'Origin-Mappe wird gelesen: '+(res.errors||[]).join(' | '));
+  w.NORDSTERN.app.state.model=res.model;
+  w.NORDSTERN.app.refresh();
+  await tick(20);
+  ok(investedBtn().textContent==='Liquid','ohne Depot heisst derselbe Schalter „Liquid": '+investedBtn().textContent);
+  ok(investedBtn().title.startsWith('Liquid assets'),'sein Titel beginnt jetzt mit „Liquid assets": '+investedBtn().title);
+  investedBtn().dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await tick(20);
+  ok(d.querySelector('.chart-svg').getAttribute('aria-label').startsWith('Liquid assets'),
+     'das SVG-Label beginnt ebenso mit „Liquid assets": '+d.querySelector('.chart-svg').getAttribute('aria-label'));
+
+  /* Und zurück zur gewöhnlichen Mappe im selben Fenster: die Beschriftung
+     kippt wieder auf „Invested" — sie hängt an der zuletzt gelesenen Mappe,
+     nicht an der zuerst gelesenen. */
+  importFixture(w);
+  await tick(20);
+  ok(investedBtn().textContent==='Invested','zurück zur Beispielmappe steht wieder „Invested": '+investedBtn().textContent);
+  ok(investedBtn().title.startsWith('Invested assets'),'und der Titel ebenso: '+investedBtn().title);
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+}
+
+/* ---------- Codex-Audit 2026-09-06: Cards (aria-describedby) ---------- */
+{
+const norm=s=>N(s).replace(/\s+/g,' ').trim();
+const STATUS_LABEL={reached:'reached',current:'current',future:'ahead'};
+
+/* ---------- 1. aria-describedby zeigt auf Sinn, Fakten und Fuss ---------- */
+sec('aria-describedby zeigt auf Sinn, Fakten und Fuss');
+{ const {w,errors}=await boot();
+  const d=w.document;
+  importFixture(w);
+  const view=w.NORDSTERN.app.state.view;
+  [...d.querySelectorAll('.card')].forEach(card=>{
+    const id=card.dataset.id;
+    const ms=view.milestones.find(m=>m.id===id);
+    const describedby=card.getAttribute('aria-describedby')||'';
+    const ids=describedby.split(' ').filter(Boolean);
+    ok(ids.length===3,'drei Ziele je Karte ('+id+'): '+describedby);
+    const nodes=ids.map(i=>d.getElementById(i));
+    ok(nodes.every(n=>!!n),'alle drei Ziele existieren im Dokument ('+id+'): '+describedby);
+    ok(nodes.every(n=>!n.querySelector('.card-name')),
+       'keine referenzierte Stelle enthält den Namen noch einmal ('+id+')');
+    const text=norm(nodes.map(n=>n.textContent).join(' '));
+    ok(!text.includes(ms.name),'der Name selbst steht nicht in der Beschreibung ('+id+'): '+text);
+    ok(text.includes(N(ms.meaning)),'die Beschreibung nennt den Sinn ('+id+'): '+text);
+    ok(text.includes(N(w.NORDSTERN.util.eur0(ms.target))),'…das Ziel ('+id+'): '+text);
+    ok(text.includes(N(w.NORDSTERN.util.eur0(ms.value))),'…den aktuellen Betrag ('+id+'): '+text);
+    ok(text.includes(STATUS_LABEL[ms.status]),'…das Statuswort ('+id+'): '+text);
+  });
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 2. Öffnen und Schliessen lassen die Beschreibung bestehen ---------- */
+sec('Öffnen und Schliessen lassen die Beschreibung bestehen');
+{ const {w,errors}=await boot();
+  const d=w.document;
+  importFixture(w);
+  const card=d.querySelector('.card[data-id="lean"]');
+  const idsOf=c=>(c.getAttribute('aria-describedby')||'').split(' ').filter(Boolean);
+  const resolves=c=>idsOf(c).every(i=>{ const n=d.getElementById(i); return !!n && norm(n.textContent).length>0; });
+  ok(resolves(card),'vor dem Öffnen lösen sich alle drei Ziele auf');
+  card.dispatchEvent(new w.Event('click'));
+  await tick(20);
+  ok(card.getAttribute('aria-expanded')==='true','aria-expanded steht nach dem Klick');
+  ok(resolves(card),'…und die Beschreibung löst sich weiter auf');
+  card.dispatchEvent(new w.Event('click'));
+  await tick(20);
+  ok(card.getAttribute('aria-expanded')==='false','aria-expanded fällt beim Schliessen zurück');
+  ok(resolves(card),'…die Beschreibung bleibt bestehen');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 3. Nach dem Löschen bleiben die referenzierten Stellen bestehen, mit Strichen ---------- */
+sec('Nach dem Löschen bleiben die referenzierten Stellen bestehen, mit Strichen');
+{ const store={};
+  const {w,errors}=await boot({storage:store});
+  const d=w.document;
+  importFixture(w);
+  const card=d.querySelector('.card[data-id="lean"]');
+  const describedbyBefore=card.getAttribute('aria-describedby');
+  w.confirm=()=>true;
+  const del=[...d.querySelectorAll('#settingsZone button')].find(b=>/Delete local data/.test(b.textContent));
+  ok(!!del,'der Löschen-Knopf ist da');
+  del.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await tick(60);
+  ok(card.getAttribute('aria-describedby')===describedbyBefore,'aria-describedby bleibt bestehen: '+card.getAttribute('aria-describedby'));
+  const [meaningId,factsId,footId]=describedbyBefore.split(' ');
+  ok(!!d.getElementById(meaningId)&&!!d.getElementById(factsId)&&!!d.getElementById(footId),
+     'alle drei Stellen bestehen weiter im Dokument');
+  ok(d.getElementById(factsId).querySelector('.f-target').textContent==='—'
+     &&d.getElementById(factsId).querySelector('.f-value').textContent==='—',
+     'Ziel und Jetzt-Betrag stehen wieder auf Strich');
+  ok(d.getElementById(footId).querySelector('.f-pct').textContent==='—',
+     'und der Prozentsatz im Fuss ebenso');
+  ok(d.getElementById(footId).querySelector('.card-badge').textContent==='',
+     'das Abzeichen ist leer, nicht mit dem letzten Status');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 4. Ursprungs-Mappe ohne Depot: die Jetzt-Zeile heisst liquid ---------- */
+sec('Ursprungs-Mappe ohne Depot: die Jetzt-Zeile heisst liquid');
+{ const originMonths=[[2015,2],[2015,3],[2015,4],[2015,5]];
+  const {w,errors}=await boot();
+  const d=w.document;
+  const res=w.NORDSTERN.importer.parseWorkbook(originWorkbook(w,originMonths),'origin.xlsx');
+  ok(res.ok,'die Origin-Mappe wird gelesen: '+res.errors.join(' | '));
+  w.NORDSTERN.app.state.model=res.model;
+  w.NORDSTERN.app.refresh();
+  d.getElementById('gate').hidden=true;
+  await tick(30);
+  const view=w.NORDSTERN.app.state.view;
+  ok(view.milestones.every(m=>m.basis==='liquid'),
+     'ohne Depot misst jede Station an liquiden Mitteln: '+view.milestones.map(m=>m.basis).join());
+  const card=d.querySelector('.card[data-id="lean"]');
+  const factsId=(card.getAttribute('aria-describedby')||'').split(' ')[1];
+  const factsText=norm(d.getElementById(factsId).textContent);
+  ok(/\bliquid\b/.test(factsText),'die Jetzt-Zeile sagt liquid: '+factsText);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
 }
 
 console.log('\n'+pass+' bestanden, '+fail+' fehlgeschlagen');

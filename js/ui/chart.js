@@ -24,12 +24,25 @@
       lead: 'Net worth', title: 'Net worth — assets minus liabilities' },
     { id: 'total', label: 'Total', field: 'assets', past: 'assetsYearAgo',
       lead: 'Total assets', title: 'Total assets — before liabilities' },
-    { id: 'invested', label: 'Invested', field: 'investment', past: 'investmentYearAgo',
-      lead: 'Invested assets', title: 'Invested assets — the basis of the seven stations' }
+    /* Ohne Investments-Abschnitt misst calc.derive die Stationen am liquiden
+       Block statt am Depot (siehe `view.basis` in calc.js) — dann heisst
+       dieselbe Reihe „Liquid", nicht „Invested". Beide Lesarten stehen hier,
+       an einer Stelle, statt als Text irgendwo im Rendern verstreut. */
+    { id: 'invested', label: { investment: 'Invested', liquid: 'Liquid' },
+      field: 'investment', past: 'investmentYearAgo',
+      lead: { investment: 'Invested assets', liquid: 'Liquid assets' },
+      title: { investment: 'Invested assets — the basis of the seven stations',
+        liquid: 'Liquid assets — the basis of the seven stations' } }
   ];
 
   function seriesDef(id) {
     return SERIES.filter(function (s) { return s.id === id; })[0] || SERIES[0];
+  }
+
+  /* Eine Lesart ist entweder ein fester Text oder eine Abbildung je Basis;
+     ohne bekannte Basis (noch keine Mappe gelesen) gilt die Depot-Lesart. */
+  function wordOf(v, basisId) {
+    return typeof v === 'string' ? v : v[basisId] || v.investment;
   }
 
   function niceStep(span, target) {
@@ -68,8 +81,8 @@
 
     SERIES.forEach(function (s) {
       var b = U.make('button', {
-        type: 'button', class: 'range-btn', text: s.label, 'data-series': s.id,
-        title: s.title, 'aria-pressed': String(s.id === state.series)
+        type: 'button', class: 'range-btn', text: wordOf(s.label, 'investment'), 'data-series': s.id,
+        title: wordOf(s.title, 'investment'), 'aria-pressed': String(s.id === state.series)
       });
       b.addEventListener('click', function () {
         state.series = s.id;
@@ -98,6 +111,18 @@
       rangeBox.appendChild(b);
     });
 
+    /* Die Schalter tragen ihre Lesart selbst; ein Wechsel der Mappe (Depot
+       da oder nicht) muss sie umbeschriften, nicht nur die Fläche. */
+    function syncSeriesWording(basisId) {
+      SERIES.forEach(function (s) {
+        if (typeof s.label === 'string') return;      // nur eine Reihe kennt zwei Lesarten
+        var btn = seriesBox.querySelector('.range-btn[data-series="' + s.id + '"]');
+        if (!btn) return;
+        btn.textContent = wordOf(s.label, basisId);
+        btn.title = wordOf(s.title, basisId);
+      });
+    }
+
     var svg = null;
 
     /* Ohne verlässliche Zeichnung darf nichts von der letzten Abtastung
@@ -121,6 +146,8 @@
 
     function render() {
       if (!state.view) return;
+      var basisId = (state.view.basis && state.view.basis.id) || 'investment';
+      syncSeriesWording(basisId);
       body.querySelectorAll('svg').forEach(function (n) { n.remove(); });
       var oldEmpty = body.querySelector('.chart-empty');
       if (oldEmpty) oldEmpty.remove();
@@ -186,7 +213,7 @@
       var edge = Math.min(0.16, Math.max(28, iw * 0.075) / iw);
       var g = U.svg('svg', { class: 'chart-svg', viewBox: '0 0 ' + w + ' ' + h, width: w, height: h,
         preserveAspectRatio: 'none', role: 'img',
-        'aria-label': sr.lead + ' from ' +
+        'aria-label': wordOf(sr.lead, basisId) + ' from ' +
           U.monthLong(data[0].key) + ' to ' + U.monthLong(data[data.length - 1].key) });
 
       var defs = U.svg('defs', {}, [
@@ -413,32 +440,46 @@
 
       var delta = d.yearAgo != null ? d.value - d.yearAgo : null;
       var relY = NS.calc.rel(d.value, d.yearAgo);
-      tip.innerHTML = '';
-      tip.appendChild(U.make('div', { class: 'tip-key', text: U.monthLong(d.key) }));
-      tip.appendChild(U.make('div', { class: 'tip-val', text: U.eur(d.value) }));
-      /* Darunter je Reihe die zwei Größen, die sie einordnen. */
-      function row(label, node) {
-        tip.appendChild(U.make('div', { class: 'tip-row' }, [U.make('span', { text: label }), node]));
-      }
-      if (state.series === 'invested') {
-        row('Share of assets', U.make('b', { text: d.assets > 0 ? U.pct(d.value / d.assets) : '—' }));
-        row('Net worth', U.make('b', { text: U.eur0(d.netWorth) }));
-      } else if (state.series === 'total') {
-        row('Liabilities', U.make('b', { class: 'neg', text: U.eur0(d.liabilities) }));
-        row('Net worth', U.make('b', { text: U.eur0(d.netWorth) }));
-      } else {
-        row('Assets', U.make('b', { text: U.eur0(d.assets) }));
-        row('Liabilities', U.make('b', { class: 'neg', text: U.eur0(d.liabilities) }));
-      }
       /* Dieselbe Regel wie in position.js: der Abstand steht in der
          Beschriftung, sobald er von zwölf abweicht. */
       var yoyLabel = d.yearAgoSpan != null && d.yearAgoSpan !== 12
         ? 'vs. ' + d.yearAgoSpan + ' months ago' : 'vs. last year';
-      tip.appendChild(U.make('div', { class: 'tip-row' }, [
-        U.make('span', { text: yoyLabel }),
-        U.make('b', { class: delta == null ? 'muted' : delta >= 0 ? 'pos' : 'neg',
-          text: delta == null ? 'no year-ago value' : U.eurSigned(delta) + '  ' + U.pctSigned(relY) })
-      ]));
+      /* Die zwei Größen, die die Reihe einordnen, plus der Vorjahresvergleich
+         — eine Liste, aus der sowohl das Fadenkreuz-Fenster (fürs Auge) als
+         auch die Ansage (fürs Vorleseprogramm) entstehen, statt zwei getrennt
+         gepflegter Texte für dieselbe Auskunft. */
+      var contextRows;
+      if (state.series === 'invested') {
+        contextRows = [
+          { label: 'Share of assets', text: d.assets > 0 ? U.pct(d.value / d.assets) : '—' },
+          { label: 'Net worth', text: U.eur0(d.netWorth) }
+        ];
+      } else if (state.series === 'total') {
+        contextRows = [
+          { label: 'Liabilities', text: U.eur0(d.liabilities), cls: 'neg' },
+          { label: 'Net worth', text: U.eur0(d.netWorth) }
+        ];
+      } else {
+        contextRows = [
+          { label: 'Assets', text: U.eur0(d.assets) },
+          { label: 'Liabilities', text: U.eur0(d.liabilities), cls: 'neg' }
+        ];
+      }
+      contextRows.push({
+        label: yoyLabel,
+        text: delta == null ? 'no year-ago value' : U.eurSigned(delta) + '  ' + U.pctSigned(relY),
+        cls: delta == null ? 'muted' : delta >= 0 ? 'pos' : 'neg'
+      });
+
+      tip.innerHTML = '';
+      tip.appendChild(U.make('div', { class: 'tip-key', text: U.monthLong(d.key) }));
+      tip.appendChild(U.make('div', { class: 'tip-val', text: U.eur(d.value) }));
+      contextRows.forEach(function (cr) {
+        tip.appendChild(U.make('div', { class: 'tip-row' }, [
+          U.make('span', { text: cr.label }),
+          U.make('b', { class: cr.cls, text: cr.text })
+        ]));
+      });
       tip.classList.add('is-on');
       body.classList.add('is-probing');
       if (geo.yaCursor) {                     /* Sichtfenster der Vorjahreslinie mitführen */
@@ -455,8 +496,13 @@
       tip.style.left = U.clamp(px - tw / 2, 4, geo.w - tw - 4) + 'px';
       tip.style.top = Math.max(py - th - 14, -(r.top - 4)) + 'px';
 
-      /* Dieselbe Auskunft, für ein Vorleseprogramm statt für das Auge. */
-      live.textContent = U.monthLong(d.key) + ': ' + U.eur(d.value);
+      /* Dieselbe Auskunft, für ein Vorleseprogramm statt für das Auge: ein
+         Satz aus denselben Zeilen, die auch das Lesefenster zeigt. */
+      var liveText = U.monthLong(d.key) + ': ' + U.eur(d.value) + '.';
+      contextRows.forEach(function (cr, idx) {
+        liveText += ' ' + cr.label + ' ' + cr.text + (idx < contextRows.length - 1 ? ',' : '.');
+      });
+      live.textContent = liveText;
     }
 
     function onMove(ev) {
@@ -524,6 +570,7 @@
     return {
       clear: function () {
         state.view = null; state.arrive = false;
+        syncSeriesWording('investment');          // ohne Mappe gilt die Depot-Lesart
         body.querySelectorAll('svg').forEach(function (n) { n.remove(); });
         var oldEmpty = body.querySelector('.chart-empty');
         if (oldEmpty) oldEmpty.remove();

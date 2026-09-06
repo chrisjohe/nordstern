@@ -313,12 +313,14 @@
         U.make('h3', { class: 'about-title', text: 'How to check it yourself' }),
         U.make('p', { class: 'about-body', text:
           'Open your browser\u2019s network tab and use the app: nothing is requested by ' +
-          'the page itself, not even once — the only outbound links live in “about”, ' +
+          'the page itself beyond its own tab icon — the only outbound links live in “about”, ' +
           'and those open only when you click them. Pull the plug and it keeps working — ' +
           'it never needed the network to begin with. ' +
-          'The single-file build additionally carries a Content-Security-Policy of ' +
-          'default-src \u2018none\u2019, so the browser itself refuses every outbound request ' +
-          'rather than asking you to take anyone\u2019s word for it.' }),
+          'The single-file build additionally carries a Content-Security-Policy: it forbids ' +
+          'every connection, every script load, every form target and any change to the ' +
+          'page\u2019s navigation base. The one thing it still allows is an image request to ' +
+          'the page\u2019s own origin, kept only for the tab icon; the source here holds no ' +
+          'such request, and the build check refuses any code that would add one.' }),
         U.make('h3', { class: 'about-title', text: 'Getting rid of it' }),
         U.make('p', { class: 'about-body', text:
           'Data source \u2192 Delete local data removes every stored key and clears the screen. ' +

@@ -95,10 +95,14 @@ if (left) throw new Error('Bau abgebrochen: nicht eingefaltet — ' + left.join(
    wie Stil. Das lockert nichts, was für die Zusage zählt: eingebetteter Code
    kann ohne connect-src und ohne form-action nichts nach draussen geben.
 
-   img-src 'self' ist einzig für die Symbol-Datei vom eigenen Ursprung
-   gedacht. Kein Weg nach draussen entsteht dadurch, weil nur derselbe
-   Ursprung erlaubt ist, von dem die Seite selbst kommt — auf Pages also nur
-   favicon.png daneben, nirgendwo sonst.
+   img-src 'self' erlaubt laut Spezifikation jede Bildanfrage an den eigenen
+   Ursprung, auch mit Anfragezeichenfolge (query string): ein enger gefasster
+   Pfad liesse die Anfragezeichenfolge trotzdem zu und müsste zudem den Host
+   der Seite fest eintragen. Die Zusage steht deshalb nicht allein in der
+   Direktive: der Quelltext stellt keine solche Anfrage, und tests/build.mjs
+   weist jeden Code ab, der eine hinzufügen würde. Gebraucht wird sie einzig
+   für die Symbol-Datei vom eigenen Ursprung (auf Pages also favicon.png
+   daneben, nirgendwo sonst).
 
    Nur der Bau bekommt sie. Über file:// ist der Ursprung undurchsichtig,
    und ein script-src 'self' würde im Ordner nebenan die vierzehn Skripte
