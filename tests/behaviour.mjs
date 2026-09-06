@@ -2903,7 +2903,7 @@ sec('U5: Kontrast der Stationslabel im Chart');
 sec('Berg: Farben aus Token');
 {
   const MTN_TOKENS=['--mtn-fill-lo','--mtn-fill-hi','--mtn-lit-lo','--mtn-lit-hi','--mtn-mid-lo','--mtn-mid-hi',
-    '--mtn-dim-lo','--mtn-dim-hi','--mtn-plate','--mtn-cardinal','--mtn-track','--mtn-pulse-ok','--mtn-pulse-warn',
+    '--mtn-dim-lo','--mtn-dim-hi','--mtn-plate','--mtn-cardinal','--mtn-track','--mtn-pulse-ok','--mtn-pulse-warn','--mtn-ring-ok','--mtn-ring-warn',
     '--mtn-route-open','--mtn-route-hi','--mtn-route-done','--mtn-glow','--mtn-pole','--mtn-pole-future',
     '--mtn-pin-bg','--mtn-badge-reached','--mtn-badge-current','--mtn-badge-future'];
   const tokenCss=fs.readFileSync(new URL('../css/tokens.css',import.meta.url),'utf8');

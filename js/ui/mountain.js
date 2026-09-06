@@ -570,6 +570,8 @@
         track:        token('--mtn-track',         'rgba(127, 178, 229, 0.13)'),
         pulseOk:      token('--mtn-pulse-ok',      '#beffe4'),
         pulseWarn:    token('--mtn-pulse-warn',    '#ffd696'),
+        ringOk:       token('--mtn-ring-ok',       '#2fbd8b'),
+        ringWarn:     token('--mtn-ring-warn',     '#d46a2e'),
         routeOpen:    token('--mtn-route-open',    'rgba(163, 180, 207, 0.34)'),
         routeHi:      token('--mtn-route-hi',      'rgba(234, 242, 255, 0.55)'),
         routeDone:    token('--mtn-route-done',    'rgba(198, 222, 255, 0.92)'),
@@ -770,13 +772,13 @@
       /* Zielmarke bei 100 % */
       p = project(0, RING_R, 0.004);
       var pin = project(0, RING_R + 0.055, 0.004);
-      ctx.strokeStyle = css(reached ? pal.aurora : pal.amber, reached ? 0.75 : 0.68);
+      ctx.strokeStyle = css(reached ? pal.ringOk : pal.ringWarn, reached ? 0.75 : 0.68);
       ctx.lineWidth = 1.4;
       ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(pin.x, pin.y); ctx.stroke();
 
       if (pct <= 0) return;
       var last = Math.max(1, Math.round(144 * pct));
-      var col = reached ? pal.aurora : pal.amber;
+      var col = reached ? pal.ringOk : pal.ringWarn;
       var hot = state.ringHover ? 0.28 : 0;
 
       /* Erreichter Anteil */

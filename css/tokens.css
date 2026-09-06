@@ -134,6 +134,8 @@
      blaugrauen Auslauf in die helle Fläche darunter. */
   --mast-bg-0:      rgba(7, 12, 23, 0);
   --mast-bg-1:      rgba(7, 12, 23, 0);
+  --mast-bg-2:      rgba(7, 12, 23, 0);
+  --mast-bg-3:      rgba(7, 12, 23, 0);
   --mast-line:      rgba(146, 180, 228, 0.09);
   --mast-fade:      rgba(90, 120, 165, 0);
 
@@ -161,6 +163,11 @@
   --mtn-track:     rgba(127, 178, 229, 0.13);
   --mtn-pulse-ok:  #beffe4;
   --mtn-pulse-warn:#ffd696;
+  /* Der Ring selbst: gedeckt und nicht gedeckt. Eigene Token, keine
+     Schriftfarben: --aurora und --amber müssen auf heller Fläche als Text
+     bestehen und werden dafür dunkel, ein Ring braucht das nicht. */
+  --mtn-ring-ok:   #2fbd8b;
+  --mtn-ring-warn: #d46a2e;
   /* Route: offen, hervorgehoben, gegangen; Schein darunter */
   --mtn-route-open:rgba(163, 180, 207, 0.34);
   --mtn-route-hi:  rgba(234, 242, 255, 0.55);
@@ -197,7 +204,7 @@
   /* Kartenschiene rechts und Vermögensblock links sind exakt gleich hoch. */
   --rail-h:       calc(var(--card-h) * 2 + var(--rail-gap) + var(--rail-pad) + 1px);
   --zone-pad-b:   clamp(10px, 1.3vh, 18px);
-  --head-h:       58px;
+  --head-h:       76px;
 
   /* --- Bewegung ---------------------------------------------------------- */
   --ease-out:     cubic-bezier(0.16, 0.84, 0.34, 1);
@@ -349,13 +356,15 @@
   --glow-0:         rgba(42, 105, 189, 0.10);
   --glow-1:         rgba(42, 105, 189, 0.04);
 
-  /* Das Band: Mitternacht hinter dem Stern, ein warmer Strich am Horizont,
-     darunter ein blaugrauer Auslauf. Zurückhaltend; die Dämmerung ist der
-     Strich, keine Fläche. */
+  /* Das Band ist eine Dämmerung: Mitternacht oben, Tiefblau hinter dem
+     Stern, Blaugrau, dann ein heller Horizont, darauf die warme Linie und
+     darunter ein kurzes Nachglühen über der Bühne. */
   --mast-bg-0:      #08142b;
-  --mast-bg-1:      #10254a;
-  --mast-line:      rgba(236, 168, 120, 0.62);
-  --mast-fade:      rgba(90, 120, 165, 0.22);
+  --mast-bg-1:      #12284f;
+  --mast-bg-2:      #3d5889;
+  --mast-bg-3:      #a3b5d2;
+  --mast-line:      rgba(242, 196, 168, 0.90);
+  --mast-fade:      rgba(242, 200, 172, 0.42);
 
   /* Der Berg bei Tag: blasses Konturinstrument. Die Füllung bleibt an der
      Fläche darunter (Linien im Raum, keine Form), zum Gipfel hin Schnee.
@@ -374,6 +383,8 @@
   --mtn-track:     rgba(42, 105, 189, 0.14);
   --mtn-pulse-ok:  #0a6644;
   --mtn-pulse-warn:#a6501a;
+  --mtn-ring-ok:   #1a9a6a;
+  --mtn-ring-warn: #e0912f;
   --mtn-route-open:rgba(60, 80, 110, 0.38);
   --mtn-route-hi:  rgba(31, 95, 184, 0.60);
   --mtn-route-done:rgba(26, 79, 156, 0.95);

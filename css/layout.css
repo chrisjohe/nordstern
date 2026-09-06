@@ -69,16 +69,17 @@ body {
   /* Bei Nacht ohne eigenen Grund (beide --mast-bg-Token sind transparent) und
      mit derselben Haarlinie wie zuvor; Dawn legt hier das schmale
      Nachthimmelband hinter den Stern (siehe tokens.css). */
-  background: linear-gradient(180deg, var(--mast-bg-0), var(--mast-bg-1));
-  border-bottom: 1px solid var(--mast-line);
+  background: linear-gradient(180deg,
+    var(--mast-bg-0) 0%, var(--mast-bg-1) 42%, var(--mast-bg-2) 78%, var(--mast-bg-3) 100%);
+  border-bottom: 2px solid var(--mast-line);
   min-width: 0;
 }
-/* Der Auslauf unter dem Band: blaugrau in Dawn, unsichtbar bei Nacht
+/* Das Nachglühen unter dem Band: warm in Dawn, unsichtbar bei Nacht
    (--mast-fade steht dort auf voller Transparenz). Liegt über der Bühne
    (.stage, kein z-index, Grundlage des Stapels) und unter dem
    Einstellungs-Overlay (65). */
 .masthead::after {
-  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 28px;
+  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 30px;
   background: linear-gradient(180deg, var(--mast-fade), transparent);
   pointer-events: none; z-index: 2;
 }
