@@ -175,15 +175,17 @@
         /* Kleine Deckkraft: Grün heisst „erreicht", Violett „Vorjahr", als
            Fläche darf die Farbe Atmosphäre sein. Der Verlauf hängt an der
            Bounding-Box der Fläche, damit der Kamm bei jedem Zeitraum
-           leuchtet. */
+           leuchtet. Die Farbe selbst steht als Token in css/components.css
+           (.chart-fill-a…d) — nur so liest der Verlauf das Thema mit. */
         U.svg('linearGradient', { id: 'nsFill', x1: '0', y1: '0', x2: '0', y2: '1' }, [
-          U.svg('stop', { offset: '0', 'stop-color': '#9085e9', 'stop-opacity': '0.26' }),
-          U.svg('stop', { offset: '0.26', 'stop-color': '#2fbd8b', 'stop-opacity': '0.16' }),
-          U.svg('stop', { offset: '0.58', 'stop-color': '#3987e5', 'stop-opacity': '0.11' }),
-          U.svg('stop', { offset: '1', 'stop-color': '#3987e5', 'stop-opacity': '0' })
+          U.svg('stop', { offset: '0', class: 'chart-fill-a' }),
+          U.svg('stop', { offset: '0.26', class: 'chart-fill-b' }),
+          U.svg('stop', { offset: '0.58', class: 'chart-fill-c' }),
+          U.svg('stop', { offset: '1', class: 'chart-fill-d' })
         ]),
         /* Blende für die Vorjahreslinie: an den Rändern sichtbar, zur Mitte
-           ausgeblendet. */
+           ausgeblendet. '#fff'/'#000' sind hier Maskenhelligkeit, keine
+           Farbe — eine Maske kennt kein Thema. */
         U.svg('linearGradient', { id: 'nsYaEdge', gradientUnits: 'userSpaceOnUse',
           x1: pad.l, y1: 0, x2: w - pad.r, y2: 0 }, [
           U.svg('stop', { offset: '0', 'stop-color': '#fff' }),
@@ -194,7 +196,8 @@
         U.svg('mask', { id: 'nsYaMask', maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: w, height: h }, [
           U.svg('rect', { x: 0, y: 0, width: w, height: h, fill: 'url(#nsYaEdge)' })
         ]),
-        /* Beim Zeigen wandert ein Fenster mit dem Zeiger mit. */
+        /* Beim Zeigen wandert ein Fenster mit dem Zeiger mit — auch hier
+           reine Maskenhelligkeit. */
         U.svg('linearGradient', { id: 'nsYaCursor', gradientUnits: 'userSpaceOnUse',
           x1: 0, y1: 0, x2: 1, y2: 0 }, [
           U.svg('stop', { offset: '0', 'stop-color': '#000' }),
@@ -206,13 +209,13 @@
           U.svg('rect', { x: 0, y: 0, width: w, height: h, fill: 'url(#nsYaCursor)' })
         ]),
         U.svg('linearGradient', { id: 'nsBeam', x1: '0', y1: '1', x2: '0', y2: '0' }, [
-          U.svg('stop', { offset: '0', 'stop-color': '#eaf2ff', 'stop-opacity': '0.42' }),
-          U.svg('stop', { offset: '1', 'stop-color': '#eaf2ff', 'stop-opacity': '0' })
+          U.svg('stop', { offset: '0', class: 'chart-beam-a' }),
+          U.svg('stop', { offset: '1', class: 'chart-beam-b' })
         ]),
         U.svg('linearGradient', { id: 'nsLine', x1: '0', y1: '0', x2: '1', y2: '0' }, [
-          U.svg('stop', { offset: '0', 'stop-color': '#4d80c0' }),
-          U.svg('stop', { offset: '0.72', 'stop-color': '#7fb2e5' }),
-          U.svg('stop', { offset: '1', 'stop-color': '#eaf2ff' })
+          U.svg('stop', { offset: '0', class: 'chart-line-0' }),
+          U.svg('stop', { offset: '0.72', class: 'chart-line-1' }),
+          U.svg('stop', { offset: '1', class: 'chart-line-2' })
         ])
       ]);
       g.appendChild(defs);

@@ -1,5 +1,10 @@
 /* NORDSTERN: visuelles System.
-   Farben, Typografie, Raster, Bewegung. Nichts hiervon ist inhaltsspezifisch. */
+   Farben, Typografie, Raster, Bewegung. Nichts hiervon ist inhaltsspezifisch.
+
+   Zwei Themen, Night und Dawn: app.js setzt data-theme auf der Wurzel, jedes
+   Thema ist ein reiner Tokenblock. Kein Bauteil kennt das Thema; wer eine
+   Farbe braucht, greift auf einen Token, nie auf einen Wert. Night ist der
+   Auslieferungszustand und steht ohne Selektor in :root. */
 
 :root {
   /* --- Grund: tiefes Blau-Schwarz, kein reines Schwarz ------------------- */
@@ -12,17 +17,22 @@
   --line-hair:    rgba(146, 180, 228, 0.09);
   --line-soft:    rgba(146, 180, 228, 0.16);
   --line-firm:    rgba(146, 180, 228, 0.28);
+  /* Flächen, die beim Zeigen kurz aufhellen (Knöpfe, Kern der Scheibe). */
+  --hover-wash:   rgba(146, 180, 228, 0.07);
 
   /* --- Schrift ----------------------------------------------------------- */
   /* Vier Stufen im Kontrastverhältnis 17 · 11 · 7 · 4,9 : 1 gegen --bg-void:
      unter 4,5 : 1 sind die unteren beiden, die die kleinen Versaletiketten
-     tragen, auf einem dunklen Schirm zwar noch da, aber nicht mehr lesbar. */
+     tragen, auf einem dunklen Schirm zwar noch da, aber nicht mehr lesbar.
+     tests/theme.mjs rechnet die Verhältnisse für beide Themen nach. */
   --ink:          #e9eff9;
   --ink-2:        #b3c2da;
   --ink-3:        #869ab9;
   --ink-4:        #6c7f9d;
   /* Kein Schriftton: Flächen und Marken, die bewusst zurücktreten. */
   --ink-mute:     #45536a;
+  /* Der Schein hinter der grossen Zahl. */
+  --hero-shadow:  rgba(127, 178, 229, 0.14);
 
   /* --- Eisblau: Vermögen, Positives, Struktur ---------------------------- */
   --ice:          #7fb2e5;
@@ -32,13 +42,19 @@
   --ice-veil:     rgba(57, 135, 229, 0.10);
 
   /* --- Nordstern --------------------------------------------------------- */
+  /* Der Ton des Sterns ist zugleich der Ton für „jetzt": aktuelle Station,
+     gewählter Reiter, letzter Punkt der Linie. Der Stern selbst in der
+     Kopfzeile trägt seine Verläufe in js/ui/header.js und steht in beiden
+     Themen auf Nachthimmel. */
   --star:         #eaf2ff;
   --star-halo:    rgba(198, 222, 255, 0.55);
+  --star-veil:    rgba(198, 222, 255, 0.12);
 
   /* --- Aurora: sparsamer Akzent, erreichte Zustände ---------------------- */
   --aurora:       #2fbd8b;
   --aurora-deep:  #199e70;
   --aurora-veil:  rgba(47, 189, 139, 0.14);
+  --aurora-line:  rgba(47, 189, 139, 0.40);
 
   /* --- Ember/Amber: Schulden und Vorbehalt -------------------------------
      Ember ist die Aussage über einen Bestand (Schulden, Negatives), Amber
@@ -49,18 +65,83 @@
   --ember:        #c9352f;
   --ember-pale:   #f0574f;
   --ember-veil:   rgba(201, 53, 47, 0.16);
+  --ember-line:   rgba(201, 53, 47, 0.50);
   --amber:        #d46a2e;
   --amber-veil:   rgba(212, 106, 46, 0.14);
+  --amber-line:   rgba(212, 106, 46, 0.50);
 
   --violet:       #9085e9;
+
+  /* --- Sektionen: die Töne der Vermögensscheibe --------------------------
+     js/ui/orbit.js liest sie per getComputedStyle, weil die Scheibe Hexwerte
+     zum Mischen braucht (Tönungen innerhalb einer Sektion laufen auf
+     --orbit-tint zu). Liquid ist der hellste Ton: das Nächstliegende. */
+  --sec-liquid:      #b6d4f2;
+  --sec-receivables: #5f93cc;
+  --sec-investment:  #3987e5;
+  --sec-tangible:    #8f7fd0;
+  --sec-retirement:  #2fbd8b;
+  --sec-education:   #e0b35c;
+  --sec-liab:        #c9352f;
+  --orbit-tint:      #e9f2ff;
+  --orbit-track:     rgba(201, 53, 47, 0.15);
+  --orbit-liab-glow: rgba(201, 53, 47, 0.55);
+
+  /* --- Verlauf: Fläche, Linie, Vorjahr, Fadenkreuz -----------------------
+     Die Fläche unter der Linie ist Atmosphäre, kleine Deckkraft: Violett
+     oben (Vorjahr), Grün (erreicht), Eisblau bis nichts. Die Linie läuft von
+     der Vergangenheit ins Heute und wird dabei zum Sternton. */
+  --chart-fill-a:  rgba(144, 133, 233, 0.26);
+  --chart-fill-b:  rgba(47, 189, 139, 0.16);
+  --chart-fill-c:  rgba(57, 135, 229, 0.11);
+  --chart-line-0:  #4d80c0;
+  --chart-line-1:  #7fb2e5;
+  --chart-line-2:  #eaf2ff;
+  --chart-beam:    rgba(234, 242, 255, 0.42);
+  --chart-ya:      rgba(144, 133, 233, 0.48);
+  --chart-halo:    rgba(198, 222, 255, 0.14);
+  --chart-cross:   rgba(198, 222, 255, 0.40);
+  --chart-cross-ring: rgba(4, 7, 14, 0.80);
+  --tip-bg:        rgba(8, 13, 24, 0.93);
+
+  /* --- Karten: Fläche, Marke, Schleier, Balken --------------------------
+     Die Verläufe je Karte stehen bei den Karten in css/components.css; hier
+     nur, was allen gemeinsam ist. Die Fläche ist leicht durchscheinend, der
+     Schein des Bergs läuft darunter weiter. */
+  --card-face:      rgba(11, 18, 32, 0.72);
+  --card-mark:      rgba(233, 239, 249, 0.10);
+  --card-tag-line:  rgba(233, 239, 249, 0.16);
+  --card-tag-ink:   rgba(233, 239, 249, 0.80);
+  --card-tag-ink-2: rgba(233, 239, 249, 0.54);
+  --card-scrim-0:   rgba(4, 7, 14, 0);
+  --card-scrim-1:   rgba(4, 7, 14, 0.86);
+  --card-track:     rgba(146, 180, 228, 0.14);
+  --card-bar-future: rgba(127, 178, 229, 0.45);
+
+  /* --- Vorhänge und Schleier: Blatt, Ablage, Leerzustand, Meldung -------- */
+  --scrim:          rgba(4, 7, 14, 0.68);
+  --veil-bg:        rgba(4, 7, 14, 0.82);
+  --gate-0:         rgba(11, 18, 32, 0.94);
+  --gate-1:         rgba(4, 7, 14, 0.99);
+  --toast-bg:       rgba(11, 18, 32, 0.96);
+  /* Grundschein hinter dem Berg (css/layout.css). */
+  --glow-0:         rgba(57, 135, 229, 0.13);
+  --glow-1:         rgba(57, 135, 229, 0.05);
+
+  /* --- Kopfzeile ---------------------------------------------------------
+     Bei Nacht ohne eigenen Grund; Dawn legt hier das schmale Band
+     Nachthimmel hinter den Stern, mit warmer Horizontlinie und einem
+     blaugrauen Auslauf in die helle Fläche darunter. */
+  --mast-bg-0:      rgba(7, 12, 23, 0);
+  --mast-bg-1:      rgba(7, 12, 23, 0);
+  --mast-line:      rgba(146, 180, 228, 0.09);
+  --mast-fade:      rgba(90, 120, 165, 0);
 
   /* --- Berg: Leinwandfarben ----------------------------------------------
      Der Bergcanvas löst keine CSS-Variablen selbst auf (Canvas 2D kennt kein
      `var()`); js/ui/mountain.js liest diese Token einmal per getComputedStyle
      und hält sie im Speicher, wieder eingelesen aus refreshTokens(), das
-     app.js bei jedem Kontrastwechsel aufruft. Ohne eigene Token bliebe das
-     Gelände aussen vor, wenn hoher Kontrast oder ein künftiges helles Thema
-     jeden anderen Ton verändert. */
+     app.js bei jedem Themen- und Kontrastwechsel aufruft. */
   /* Geländefüllung, unten (f=0) nach oben (f=1); mountain.js mischt linear. */
   --mtn-fill-lo:   #060b14;
   --mtn-fill-hi:   #122036;
@@ -170,4 +251,200 @@
   --mtn-route-open:rgba(190, 205, 230, 0.55);
   --mtn-pole:      rgba(210, 228, 255, 0.78);
   --mtn-pole-future: rgba(150, 195, 240, 0.62);
+}
+
+/* ============================================================== Dawn ==== */
+/* Helles Thema: kühle, blasse Flächen, dunkelblaugraue Schrift, Blau mit
+   deutlicher Präsenz, Türkis und Violett sparsam und in ihrer alten
+   Bedeutung. Keine Umkehrung der Nacht, sondern eine eigene Palette: jeder
+   Farbtoken aus :root steht hier noch einmal (tests/theme.mjs prüft das).
+   Der Stern behält seinen Nachthimmel, als schmales Band in der Kopfzeile. */
+:root[data-theme="dawn"] {
+  --bg-void:      #eaf0f7;
+  --bg-deep:      #e4ebf4;
+  --bg-surface:   #f5f8fc;
+  --bg-raise:     #ffffff;
+  --bg-sunk:      #dfe6f0;
+
+  --line-hair:    rgba(30, 55, 95, 0.10);
+  --line-soft:    rgba(30, 55, 95, 0.18);
+  --line-firm:    rgba(30, 55, 95, 0.30);
+  --hover-wash:   rgba(30, 55, 95, 0.07);
+
+  /* 14 · 8 · 5,6 · 4,9 : 1 gegen --bg-void. */
+  --ink:          #12203a;
+  --ink-2:        #33466a;
+  --ink-3:        #4c5f80;
+  --ink-4:        #56688a;
+  --ink-mute:     #8a9ab4;
+  --hero-shadow:  rgba(42, 105, 189, 0.10);
+
+  /* Blau trägt hier mehr Gewicht als bei Nacht; alle drei Stufen sind auf
+     heller Fläche als Schrift lesbar. */
+  --ice:          #2a69bd;
+  --ice-deep:     #1a4f9c;
+  --ice-pale:     #1f5fb8;
+  --ice-dim:      rgba(42, 105, 189, 0.28);
+  --ice-veil:     rgba(26, 79, 156, 0.10);
+
+  /* „Jetzt" ist bei Tag Mitternachtsblau: der Ton des Bandes hinter dem Stern. */
+  --star:         #1b3a6b;
+  --star-halo:    rgba(27, 58, 107, 0.35);
+  --star-veil:    rgba(27, 58, 107, 0.10);
+
+  --aurora:       #0e744e;
+  --aurora-deep:  #0a6644;
+  --aurora-veil:  rgba(14, 116, 78, 0.12);
+  --aurora-line:  rgba(14, 116, 78, 0.45);
+
+  --ember:        #c0302a;
+  --ember-pale:   #b3281f;
+  --ember-veil:   rgba(192, 48, 42, 0.12);
+  --ember-line:   rgba(192, 48, 42, 0.50);
+  --amber:        #a6501a;
+  --amber-veil:   rgba(166, 80, 26, 0.12);
+  --amber-line:   rgba(166, 80, 26, 0.50);
+
+  --violet:       #5f54c4;
+
+  --sec-liquid:      #7fa6dc;
+  --sec-receivables: #4a7fc0;
+  --sec-investment:  #1f5fb8;
+  --sec-tangible:    #6f63c9;
+  --sec-retirement:  #169a68;
+  --sec-education:   #c48f2a;
+  --sec-liab:        #c0302a;
+  --orbit-tint:      #eef3fa;
+  --orbit-track:     rgba(192, 48, 42, 0.14);
+  --orbit-liab-glow: rgba(192, 48, 42, 0.40);
+
+  --chart-fill-a:  rgba(95, 84, 196, 0.16);
+  --chart-fill-b:  rgba(14, 116, 78, 0.11);
+  --chart-fill-c:  rgba(42, 105, 189, 0.08);
+  --chart-line-0:  #7fa6dc;
+  --chart-line-1:  #2a69bd;
+  --chart-line-2:  #1b3a6b;
+  --chart-beam:    rgba(42, 105, 189, 0.22);
+  --chart-ya:      rgba(95, 84, 196, 0.55);
+  --chart-halo:    rgba(27, 58, 107, 0.12);
+  --chart-cross:   rgba(27, 58, 107, 0.40);
+  --chart-cross-ring: rgba(255, 255, 255, 0.90);
+  --tip-bg:        rgba(255, 255, 255, 0.96);
+
+  --card-face:      rgba(255, 255, 255, 0.72);
+  --card-mark:      rgba(18, 32, 58, 0.10);
+  --card-tag-line:  rgba(18, 32, 58, 0.22);
+  --card-tag-ink:   rgba(18, 32, 58, 0.85);
+  --card-tag-ink-2: rgba(18, 32, 58, 0.60);
+  --card-scrim-0:   rgba(255, 255, 255, 0);
+  --card-scrim-1:   rgba(255, 255, 255, 0.90);
+  --card-track:     rgba(30, 55, 95, 0.12);
+  --card-bar-future: rgba(42, 105, 189, 0.40);
+
+  --scrim:          rgba(234, 240, 247, 0.72);
+  --veil-bg:        rgba(234, 240, 247, 0.88);
+  --gate-0:         rgba(245, 248, 252, 0.94);
+  --gate-1:         rgba(234, 240, 247, 0.99);
+  --toast-bg:       rgba(255, 255, 255, 0.97);
+  --glow-0:         rgba(42, 105, 189, 0.10);
+  --glow-1:         rgba(42, 105, 189, 0.04);
+
+  /* Das Band: Mitternacht hinter dem Stern, ein warmer Strich am Horizont,
+     darunter ein blaugrauer Auslauf. Zurückhaltend; die Dämmerung ist der
+     Strich, keine Fläche. */
+  --mast-bg-0:      #08142b;
+  --mast-bg-1:      #10254a;
+  --mast-line:      rgba(236, 168, 120, 0.62);
+  --mast-fade:      rgba(90, 120, 165, 0.22);
+
+  /* Der Berg bei Tag: blasses Konturinstrument. Die Füllung bleibt an der
+     Fläche darunter (Linien im Raum, keine Form), zum Gipfel hin Schnee.
+     Bei Tag trägt die Schattenkontur die dunkelste Linie, die Lichtseite
+     die blasseste; nach oben werden alle drei Stufen bestimmter. */
+  --mtn-fill-lo:   #e5ecf4;
+  --mtn-fill-hi:   #f8fbfe;
+  --mtn-lit-lo:    rgba(140, 180, 230, 0.35);
+  --mtn-lit-hi:    rgba(90, 140, 205, 0.60);
+  --mtn-mid-lo:    rgba(90, 130, 185, 0.30);
+  --mtn-mid-hi:    rgba(60, 100, 160, 0.55);
+  --mtn-dim-lo:    rgba(60, 85, 125, 0.30);
+  --mtn-dim-hi:    rgba(40, 65, 105, 0.55);
+  --mtn-plate:     rgba(42, 105, 189, 0.30);
+  --mtn-cardinal:  #33466a;
+  --mtn-track:     rgba(42, 105, 189, 0.14);
+  --mtn-pulse-ok:  #0a6644;
+  --mtn-pulse-warn:#a6501a;
+  --mtn-route-open:rgba(60, 80, 110, 0.38);
+  --mtn-route-hi:  rgba(31, 95, 184, 0.60);
+  --mtn-route-done:rgba(26, 79, 156, 0.95);
+  --mtn-glow:      #2a69bd;
+  --mtn-pole:      rgba(27, 58, 107, 0.60);
+  --mtn-pole-future: rgba(42, 105, 189, 0.45);
+  --mtn-pin-bg:    rgba(255, 255, 255, 0.94);
+  --mtn-badge-reached: rgba(226, 244, 236, 0.97);
+  --mtn-badge-current: rgba(255, 255, 255, 0.98);
+  --mtn-badge-future:  rgba(240, 244, 250, 0.95);
+}
+
+/* Die Kopfzeile bleibt bei Dawn Nacht: Wortmarke und Knöpfe stehen auf dem
+   Band und tragen die Nachtschrift. Nur Token, gescoped; kein Bauteil weiss
+   davon. */
+:root[data-theme="dawn"] .masthead {
+  --ink:          #e9eff9;
+  --ink-2:        #b3c2da;
+  --ink-3:        #869ab9;
+  --hover-wash:   rgba(146, 180, 228, 0.07);
+  /* Das Funkeln des Sterns (nsTwinkle) zieht --star; auf dem Band muss es
+     hell bleiben, sonst wirft der Stern bei Tag blauen Schatten auf Blau. */
+  --star:         #eaf2ff;
+  --star-halo:    rgba(198, 222, 255, 0.55);
+}
+
+/* Hoher Kontrast bei Tag: Schrift bis Schwarz, Linien kräftiger, Grund bis
+   Weiss; jeder Token, den der Nachtblock oben anhebt, wird hier ebenso
+   angehoben, dazu die Akzente, die auf heller Fläche als Schrift stehen. */
+:root[data-theme="dawn"][data-contrast="high"] {
+  --ink:          #000000;
+  --ink-2:        #101a2e;
+  --ink-3:        #243452;
+  --ink-4:        #2f4060;
+  --ink-mute:     #5c6d8a;
+
+  --line-hair:    rgba(20, 40, 75, 0.26);
+  --line-soft:    rgba(20, 40, 75, 0.40);
+  --line-firm:    rgba(20, 40, 75, 0.58);
+
+  --bg-void:      #ffffff;
+  --bg-deep:      #f6f8fb;
+  --bg-surface:   #ffffff;
+  --bg-raise:     #ffffff;
+  --bg-sunk:      #eef2f7;
+
+  --ice:          #1c58a8;
+  --ice-deep:     #143f80;
+  --ice-pale:     #174b93;
+  --star:         #0f2547;
+  --aurora:       #0a6142;
+  --ember-pale:   #9c1f17;
+  --amber:        #8a4012;
+  --violet:       #4b40b0;
+
+  --mtn-fill-lo:   #f5f7fb;
+  --mtn-fill-hi:   #ffffff;
+  --mtn-lit-lo:    rgba(90, 140, 205, 0.45);
+  --mtn-lit-hi:    rgba(60, 110, 180, 0.75);
+  --mtn-mid-lo:    rgba(60, 100, 160, 0.42);
+  --mtn-mid-hi:    rgba(40, 80, 140, 0.70);
+  --mtn-dim-lo:    rgba(40, 65, 105, 0.40);
+  --mtn-dim-hi:    rgba(25, 45, 80, 0.70);
+  --mtn-plate:     rgba(28, 88, 168, 0.45);
+  --mtn-track:     rgba(28, 88, 168, 0.24);
+  --mtn-route-open:rgba(40, 60, 90, 0.55);
+  --mtn-pole:      rgba(15, 37, 71, 0.80);
+  --mtn-pole-future: rgba(28, 88, 168, 0.65);
+}
+:root[data-theme="dawn"][data-contrast="high"] .masthead {
+  --ink:          #ffffff;
+  --ink-2:        #dbe5f6;
+  --ink-3:        #bccce6;
 }

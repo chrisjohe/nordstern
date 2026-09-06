@@ -54,10 +54,10 @@ It runs from `file://` with no server and no build step.
 | the mountain | `js/ui/mountain.js`. Route control points are coupled to `t` in `calc.js`; `tests/geometry.mjs` enforces it |
 | the history chart | `js/ui/chart.js` → the `SERIES` table |
 | the radial structure instrument | `js/ui/orbit.js` |
-| the cards | `js/ui/cards.js` (`WASH` = gradients) |
+| the cards | `js/ui/cards.js`; the per-card gradients live in `css/components.css` as `.card[data-id="…"]` custom properties `--w0`/`--w1`/`--w2` (Night and Dawn) |
 | milestone glyphs | `js/ui/icons.js` → `GLYPHS` |
 | the settings sheet | `js/ui/settings.js` |
-| colours, type, spacing, motion | `css/tokens.css` |
+| colours, type, spacing, motion | `css/tokens.css`: both themes, Night in `:root`, Dawn in `:root[data-theme="dawn"]`, each with its own high-contrast block; every colour is a token, no literals in components |
 | the frame (no-scroll desktop grid) | `css/layout.css` |
 | everything else visual | `css/components.css` |
 | wiring, states, the empty state | `js/app.js` |

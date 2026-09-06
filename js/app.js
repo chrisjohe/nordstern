@@ -40,6 +40,19 @@
   }
   if (mq && mq.addEventListener) mq.addEventListener('change', applyMotion);
 
+  /* ------------------------------------------------------------------ Thema */
+  /* Muss vor applyContrast() stehen: die ruft am Ende refreshTokens() am
+     Berg, und der soll dabei die Tokens des jetzt geltenden Themas lesen,
+     nicht die des vorigen. */
+  function applyTheme() {
+    var theme = state.settings.theme === 'dawn' ? 'dawn' : 'night';
+    document.documentElement.setAttribute('data-theme', theme);
+    try { document.documentElement.style.setProperty('color-scheme', theme === 'dawn' ? 'light' : 'dark'); }
+    catch (e) {}
+    var meta = U.el('meta[name="color-scheme"]');
+    if (meta) meta.setAttribute('content', theme === 'dawn' ? 'light' : 'dark');
+  }
+
   /* --------------------------------------------------------------- Kontrast */
   var mqContrast = global.matchMedia ? global.matchMedia('(prefers-contrast: more)') : null;
   function applyContrast() {
@@ -177,6 +190,7 @@
     state.model = null; state.view = null;
     state.settings = NS.store.loadSettings();       // mit den Vorgaben als Grund
     applyMotion();
+    applyTheme();
     applyContrast();
     applyCurrency();
     ui.position.clear();
@@ -201,6 +215,7 @@
     for (var k in patch) state.settings[k] = patch[k];
     if (!opts || !opts.transient) NS.store.saveSettings(state.settings);
     applyMotion();
+    applyTheme();
     applyContrast();
     applyCurrency();
     refresh();
@@ -310,6 +325,7 @@
       U.el('#mountFallback').hidden = false;
     }
     applyMotion();
+    applyTheme();
     applyContrast();
 
     U.el('#btnSettings').addEventListener('click', function () {

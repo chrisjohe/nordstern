@@ -177,7 +177,7 @@ point it at [AGENTS.md](AGENTS.md) first.
 
 ```
 index.html              one page, classic script tags, works over file://
-css/tokens.css          colour, type, grid, motion timing
+css/tokens.css          colour, type, grid, motion timing (two themes, Night and Dawn)
 css/layout.css          the panorama frame — desktop, no scrolling
 css/components.css      the parts
 js/util.js              de-DE formatting, DOM helpers, event bus
@@ -239,10 +239,13 @@ Escape closes the sheet.
   against your own file line by line.
 * **privacy** — what is read, written, sent, stored and required to sign in,
   each in one line, plus how to check it without taking anyone's word for it.
-* **display** — three switches with the state spelled out: animations,
-  calmer motion, high contrast. `prefers-reduced-motion` is respected;
-  without motion the mountain stands still and is still rotatable, and
-  nothing builds itself up on arrival. `prefers-contrast: more` is
+* **display** — the theme choice first: Night (default) or Dawn. Dawn is a
+  light interface with the star keeping its own night sky in the header, a
+  designed palette rather than an inversion of Night, and high contrast
+  available in both. Then three switches with the state spelled out:
+  animations, calmer motion, high contrast. `prefers-reduced-motion` is
+  respected; without motion the mountain stands still and is still rotatable,
+  and nothing builds itself up on arrival. `prefers-contrast: more` is
   respected the same way; on, text brightens and lines strengthen
   throughout, with no change in colour identity.
 * **about** — the star, the wordmark and the version, then three chapters:

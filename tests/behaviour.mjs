@@ -990,6 +990,67 @@ sec('U10: hoher Kontrast');
   w.close();
 }
 
+/* ---------- 5a2. Dawn: Themenwahl ---------- */
+sec('Dawn: Themenwahl');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  ok(w.NORDSTERN.app.state.settings.theme==='night',
+     'Standard: Thema night: '+w.NORDSTERN.app.state.settings.theme);
+  ok(d.documentElement.getAttribute('data-theme')==='night','data-theme="night" beim Start');
+  const meta=d.querySelector('meta[name="color-scheme"]');
+  ok(!!meta&&meta.getAttribute('content')==='dark',
+     'meta color-scheme steht auf dark: '+(meta&&meta.getAttribute('content')));
+
+  const pane=d.querySelector('.sheet-sec[data-sec="display"]');
+  const night=pane.querySelector('#setThemeNight'), dawn=pane.querySelector('#setThemeDawn');
+  ok(!!night&&!!dawn,'beide Radios stehen im Abschnitt display');
+  ok(!!night.closest('[role="radiogroup"]'),'in einer Radiogruppe');
+  ok(night.checked&&!dawn.checked,'Night ist zunächst gewählt');
+
+  const order=[...pane.querySelectorAll('input')];
+  ok(order.indexOf(night)<order.indexOf(pane.querySelector('#setAnim')),
+     'das Themenfeld steht im Blatt vor #setAnim');
+
+  dawn.checked=true; dawn.dispatchEvent(new w.Event('change'));
+  await tick(20);
+  ok(d.documentElement.getAttribute('data-theme')==='dawn','data-theme="dawn" nach der Wahl');
+  ok(JSON.parse(w.localStorage.getItem('nordstern.settings.v1')).theme==='dawn','und steht so im Speicher');
+  ok(meta.getAttribute('content')==='light','meta color-scheme wechselt auf light');
+  const mtn=w.NORDSTERN.app.ui.mountain;
+  const approxArr=(a,b,eps)=>Array.isArray(a)&&a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<=(eps??1));
+  ok(approxArr(mtn.palette().fillLo,[229,236,244,1]),
+     'der Berg liest die Dawn-Tokens neu: '+JSON.stringify(mtn.palette().fillLo));
+
+  night.checked=true; night.dispatchEvent(new w.Event('change'));
+  await tick(20);
+  ok(d.documentElement.getAttribute('data-theme')==='night','zurück zu Night');
+  ok(approxArr(mtn.palette().fillLo,[6,11,20,1]),
+     'und der Berg wieder auf den Night-Tokens: '+JSON.stringify(mtn.palette().fillLo));
+
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+{ const store4={'nordstern.settings.v1':JSON.stringify({theme:'sunset'})};
+  const {w}=await boot({storage:store4});
+  ok(w.document.documentElement.getAttribute('data-theme')==='night',
+     'ein unbekannter Wert im Speicher fällt auf night zurück: '+w.document.documentElement.getAttribute('data-theme'));
+  w.close();
+}
+{ const {w}=await boot({storage:{...store}});
+  const d=w.document;
+  const dawn=d.querySelector('#setThemeDawn');
+  dawn.checked=true; dawn.dispatchEvent(new w.Event('change'));
+  await tick(20);
+  ok(d.documentElement.getAttribute('data-theme')==='dawn','Dawn gesetzt, vor dem Löschen');
+  w.confirm=()=>true;
+  const del=[...d.querySelectorAll('#settingsZone button')].find(b=>/Delete local data/.test(b.textContent));
+  del.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await tick(60);
+  ok(d.documentElement.getAttribute('data-theme')==='night',
+     'forget() setzt data-theme zurück auf night: '+d.documentElement.getAttribute('data-theme'));
+  w.close();
+}
+
 /* ---------- 5b. Das Blatt ist ein echter Dialog ---------- */
 /* Zu heisst zu: kein Schalter des geschlossenen Blatts steht in der
    Tabreihenfolge, und kein Vorleseprogramm liest darin. Offen heisst offen:

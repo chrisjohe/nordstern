@@ -12,18 +12,34 @@
   var R_IN = 82, W_IN = 9;          // Verbindlichkeiten
   var GAP = 0.030;                  // Fuge zwischen Sektoren (rad)
 
-  /* Verbindlichkeiten tragen den Emberton der Tokens — hier als Hexwert, weil der
-     Ring in einer SVG-Präsentationsangabe steckt. */
-  var LIAB_TONE = '#c9352f';
+  /* Die Scheibe steckt in SVG-Präsentationsangaben und braucht Hexwerte zum
+     Mischen (U.mix) — derselbe Kniff wie js/ui/mountain.js: einmal per
+     getComputedStyle gelesen, mit dem alten Literal als Rückfall. Anders als
+     beim Berg wird hier bei jedem Render gelesen, nicht einmal zwischengehalten,
+     denn app.js löst einen Themenwechsel über setData()/render() aus, nicht
+     über eine eigene refreshTokens()-Reise durch die Scheibe. */
+  function token(name, fb) {
+    try {
+      var v = global.getComputedStyle(global.document.documentElement).getPropertyValue(name).trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) return v;
+    } catch (e) { /* fällt auf fb zurück */ }
+    return fb;
+  }
 
-  var TONE = {
-    liquid:      '#b6d4f2',
-    receivables: '#5f93cc',
-    investment:  '#3987e5',
-    tangible:    '#8f7fd0',
-    retirement:  '#2fbd8b',
-    education:   '#e0b35c'
-  };
+  /* Sektionstöne: je ein Aufruf mit Tokenname und dem alten Literal als
+     Rückfall, gelesen bei jedem Render (renderOverview/renderSection), nicht
+     einmal beim Aufbau — ein Themenwechsel ruft render() über app.js'
+     refresh() neu auf und muss dabei die neue Palette treffen. */
+  function secTone(id) {
+    if (id === 'liquid') return token('--sec-liquid', '#b6d4f2');
+    if (id === 'receivables') return token('--sec-receivables', '#5f93cc');
+    if (id === 'investment') return token('--sec-investment', '#3987e5');
+    if (id === 'tangible') return token('--sec-tangible', '#8f7fd0');
+    if (id === 'retirement') return token('--sec-retirement', '#2fbd8b');
+    if (id === 'education') return token('--sec-education', '#e0b35c');
+    return token('--ice', '#7fb2e5');
+  }
+  function liabTone() { return token('--sec-liab', '#c9352f'); }
 
   function polar(r, a) { return [C + Math.sin(a) * r, C - Math.cos(a) * r]; }
 
@@ -41,7 +57,8 @@
      Der größte Posten trägt den vollen Sektionston. */
   function tints(tone, n) {
     var out = [];
-    for (var i = 0; i < n; i++) out.push(U.mix(tone, '#e9f2ff', n < 2 ? 0 : (i / (n - 1)) * 0.62));
+    var target = token('--orbit-tint', '#e9f2ff');
+    for (var i = 0; i < n; i++) out.push(U.mix(tone, target, n < 2 ? 0 : (i / (n - 1)) * 0.62));
     return out;
   }
 
@@ -204,7 +221,7 @@
       var g = dialRoot('Assets ' + U.eur(total) + ', liabilities ' + U.eur(liab) +
         (short > 0 ? ', exceeding assets by ' + U.eur(short) : ''));
       arcs(g, sections.map(function (s) {
-        return { id: s.id, key: s.id, name: s.label, value: s.value, tone: TONE[s.id] || '#7fb2e5' };
+        return { id: s.id, key: s.id, name: s.label, value: s.value, tone: secTone(s.id) };
       /* Der Anteil bleibt am Vermögen gemessen — ausser `total` selbst ist
          zu klein dafür (derselbe Fall wie oben), dann tritt `positive` an
          seine Stelle, sonst läse eine einzelne Sektion über 100 %. */
@@ -216,7 +233,7 @@
         var sh0 = (total / scale) * TURN + GAP / 2, sh1 = TURN - 0.004;
         var shp = U.svg('path', {
           d: arcPath(R_OUT, sh0, sh1),
-          class: 'orbit-short', 'stroke-width': W_OUT, stroke: LIAB_TONE,
+          class: 'orbit-short', 'stroke-width': W_OUT, stroke: liabTone(),
           'data-id': 'shortfall',
           'aria-label': 'Not covered by assets: ' + U.eur(short)
         });
@@ -236,7 +253,7 @@
         var lp = U.svg('path', {
           d: arcPath(R_IN, 0, -lsw),
           class: 'orbit-arc orbit-liab' + (short > 0 ? ' is-over' : ''),
-          'stroke-width': W_IN, stroke: LIAB_TONE, fill: 'none',
+          'stroke-width': W_IN, stroke: liabTone(), fill: 'none',
           'data-id': 'liabilities', tabindex: '0', role: 'button',
           'aria-label': 'Liabilities: ' + U.eur(liab) + ', ' + U.pct(total > 0 ? liab / total : 0) +
             ' of assets' + (short > 0 ? ' — ' + U.eur(short) + ' more than there is' : '')
@@ -254,13 +271,13 @@
       dial.appendChild(g);
 
       sections.forEach(function (s) {
-        var r = row(s.id, TONE[s.id], s.label, s.value, s.share);
+        var r = row(s.id, secTone(s.id), s.label, s.value, s.share);
         if (items(v, s.id).length) openable(r, s.id);
         legend.appendChild(r);
       });
       legend.appendChild(rule());
       legend.appendChild(row('assets', null, 'Total assets', total, null, 'sum'));
-      var lr = row('liabilities', LIAB_TONE, 'Liabilities', -liab, total > 0 ? liab / total : null);
+      var lr = row('liabilities', liabTone(), 'Liabilities', -liab, total > 0 ? liab / total : null);
       if (items(v, 'liabilities').length) openable(lr, 'liabilities');
       legend.appendChild(lr);
       legend.appendChild(rule());
@@ -282,7 +299,7 @@
          der Verbindlichkeiten. */
       var pos = list.filter(function (it) { return it.value > 0.005; });
       var posSum = pos.reduce(function (a, b) { return a + b.value; }, 0);
-      var tone = isLiab ? LIAB_TONE : (TONE[id] || '#7fb2e5');
+      var tone = isLiab ? liabTone() : secTone(id);
       var tone_ = tints(tone, list.length);
       var total = v.current.totalAssets;
 
@@ -310,7 +327,7 @@
       legend.appendChild(back);
       list.forEach(function (it, i) {
         var neg = it.value < 0;
-        var r = row('item-' + i, neg ? LIAB_TONE : tone_[i], it.name,
+        var r = row('item-' + i, neg ? liabTone() : tone_[i], it.name,
           isLiab ? -it.value : it.value, sum !== 0 ? it.value / sum : null);
         if (neg) {
           r.classList.add('is-owed');

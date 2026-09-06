@@ -39,6 +39,17 @@ body {
     radial-gradient(1px 1px at 91% 15%, rgba(233,239,249,.26), transparent 100%),
     radial-gradient(1px 1px at 5% 84%, rgba(233,239,249,.16), transparent 100%);
 }
+/* Dawn: kein Sternenstaub bei Tag, die warme Ecke ist die Dämmerung selbst,
+   keine Aurora-Schleier. Die Night-Regel oben bleibt unverändert stehen —
+   ihre Literale sind Szene, kein Token. */
+:root[data-theme="dawn"] .sky {
+  background:
+    radial-gradient(120% 90% at 62% -18%, rgba(42, 105, 189, 0.14), transparent 58%),
+    radial-gradient(90% 70% at 8% 108%, rgba(15, 122, 82, 0.05), transparent 62%),
+    radial-gradient(70% 60% at 96% 88%, rgba(236, 168, 120, 0.08), transparent 60%),
+    linear-gradient(178deg, #e6edf6 0%, #eaf0f7 46%, #edf2f8 100%);
+}
+:root[data-theme="dawn"] .sky::after { background-image: none; }
 
 .shell {
   position: relative; z-index: 1;
@@ -55,8 +66,21 @@ body {
   align-items: center;
   gap: var(--gutter);
   padding: 0 var(--gutter);
-  border-bottom: 1px solid var(--line-hair);
+  /* Bei Nacht ohne eigenen Grund (beide --mast-bg-Token sind transparent) und
+     mit derselben Haarlinie wie zuvor; Dawn legt hier das schmale
+     Nachthimmelband hinter den Stern (siehe tokens.css). */
+  background: linear-gradient(180deg, var(--mast-bg-0), var(--mast-bg-1));
+  border-bottom: 1px solid var(--mast-line);
   min-width: 0;
+}
+/* Der Auslauf unter dem Band: blaugrau in Dawn, unsichtbar bei Nacht
+   (--mast-fade steht dort auf voller Transparenz). Liegt über der Bühne
+   (.stage, kein z-index, Grundlage des Stapels) und unter dem
+   Einstellungs-Overlay (65). */
+.masthead::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 28px;
+  background: linear-gradient(180deg, var(--mast-fade), transparent);
+  pointer-events: none; z-index: 2;
 }
 .mast-left  { display: flex; align-items: baseline; gap: 18px; min-width: 0; }
 /* Die beiden Knöpfe gehören zusammen — Mappe lesen und Einstellungen sind
@@ -106,8 +130,7 @@ body {
   left: var(--glow-x, 50%); top: var(--glow-y, 40%);
   width: var(--glow-d, 78%); aspect-ratio: 1 / 1;
   transform: translate(-50%, -50%);
-  background: radial-gradient(closest-side,
-    rgba(57, 135, 229, 0.13) 0%, rgba(57, 135, 229, 0.05) 46%, rgba(57, 135, 229, 0) 100%);
+  background: radial-gradient(closest-side, var(--glow-0) 0%, var(--glow-1) 46%, transparent 100%);
 }
 .zone--mountain > * { position: relative; z-index: 1; }
 

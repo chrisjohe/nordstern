@@ -252,6 +252,18 @@
         ]);
         return { input: box, state: state, node: lab };
       }
+      refs.themeNight = U.make('input', {
+        type: 'radio', class: 'seg-in', name: 'setTheme', value: 'night', id: 'setThemeNight' });
+      refs.themeDawn = U.make('input', {
+        type: 'radio', class: 'seg-in', name: 'setTheme', value: 'dawn', id: 'setThemeDawn' });
+      var themeField = U.make('div', { class: 'field' }, [
+        U.make('span', { class: 'field-lab', id: 'setThemeLab', text: 'Theme' }),
+        U.make('div', { class: 'seg', role: 'radiogroup', 'aria-labelledby': 'setThemeLab' }, [
+          U.make('label', { class: 'seg-opt' }, [refs.themeNight, U.make('span', { class: 'seg-lab', text: 'Night' })]),
+          U.make('label', { class: 'seg-opt' }, [refs.themeDawn, U.make('span', { class: 'seg-lab', text: 'Dawn' })])
+        ])
+      ]);
+
       var anim = toggle('setAnim', 'Animations');
       var calm = toggle('setCalm', 'Calmer motion');
       var contrast = toggle('setContrast', 'High contrast');
@@ -260,6 +272,10 @@
       refs.contrast = contrast.input; refs.contrastState = contrast.state;
 
       body.appendChild(pane('display', [
+        themeField,
+        U.make('p', { class: 'sheet-copy', text:
+          'Night is the default. Dawn keeps the star on its night sky and sets everything ' +
+          'else on pale, cool surfaces.' }),
         anim.node,
         calm.node,
         contrast.node,
@@ -384,6 +400,12 @@
       refs.contrast.addEventListener('change', function () {
         paintSwitches();
         api.patchSettings({ highContrast: refs.contrast.checked });
+      });
+      refs.themeNight.addEventListener('change', function () {
+        if (refs.themeNight.checked) api.patchSettings({ theme: 'night' });
+      });
+      refs.themeDawn.addEventListener('change', function () {
+        if (refs.themeDawn.checked) api.patchSettings({ theme: 'dawn' });
       });
       refs.reimport.addEventListener('click', function () { api.pickFile(); });
       refs.forget.addEventListener('click', function () {
@@ -541,6 +563,8 @@
         refs.anim.checked = !!settings.animations;
         refs.calm.checked = settings.motionIntensity === 'ruhig';
         refs.contrast.checked = !!settings.highContrast;
+        refs.themeNight.checked = settings.theme !== 'dawn';
+        refs.themeDawn.checked = settings.theme === 'dawn';
         paintSwitches();
         var em = String(settings.monthlyExpenses || 0);
         if (refs.expInput !== document.activeElement && refs.expInput.value !== em) refs.expInput.value = em;

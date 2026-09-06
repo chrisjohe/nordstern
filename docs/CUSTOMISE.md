@@ -126,10 +126,12 @@ values with a space, or by using an editor's "combine paths" feature. The
 Material Symbols SVGs this app ships with live unmodified in `sprites/`,
 which is the source; `GLYPHS` is the extract.
 
-**`js/ui/cards.js`**, the table `WASH`, also keyed by `id`: three hex colours
-per station, from which the card's gradient is built (deep base, mid, and a
-highlight in the top-left corner). Any three colours work. Keep them dark —
-white text sits on top.
+**`css/components.css`**, the rule `.card[data-id="…"]`, one per station:
+three custom properties from which the card's gradient is built, `--w0`
+(deep base), `--w1` (mid) and `--w2` (highlight, top-left corner). Each
+station carries one rule for Night and one under `:root[data-theme="dawn"]`.
+Any three colours work. Night washes dark, Dawn washes pale, because the
+card text follows the theme's ink.
 
 ## Adding a currency
 
@@ -235,7 +237,8 @@ there too — they are looking for "all of them", not for eight specifically.
 ### Renaming an id
 
 An `id` appears in five places: `MILESTONES` in `js/calc.js`, `GLYPHS` in
-`js/ui/icons.js`, `WASH` in `js/ui/cards.js`, and as `data-id` in the tests.
+`js/ui/icons.js`, `.card[data-id="…"]` in `css/components.css`, and as
+`data-id` in the tests.
 It is never written to storage, so renaming one costs nothing but a careful
 find-and-replace. There is no reason to rename an id except tidiness — the
 name shown to people is `name`, not `id`.
@@ -269,7 +272,7 @@ Worth knowing, so you do not go looking:
 0. what does living cost?     → js/store.js  DEFAULT_EXPENSES
 1. edit js/calc.js            → MILESTONES
 2. matching icon?             → js/ui/icons.js  GLYPHS
-3. matching gradient?         → js/ui/cards.js  WASH
+3. matching gradient?         → css/components.css  .card[data-id="…"]
 4. changed the count?         → js/ui/mountain.js ROUTE_ANCHORS + t fractions
                               → css/layout.css .rail
                               → the card counts in tests/

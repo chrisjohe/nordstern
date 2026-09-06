@@ -20,7 +20,8 @@
     animations: true,
     motionIntensity: 'normal', // 'ruhig' | 'normal'
     highContrast: false,
-    currency: 'EUR'
+    currency: 'EUR',
+    theme: 'night'             // 'night' | 'dawn'
   };
 
   /* Eigene Liste, weil store.js in Tests ohne util.js läuft. */
@@ -184,6 +185,7 @@
     } catch (e) {}
     s.monthlyExpenses = Math.max(0, Number(s.monthlyExpenses) || 0);
     if (!Object.prototype.hasOwnProperty.call(currencyCodes(), s.currency)) s.currency = 'EUR';
+    if (s.theme !== 'night' && s.theme !== 'dawn') s.theme = 'night';
     return s;
   }
 

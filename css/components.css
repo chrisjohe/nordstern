@@ -76,7 +76,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   width: 32px; height: 32px; display: grid; place-items: center;
   color: var(--ink-3); transition: color .18s var(--ease-out), background .18s var(--ease-out);
 }
-.icon-btn:hover { color: var(--ink); background: rgba(146,180,228,.07); }
+.icon-btn:hover { color: var(--ink); background: var(--hover-wash); }
 
 /* ================================================================= Panels = */
 .panel-head {
@@ -111,7 +111,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   font-family: var(--font-display);
   font-size: clamp(38px, 3.9vw, 62px); font-weight: 300; line-height: 1.0;
   letter-spacing: -0.022em; color: var(--ink);
-  text-shadow: 0 0 34px rgba(127,178,229,.14);
+  text-shadow: 0 0 34px var(--hero-shadow);
 }
 .hero-deltas { display: flex; gap: clamp(14px, 2vw, 30px); margin-top: 10px; flex-wrap: wrap; }
 .delta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -149,6 +149,18 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .block--chart { min-height: 130px; }
 .chart-body { position: relative; flex: 1; min-height: 0; cursor: crosshair; }
 .chart-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+/* Verlaufsstopps als Klassen statt js/ui/chart.js-Literale — nur so lesen sie
+   das Thema mit. Die Token tragen ihre Deckkraft selbst; nur der letzte Stopp
+   je Verlauf braucht stop-opacity:0, um ins Nichts auszulaufen. */
+.chart-fill-a { stop-color: var(--chart-fill-a); }
+.chart-fill-b { stop-color: var(--chart-fill-b); }
+.chart-fill-c { stop-color: var(--chart-fill-c); }
+.chart-fill-d { stop-color: var(--chart-fill-c); stop-opacity: 0; }
+.chart-beam-a { stop-color: var(--chart-beam); }
+.chart-beam-b { stop-color: var(--chart-beam); stop-opacity: 0; }
+.chart-line-0 { stop-color: var(--chart-line-0); }
+.chart-line-1 { stop-color: var(--chart-line-1); }
+.chart-line-2 { stop-color: var(--chart-line-2); }
 .chart-grid line { stroke: var(--line-hair); stroke-width: 1; }
 .chart-ylab { font-size: 9px; fill: var(--ink-4); letter-spacing: .06em; }
 /* Stationen als Schwellen im Verlauf: blass unter der Kurve, damit man sieht,
@@ -169,7 +181,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .chart-xlab text { font-size: 9px; fill: var(--ink-4); text-anchor: middle; letter-spacing: .08em; }
 .chart-line { stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 .chart-glow { stroke: var(--ice); stroke-width: 5; opacity: .16; filter: blur(3px); }
-.chart-ya { stroke: rgba(144,133,233,.48); stroke-width: 1; stroke-dasharray: 3 4; }
+.chart-ya { stroke: var(--chart-ya); stroke-width: 1; stroke-dasharray: 3 4; }
 /* Der Steg über eine Lücke: dieselbe Spur wie die Linie, nur gestrichelt und
    halb so hell — hier ist kein Stand eingetragen, die Strecke ist geraten. */
 .chart-bridge { stroke: var(--ice); stroke-width: 1.4; opacity: .3; stroke-dasharray: 2 4; stroke-linecap: round; }
@@ -181,7 +193,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .chart-last { fill: var(--star); }
 /* Kein transform auf dem Halo: transform-origin bezieht sich in SVG auf die
    viewBox, nicht auf den Kreis — der Halo wanderte dadurch aus dem Chart. */
-.chart-last-halo { fill: rgba(198,222,255,.14); }
+.chart-last-halo { fill: var(--chart-halo); }
 /* Skaliert um die eigene Mitte statt um die viewBox — derselbe Kniff wie beim
    Stern. Ohne Bewegung ist der Ring unsichtbar, nicht bloß stehengeblieben. */
 .chart-last-ping {
@@ -189,8 +201,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   vector-effect: non-scaling-stroke; opacity: 0;
   transform-box: fill-box; transform-origin: center;
 }
-.chart-cross line { stroke: rgba(198,222,255,.4); stroke-width: 1; stroke-dasharray: 2 3; }
-.chart-cross circle { fill: var(--star); stroke: rgba(4,7,14,.8); stroke-width: 2; }
+.chart-cross line { stroke: var(--chart-cross); stroke-width: 1; stroke-dasharray: 2 3; }
+.chart-cross circle { fill: var(--star); stroke: var(--chart-cross-ring); stroke-width: 2; }
 
 /* Ankunft der Linie: sie zeichnet sich von links nach rechts, Fläche und
    Randwerk blenden dahinter auf, einmal je neuer Linie. `both` hält den
@@ -263,7 +275,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .chart-tip {
   position: absolute; z-index: 6; pointer-events: none; opacity: 0;
   min-width: 168px; padding: 9px 11px;
-  background: rgba(8,13,24,.93); border: 1px solid var(--line-soft);
+  background: var(--tip-bg); border: 1px solid var(--line-soft);
   backdrop-filter: blur(8px);
   transition: opacity .13s var(--ease-out);
 }
@@ -315,7 +327,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .orbit-svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .orbit-grid line { stroke: var(--ice); }
 .orbit-inner-ring { fill: none; stroke: var(--line-hair); stroke-width: 1; }
-.orbit-track { fill: none; stroke: rgba(201,53,47,.15); }
+.orbit-track { fill: none; stroke: var(--orbit-track); }
 /* Die Strecke im Vermögensring, für die es kein Vermögen gibt. Blass genug,
    um nicht als Sektion gelesen zu werden, und gestrichelt, damit sie auch
    ohne Farbe als „fehlt" erkennbar bleibt. */
@@ -325,7 +337,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 /* Ein Gegenring, der sich geschlossen hat, steht nicht mehr für einen Anteil,
    sondern für ein Übermass — er tritt einen Schritt vor. */
-.orbit-liab.is-over { opacity: 1; filter: drop-shadow(0 0 6px rgba(201,53,47,.55)); }
+.orbit-liab.is-over { opacity: 1; filter: drop-shadow(0 0 6px var(--orbit-liab-glow)); }
 .orbit-arc {
   fill: none; stroke-linecap: butt; cursor: pointer;
   transition: stroke-width .2s var(--ease-out), opacity .2s var(--ease-out), filter .2s var(--ease-out);
@@ -351,8 +363,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
    nichts malt. */
 .orbit-core-back { font-size: 8px; fill: var(--ink-4); letter-spacing: .12em; }
 .orbit-core-hit { fill: transparent; pointer-events: all; cursor: pointer; }
-.orbit-core-hit:hover { fill: rgba(146, 180, 228, 0.05); }
-.orbit-core-hit:focus-visible { outline: none; fill: rgba(146, 180, 228, 0.08); }
+.orbit-core-hit:hover { fill: var(--hover-wash); }
+.orbit-core-hit:focus-visible { outline: none; fill: var(--hover-wash); }
 
 /* Feste Obergrenze statt freier Breite: jede Zeile ist ein eigenes Raster, die
    Beträge stehen also nur untereinander, wenn alle Zeilen gleich breit sind —
@@ -422,7 +434,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .st-ring.is-warn { color: var(--amber); background: var(--amber-veil); }
 .st-hint {
   font-size: 10px; color: var(--amber); letter-spacing: .04em;
-  border-bottom: 1px dashed rgba(212,106,46,.5); padding-bottom: 1px;
+  border-bottom: 1px dashed var(--amber-line); padding-bottom: 1px;
 }
 
 /* ================================================================== Cards = */
@@ -445,7 +457,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   /* Leicht durchscheinend: der Schein des Bergs läuft unter der Schiene
      weiter, statt an einer Kartenkante abzureißen. Ein späteres Foto legt
      sich ohnehin deckend darüber. */
-  overflow: hidden; background: rgba(11, 18, 32, 0.72);
+  overflow: hidden; background: var(--card-face);
   box-shadow: inset 0 0 0 1px var(--line-hair);
 }
 .card-front { display: flex; flex-direction: column; justify-content: flex-end; }
@@ -454,10 +466,34 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   padding: 9px 12px 11px; display: flex; flex-direction: column; gap: 4px;
 }
 
-.card-wash { position: absolute; inset: 0; }
+/* Die Verläufe je Karte sind die eine inhaltsspezifische Palette im ganzen
+   Bauteilsatz und stehen deshalb bei den Karten, nicht in tokens.css: acht
+   Farben mit eigener Bedeutung (Contingency amber-warm, Fat FIRE violett …),
+   kein Themenwert. Bei Nacht dunkel und satt, bei Dawn blass und hell — die
+   Tönung folgt dem Thema, die Kennung (welche Karte welchen Ton trägt)
+   bleibt. */
+.card-wash { position: absolute; inset: 0;
+  background: radial-gradient(120% 90% at 24% 8%, var(--w2) 0%, transparent 60%),
+              linear-gradient(168deg, var(--w1) 0%, var(--w0) 100%); }
+.card[data-id="contingency"] { --w0: #1b2436; --w1: #2a2419; --w2: #3a2c14; }
+.card[data-id="snowball"]    { --w0: #101b2e; --w1: #1a2c48; --w2: #2b4468; }
+.card[data-id="fyou"]        { --w0: #0e1b2c; --w1: #173254; --w2: #1f4a7a; }
+.card[data-id="coast"]       { --w0: #0d1d2f; --w1: #14395c; --w2: #1b5578; }
+.card[data-id="barista"]     { --w0: #0f2130; --w1: #154a44; --w2: #1c6b52; }
+.card[data-id="semi"]        { --w0: #141c33; --w1: #242a55; --w2: #333a72; }
+.card[data-id="lean"]        { --w0: #111a2e; --w1: #22304f; --w2: #3d4f7a; }
+.card[data-id="fat"]         { --w0: #151527; --w1: #2e2947; --w2: #4a3f63; }
+:root[data-theme="dawn"] .card[data-id="contingency"] { --w0: #f7efe2; --w1: #f3e6d0; --w2: #eedbb8; }
+:root[data-theme="dawn"] .card[data-id="snowball"]    { --w0: #e9f0fa; --w1: #dbe7f6; --w2: #c9dbf0; }
+:root[data-theme="dawn"] .card[data-id="fyou"]        { --w0: #e6eef9; --w1: #d3e2f4; --w2: #bcd3ee; }
+:root[data-theme="dawn"] .card[data-id="coast"]       { --w0: #e4eff8; --w1: #cfe3f2; --w2: #b8d6ea; }
+:root[data-theme="dawn"] .card[data-id="barista"]     { --w0: #e6f3ef; --w1: #d0e9e0; --w2: #b9dccf; }
+:root[data-theme="dawn"] .card[data-id="semi"]        { --w0: #ebebf8; --w1: #dcdcf3; --w2: #c8c8ea; }
+:root[data-theme="dawn"] .card[data-id="lean"]        { --w0: #e8ecf5; --w1: #d6dceb; --w2: #c2cbe0; }
+:root[data-theme="dawn"] .card[data-id="fat"]         { --w0: #eeeaf5; --w1: #e0d9ee; --w2: #cfc3e3; }
 .card-watermark {
   position: absolute; right: -8px; top: 50%; transform: translateY(-50%);
-  color: rgba(233,239,249,.10); width: 64px; height: 64px;
+  color: var(--card-mark); width: 64px; height: 64px;
 }
 /* Die Marke ist Inhalt, kein Platzhalter — deshalb eine durchgezogene
    Haarlinie. Gestrichelt hieße „hier fehlt noch etwas". */
@@ -466,16 +502,16 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   max-width: calc(100% - 14px); white-space: nowrap; overflow: hidden;
   font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .09em;
   text-transform: uppercase;
-  border: 1px solid rgba(233,239,249,.16); padding: 2px 5px;
+  border: 1px solid var(--card-tag-line); padding: 2px 5px;
 }
-.card-tag b { font-weight: 400; color: rgba(233,239,249,.80); }
-.card-tag i { font-style: normal; color: rgba(233,239,249,.54); }
+.card-tag b { font-weight: 400; color: var(--card-tag-ink); }
+.card-tag i { font-style: normal; color: var(--card-tag-ink-2); }
 /* Ohne feste Fläche schwimmt die Marke über wechselnden Kartenfarben,
    im hohen Kontrast reicht die Haarlinie allein nicht mehr. */
 :root[data-contrast="high"] .card-tag { background: var(--bg-void); }
 .card-scrim {
   position: absolute; inset: 0;
-  background: linear-gradient(178deg, rgba(4,7,14,0) 32%, rgba(4,7,14,.86) 100%);
+  background: linear-gradient(178deg, var(--card-scrim-0) 32%, var(--card-scrim-1) 100%);
 }
 .card-front-body { position: relative; padding: 0 12px 13px; display: flex; align-items: center; gap: 7px; }
 .card-name {
@@ -490,7 +526,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 .card-bar {
   position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
-  background: rgba(146,180,228,.14);
+  background: var(--card-track);
 }
 .card-bar i {
   position: absolute; inset: 0 auto 0 0; background: var(--ice);
@@ -510,7 +546,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 @keyframes nsBarFill { from { transform: scaleX(0); } }
 .card[data-status="reached"] .card-bar i { background: var(--aurora); }
 .card[data-status="current"] .card-bar i { background: linear-gradient(90deg, var(--ice-deep), var(--star)); }
-.card[data-status="future"] .card-bar i { background: rgba(127,178,229,.45); }
+.card[data-status="future"] .card-bar i { background: var(--card-bar-future); }
 /* Die Reserve ist kein Meilenstein auf dem Weg, sondern eine Deckung: nicht
    gedeckt heißt Warnung, nicht „als Nächstes dran“ — wie der Ring im Berg. */
 .card[data-id="contingency"][data-status="current"] .card-bar i { background: var(--amber); }
@@ -550,8 +586,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   font-size: 8.5px; letter-spacing: var(--track-wide); text-transform: uppercase; padding: 1px 6px;
 }
 .card-badge.is-reached { color: var(--aurora); background: var(--aurora-veil); }
-.card-badge.is-current { color: var(--star); background: rgba(198,222,255,.12); }
-.card-badge.is-future  { color: var(--ink-3); background: rgba(146,180,228,.07); }
+.card-badge.is-current { color: var(--star); background: var(--star-veil); }
+.card-badge.is-future  { color: var(--ink-3); background: var(--hover-wash); }
 
 /* Reduzierte Bewegung deckt nicht nur `animation` ab, sondern jede
    `transition`, die etwas verschiebt oder in der Größe ändert — eine
@@ -582,7 +618,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .overlay { position: fixed; inset: 0; z-index: 65; pointer-events: none; }
 .overlay.is-open { pointer-events: auto; }
 .sheet-scrim {
-  position: absolute; inset: 0; background: rgba(4,7,14,.68); backdrop-filter: blur(3px);
+  position: absolute; inset: 0; background: var(--scrim); backdrop-filter: blur(3px);
   opacity: 0; transition: opacity .26s var(--ease-out);
 }
 .overlay.is-open .sheet-scrim { opacity: 1; }
@@ -787,6 +823,25 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .field-range:hover::-webkit-slider-thumb { background: var(--ice); }
 .field-range:hover::-moz-range-thumb { background: var(--ice); }
 
+/* Themenwahl: zwei feste Werte statt eines Gleitreglers, deshalb im Ton der
+   .range-btn-Reihe, nicht der Metro-Schalter. Die Radios liegen wie
+   .field-check unsichtbar, aber fokussierbar über der Beschriftung; der
+   Fokusring wandert an sie weiter, statt am Formularelement selbst zu
+   stehen. */
+.seg { display: flex; gap: 4px; }
+.seg-opt { position: relative; cursor: pointer; }
+.seg-in {
+  position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer;
+}
+.seg-lab {
+  display: block; padding: 4px 10px;
+  font-size: 9.5px; letter-spacing: var(--track-wide); text-transform: uppercase;
+  color: var(--ink-4); transition: color .16s var(--ease-out);
+}
+.seg-in:hover ~ .seg-lab { color: var(--ink-2); }
+.seg-in:checked ~ .seg-lab { color: var(--ice-pale); box-shadow: inset 0 -1px 0 var(--ice); }
+.seg-in:focus-visible ~ .seg-lab { outline: 2px solid var(--ice); outline-offset: 3px; }
+
 /* Metro-Schalter: eine Fläche, die von links nach rechts wandert. Darunter
    liegt weiterhin eine echte Checkbox — unsichtbar, aber fokussierbar; der
    Fokusring wird an das Band weitergereicht. */
@@ -817,7 +872,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .sheet-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .btn {
   padding: 10px 18px; font-size: 10px; letter-spacing: var(--track-label);
-  text-transform: uppercase; background: var(--ice-deep); color: #04070e; font-weight: 500;
+  text-transform: uppercase; background: var(--ice-deep); color: var(--bg-void); font-weight: 500;
   transition: filter .16s var(--ease-out);
 }
 .btn:hover { filter: brightness(1.12); }
@@ -834,7 +889,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
    bleiben sichtbar und bedienbar, während die leere Bühne verdeckt ist. */
 .gate {
   position: fixed; inset: var(--head-h) 0 0 0; z-index: 60; display: grid; place-items: center;
-  background: radial-gradient(80% 60% at 50% 34%, rgba(11,18,32,.94), rgba(4,7,14,.99));
+  background: radial-gradient(80% 60% at 50% 34%, var(--gate-0), var(--gate-1));
   padding: 24px;
 }
 .gate[hidden] { display: none; }
@@ -842,6 +897,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 body.is-gated .mast-star { display: none; }
 .gate-inner { max-width: 460px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .gate-star { width: 84px; height: 84px; display: grid; place-items: center; }
+/* Bei Tag sitzt jeder Stern ausserhalb der Kopfzeile auf einer kleinen
+   Nachtscheibe: ein weisser Stern verschwindet auf blasser Fläche, hier legt
+   sich derselbe Grund unter, den die Kopfzeile schon als Band trägt. */
+:root[data-theme="dawn"] .gate-star, :root[data-theme="dawn"] .about-head .star {
+  background: radial-gradient(circle at 50% 45%, var(--mast-bg-1), var(--mast-bg-0) 72%);
+  border-radius: 50%;
+}
 .gate-title { font-family: var(--font-display); font-size: 24px; font-weight: 300; letter-spacing: .01em; }
 .gate-copy { font-size: 13px; line-height: 1.55; color: var(--ink-3); text-wrap: pretty; }
 .gate-errors { display: flex; flex-direction: column; gap: 5px; width: 100%; }
@@ -854,7 +916,7 @@ body.is-gated .mast-star { display: none; }
 
 .drop-veil {
   position: fixed; inset: 0; z-index: 70; display: grid; place-items: center;
-  background: rgba(4,7,14,.82); backdrop-filter: blur(4px);
+  background: var(--veil-bg); backdrop-filter: blur(4px);
   opacity: 0; pointer-events: none; transition: opacity .18s var(--ease-out);
 }
 .drop-veil.is-on { opacity: 1; }
@@ -867,11 +929,11 @@ body.is-gated .mast-star { display: none; }
 .toast {
   position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 14px); z-index: 80;
   padding: 10px 18px; font-size: 12px; letter-spacing: .02em;
-  background: rgba(11,18,32,.96); border: 1px solid var(--line-soft); color: var(--ink-2);
+  background: var(--toast-bg); border: 1px solid var(--line-soft); color: var(--ink-2);
   opacity: 0; pointer-events: none; transition: opacity .22s var(--ease-out), transform .22s var(--ease-out);
   max-width: min(560px, 90vw);
 }
 .toast.is-on { opacity: 1; transform: translate(-50%, 0); }
-.toast.is-ok { border-color: rgba(47,189,139,.4); }
-.toast.is-warn { border-color: rgba(212,106,46,.45); }
-.toast.is-error { border-color: rgba(201,53,47,.5); color: var(--ember-pale); }
+.toast.is-ok { border-color: var(--aurora-line); }
+.toast.is-warn { border-color: var(--amber-line); }
+.toast.is-error { border-color: var(--ember-line); color: var(--ember-pale); }

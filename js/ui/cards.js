@@ -13,19 +13,6 @@
   var BASIS_LABEL = { liquid: 'liquid', investment: 'invested' };
   var BASIS_ARIA  = { liquid: 'from liquid assets', investment: 'from invested assets' };
 
-  /* Gerechnete Verläufe statt Fotos; die Anwendung greift auf keine Datei
-     neben sich zu. */
-  var WASH = {
-    contingency: ['#1b2436', '#2a2419', '#3a2c14'],
-    snowball:    ['#101b2e', '#1a2c48', '#2b4468'],
-    fyou:        ['#0e1b2c', '#173254', '#1f4a7a'],
-    coast:       ['#0d1d2f', '#14395c', '#1b5578'],
-    barista:     ['#0f2130', '#154a44', '#1c6b52'],
-    semi:        ['#141c33', '#242a55', '#333a72'],
-    lean:        ['#111a2e', '#22304f', '#3d4f7a'],
-    fat:         ['#151527', '#2e2947', '#4a3f63']
-  };
-
   function span(months) {
     if (months < 12) return months + ' months';
     var y = months / 12;
@@ -39,12 +26,12 @@
     ]);
   }
 
+  /* Der Verlauf selbst steht in css/components.css als
+     `.card[data-id="…"] { --w0/--w1/--w2 }` — Night und Dawn — und wird von
+     `.card-wash` gelesen; hier bleibt nur, was der Verlauf trägt: Marke und
+     Zeitspanne. */
   function wash(ms) {
-    var c = WASH[ms.id] || WASH.snowball;
     var box = U.make('div', { class: 'card-wash' });
-    box.style.background =
-      'radial-gradient(120% 90% at 24% 8%, ' + c[2] + ' 0%, transparent 60%),' +
-      'linear-gradient(168deg, ' + c[1] + ' 0%, ' + c[0] + ' 100%)';
     box.appendChild(NS.icons.svg(ms.id, 64, 'card-watermark'));
     box.appendChild(tag(ms.months));
     return box;

@@ -240,7 +240,7 @@
 
   /* Eine Fassung, an einer Stelle. Ohne Bauschritt kann nichts sie aus
      package.json holen, also steht sie hier. */
-  NS.VERSION = '1.1.15';
+  NS.VERSION = '1.2.0';
 
   /* Formatierer müssen vor dem ersten eur()/pct()-Aufruf existieren, auch
      wenn util.js allein geladen wird. */
