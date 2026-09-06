@@ -148,8 +148,11 @@
     try { LS.removeItem(KEY_MODEL); } catch (e) {}
   }
 
+  /* Liefert, was wirklich geschah, statt nur zu zählen: `forget()` in
+     app.js muss einen Fehlschlag melden können, statt einen Vorhang
+     zuzuziehen, hinter dem die Daten beim nächsten Öffnen wieder auftauchen. */
   function clearAll() {
-    if (!ok) return 0;
+    if (!ok) return { ok: true, removed: 0, failed: [] };
     var mine = [];
     try {
       if (typeof LS.length === 'number' && typeof LS.key === 'function') {
@@ -163,11 +166,11 @@
         mine = [KEY_MODEL, KEY_SETTINGS];
       }
     } catch (e) { mine = [KEY_MODEL, KEY_SETTINGS]; }
-    var n = 0;
+    var n = 0, failed = [];
     for (var j = 0; j < mine.length; j++) {
-      try { LS.removeItem(mine[j]); n++; } catch (e) {}
+      try { LS.removeItem(mine[j]); n++; } catch (e) { failed.push(mine[j]); }
     }
-    return n;
+    return { ok: failed.length === 0, removed: n, failed: failed };
   }
 
   function loadSettings() {

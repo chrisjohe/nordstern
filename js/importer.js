@@ -100,8 +100,10 @@
      Sektion doppelt zählt (Monatsreihe und Gegenprobe). */
   var currencyTally = null;
   var currencySeen = null;
-  function currencyTallyReset() { currencyTally = {}; }
-  function currencySeenReset() { currencySeen = {}; }
+  /* Object.create(null): ohne Prototyp bleibt `in` und die Zählung sauber,
+     selbst wenn ein Schlüssel je einen geerbten Namen träfe (s. labelRows). */
+  function currencyTallyReset() { currencyTally = Object.create(null); }
+  function currencySeenReset() { currencySeen = Object.create(null); }
   function currencyNote(addrStr, fmt) {
     if (!currencyTally || (currencySeen && currencySeen[addrStr])) return;
     if (currencySeen) currencySeen[addrStr] = true;
@@ -294,7 +296,12 @@
      Fehlerzellen in die Diagnosenotiz, ein zweiter Aufruf je Zeile würde
      doppelt zählen. */
   function labelRows(ws, range) {
-    var map = {}, rows = {}, count = 0;
+    /* Object.create(null): ein Label wie "constructor" oder "__proto__"
+       träfe auf ein {}-Objekt einen geerbten Namen aus Object.prototype —
+       map[l] bliebe die geerbte Funktion statt einer Zeilennummer, und
+       rows[l].push schlüge fehl, weil eine Funktion kein push kennt. `in`
+       und Object.keys() funktionieren auf einem Objekt ohne Prototyp genauso. */
+    var map = Object.create(null), rows = Object.create(null), count = 0;
     for (var r = range.r0; r <= range.r1; r++) {
       var l = norm(str(ws, r, 0));
       if (!l) continue;
@@ -305,8 +312,15 @@
     return { map: map, rows: rows, count: count };
   }
 
-  function parseSheet(ws, sheetName, errors, warnings, fmt) {
+  function parseSheet(ws, sheetName, errors, warnings) {
     noteInit(sheetName);
+    /* checkSums() findet einen Abweichungsbetrag, bevor parseWorkbook() die
+       Mappenwährung erkannt hat (currencyResult() läuft erst danach, über
+       das ganze Blatt). Der Platzhalter merkt sich Stelle und Rohdaten;
+       formatiert wird erst in parseWorkbook, sobald die Währung feststeht —
+       so bleibt die Reihenfolge der Warnungen unverändert, nur ihr Text
+       entsteht später. */
+    var pendingAmounts = [];
     var range = decodeRange(ws);
     var L = labelRows(ws, range);
     /* Eine leere Mappe verfehlt sonst jeden Anker einzeln — ein Dutzend
@@ -642,9 +656,11 @@
         if (diff > EPS) { bad++; if (diff > worst) { worst = diff; worstKey = mc.key; } }
       });
       if (bad) {
-        var shown = fmt ? fmt(worst) : (worst.toFixed(2) + ' ' + dispCode);
-        warnings.push('Section "' + id + '": ' + bad + ' month(s) differ from the total row (max. ' +
-          shown + ' in ' + worstKey + ').');
+        /* Platzhalter statt fertigem Text: welche Währung den Betrag zeigt,
+           steht erst in parseWorkbook fest (s. Kommentar oben). Der Index
+           hält die Stelle in `warnings`, an der die Zeichenkette landet. */
+        pendingAmounts.push({ at: warnings.length, id: id, bad: bad, worst: worst, worstKey: worstKey });
+        warnings.push(null);
       }
     }
     sections.forEach(function (s) { checkSums(s.id, accounts[s.id]); });
@@ -664,7 +680,8 @@
       currentIndex: months.length - 1,
       accounts: accounts,
       sectionOrder: sections.map(function (s) { return s.id; }),
-      skipped: skipped ? { count: skipped, from: skippedFrom } : null
+      skipped: skipped ? { count: skipped, from: skippedFrom } : null,
+      pendingAmounts: pendingAmounts
     };
   }
 
@@ -703,7 +720,10 @@
     var wb = X.read(bytes, {
       type: 'array', cellDates: true, cellNF: true, cellFormula: false, cellStyles: false, sheets: [chosen]
     });
-    var kept = {};
+    /* Object.create(null): ein Blattname wie "__proto__" träfe auf einem
+       {}-Objekt keine eigene Eigenschaft, sondern den geerbten
+       Prototyp-Setter — dieselbe Falle wie bei labelRows(). */
+    var kept = Object.create(null);
     if (wb.Sheets[chosen]) kept[chosen] = wb.Sheets[chosen];
     return { SheetNames: [chosen], Sheets: kept, available: available };
   }
@@ -723,11 +743,28 @@
     }
     if (errors.length) return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
 
+    /* opts.fmt(betrag, code) formatiert in einer benannten Währung (die App
+       gibt NS.util.eurIn mit); ohne Formatierer bleibt eine nackte Zahl mit
+       Code. Die Platzhalter aus checkSums() werden an ihrer Stelle in
+       `warnings` befüllt, die Reihenfolge bleibt. Erkannte Währung → in ihr;
+       keine erkannt → in der angezeigten, in der die Mappe dann auch steht. */
     var fmt = opts && typeof opts.fmt === 'function' ? opts.fmt : null;
-    var data = parseSheet(wsData, wb.SheetNames[0], errors, warnings, fmt);
-    if (errors.length || !data) return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
+    function settle(data, code) {
+      if (!data) return;
+      data.pendingAmounts.forEach(function (p) {
+        var shown = fmt ? fmt(p.worst, code) : (p.worst.toFixed(2) + ' ' + code);
+        warnings[p.at] = 'Section "' + p.id + '": ' + p.bad + ' month(s) differ from the total row (max. ' +
+          shown + ' in ' + p.worstKey + ').';
+      });
+    }
+    var data = parseSheet(wsData, wb.SheetNames[0], errors, warnings);
+    if (errors.length || !data) {
+      settle(data, dispCode);
+      return { ok: false, errors: errors, warnings: warnings, model: null, currency: null };
+    }
 
     var currency = currencyResult(warnings, dispCode);
+    settle(data, currency || dispCode);
 
     return {
       ok: true, errors: [], warnings: warnings, currency: currency,

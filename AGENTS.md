@@ -41,7 +41,9 @@ It runs from `file://` with no server and no build step.
 6. **Do not read the user's workbook** beyond the one sheet the importer
    chooses (see `SHEET_NAMES` in `js/importer.js`), and do not print its
    contents. If you must inspect it, print labels from column A, never
-   amounts.
+   amounts. (The importer itself cannot keep this rule for `.xls`, `.ods`
+   and `.numbers`: SheetJS decodes every sheet of those before the filter
+   applies, and the rest is dropped unread — documented in `SECURITY.md`.)
 
 ## Where things live
 

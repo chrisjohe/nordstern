@@ -365,7 +365,7 @@ sec('Voller Speicher: Löschen geht trotzdem');
   const r=S.saveModel(S.loadModel());
   ok(r.ok===false&&r.reason==='Local storage is full.','Schreiben meldet den vollen Speicher: '+JSON.stringify(r));
   const n=S.clearAll();
-  ok(n===2,'clearAll() entfernt beide eigenen Schlüssel und zählt sie: '+n);
+  ok(n.ok===true&&n.removed===2&&n.failed.length===0,'clearAll() entfernt beide eigenen Schlüssel und meldet es: '+JSON.stringify(n));
   ok(Object.keys(mem).every(k=>!k.startsWith('nordstern.')),'im Speicher liegt nichts mehr von uns: '+Object.keys(mem).join());
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
@@ -2982,6 +2982,426 @@ sec('Berg: Farben aus Token');
 
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
+}
+
+/* ---------- Audit 2026-09-06 (Codex Astra): Löschen und Fehlschlag ---------- */
+/* ---------- 1. Löschen räumt Chart-Tooltip und Karten-aria-label ab ---------- */
+/* Bug 1: clear() im Chart nahm nur die Klasse vom Fenster, liess aber Monat,
+   Betrag und Zeilen im DOM stehen; clear() bei den Karten liess das
+   aria-label mit dem letzten Zielbetrag zurück. Beides prüft diese Reihe. */
+sec('Löschen räumt Chart-Tooltip und Karten-Beschriftung ab');
+{ const store1={};
+  const {w,errors}=await boot({storage:store1});
+  const d=w.document;
+  importFixture(w);
+
+  /* Erst einen Punkt abtasten, damit das Tooltip wirklich gefüllt ist. */
+  const body=d.querySelector('.chart-body');
+  const ev=new w.Event('pointermove'); ev.clientX=300; ev.clientY=80;
+  body.dispatchEvent(ev);
+  await tick(20);
+  const tip=d.querySelector('.chart-tip');
+  ok(tip.classList.contains('is-on'),'das Lesefenster ist vor dem Löschen offen');
+  ok(tip.childNodes.length>0,'und trägt Inhalt: '+tip.childNodes.length+' Kind(er)');
+
+  /* Und mindestens eine Karte trägt ein aria-label mit dem Zielbetrag. */
+  const anyLabelled=[...d.querySelectorAll('.card')].some(c=>c.hasAttribute('aria-label'));
+  ok(anyLabelled,'vor dem Löschen trägt mindestens eine Karte ein aria-label');
+
+  w.confirm=()=>true;
+  const del=[...d.querySelectorAll('#settingsZone button')].find(b=>/Delete local data/.test(b.textContent));
+  ok(!!del,'der Löschen-Knopf ist da');
+  del.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await tick(60);
+
+  ok(!tip.classList.contains('is-on'),'das Lesefenster ist zu');
+  ok(tip.childNodes.length===0,'und trägt keine Kinder mehr: '+tip.childNodes.length);
+  ok(N(tip.textContent)==='','und keinen Text mehr: „'+N(tip.textContent)+'"');
+  ok(!tip.style.left && !tip.style.top || (tip.style.left===''&&tip.style.top===''),
+     'und keine Position mehr: left='+tip.style.left+' top='+tip.style.top);
+  ok([...d.querySelectorAll('.card')].every(c=>!c.hasAttribute('aria-label')),
+     'keine Karte trägt noch ein aria-label');
+  /* Der Name bleibt — nur der errechnete Stand verschwindet. */
+  ok([...d.querySelectorAll('.card')].every(c=>!!c.querySelector('.card-name').textContent),
+     'aber jede Karte trägt weiter ihren Namen');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 2. Eine fehlgeschlagene Löschung sagt es auch ---------- */
+/* Bug 2: clearAll() verschluckte jedes removeItem, das warf, und meldete nur
+   die Zahl der Erfolge — forget() sah das nie. Jetzt liefert clearAll() eine
+   Form mit ok/removed/failed, und forget() zeigt bei ok:false einen
+   Fehler-Toast und einen Status „not deleted" statt „no import". */
+sec('Eine fehlgeschlagene Löschung bleibt sichtbar');
+{ const store2={};
+  const {w,errors}=await boot({storage:store2});
+  const d=w.document;
+  importFixture(w);
+  await tick(20);
+  ok(Object.keys(store2).length>0,'vorher liegt etwas im Speicher: '+Object.keys(store2).join(' · '));
+
+  /* Dieselbe Instanz wie im Store — removeItem wirft für das Modell, für
+     die Einstellungen geht es normal weiter. */
+  const realRemove=w.localStorage.removeItem;
+  w.localStorage.removeItem=function(k){
+    if(k==='nordstern.model.v1') throw new Error('boom');
+    return realRemove.call(w.localStorage,k);
+  };
+
+  const direct=w.NORDSTERN.store.clearAll();
+  ok(direct && direct.ok===false,'clearAll() meldet ok:false: '+JSON.stringify(direct));
+  ok(Array.isArray(direct.failed)&&direct.failed.indexOf('nordstern.model.v1')!==-1,
+     'und nennt den fehlgeschlagenen Schlüssel: '+JSON.stringify(direct.failed));
+  ok(typeof direct.removed==='number','und zählt die geglückten Entfernungen: '+direct.removed);
+
+  /* Jetzt wieder frisch importieren und über den Knopf löschen, damit auch
+     forget() denselben Fehlschlag sieht. */
+  importFixture(w);
+  await tick(20);
+  w.confirm=()=>true;
+  const del=[...d.querySelectorAll('#settingsZone button')].find(b=>/Delete local data/.test(b.textContent));
+  del.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await tick(60);
+
+  const toastEl=d.getElementById('toast');
+  ok(toastEl.classList.contains('is-error'),'der Toast meldet einen Fehler: '+toastEl.className);
+  ok(toastEl.textContent.length>0,'und hat einen Text: „'+toastEl.textContent+'"');
+  ok(/delet|remov/i.test(toastEl.textContent)&&/reopen|reappear|restart/i.test(toastEl.textContent),
+     'der Text nennt Löschen und die Wiederkehr beim Neuöffnen: „'+toastEl.textContent+'"');
+
+  const statusEl=d.querySelector('.sheet-sec[data-sec="source"] .sheet-status .meta-import');
+  ok(statusEl.textContent==='not deleted','der Importstatus meldet den Fehlschlag: '+statusEl.textContent);
+  ok(statusEl.className.indexOf('is-error')!==-1,'und trägt die Fehler-Klasse: '+statusEl.className);
+
+  /* Trotzdem bleibt die Bühne leer geräumt — nur die Meldung unterscheidet
+     einen Fehlschlag von einem geglückten Löschen. */
+  ok(!d.getElementById('gate').hidden,'der Vorhang ist trotzdem zu');
+  ok(!d.querySelector('.hero-val'),'die Bühne bleibt leer');
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 3. Normales Löschen bleibt „no import" (Regressionswache) ---------- */
+sec('Normales Löschen meldet weiter „no import"');
+{ const store3={};
+  const {w,errors}=await boot({storage:store3});
+  const d=w.document;
+  importFixture(w);
+  await tick(20);
+
+  w.confirm=()=>true;
+  const del=[...d.querySelectorAll('#settingsZone button')].find(b=>/Delete local data/.test(b.textContent));
+  del.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await tick(60);
+
+  const statusEl=d.querySelector('.sheet-sec[data-sec="source"] .sheet-status .meta-import');
+  ok(statusEl.textContent==='no import','der Importstatus steht wieder auf „no import": '+statusEl.textContent);
+  ok(statusEl.className.indexOf('is-none')!==-1,'und trägt die Vorgabe-Klasse: '+statusEl.className);
+  ok(!d.getElementById('toast').classList.contains('is-error'),'kein Fehler-Toast beim normalen Löschen');
+
+  const direct=w.NORDSTERN.store.clearAll();
+  ok(direct && direct.ok===true,'clearAll() meldet ok:true, wenn nichts mehr zu tun ist: '+JSON.stringify(direct));
+  ok(Array.isArray(direct.failed)&&direct.failed.length===0,'und keine Fehlschläge: '+JSON.stringify(direct.failed));
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- Audit 2026-09-06 (Codex Astra): Importer: geerbte Namen und Mappenwährung ---------- */
+{
+/* ---------- Bug 1: ein Kontoname wie "constructor" oder "__proto__" ---------- */
+/* labelRows() nutzt `map` und `rows` als {}: ein Label, das einen geerbten
+   Object.prototype-Namen trifft, findet map[l] nie leer (die geerbte
+   Funktion steht schon da) und rows[l].push wirft, weil eine Funktion kein
+   push kennt. parseArrayBuffer fängt das ab und meldet den Import als
+   gescheitert, obwohl die Mappe gültig ist. */
+sec('Bug 1: Kontoname trifft einen geerbten Object.prototype-Namen');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const EC=(r,c)=>XLSX.utils.encode_cell({r,c});
+  const ROW=TINY_ROWS;
+  const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Data Input'); return b; };
+
+  ['constructor','__proto__','hasOwnProperty'].forEach(function(name){
+    const ws=tinySheet(w,[[2026,1],[2026,2]]);
+    ws[EC(ROW.CASH,0)]={t:'s', v:name};
+    /* Vor der Reparatur wirft parseWorkbook hier unabgefangen (ein
+       plain-object `rows[l]` trifft die geerbte Funktion); parseArrayBuffer
+       fängt das normalerweise ab, hier wird es sichtbar gemacht statt das
+       ganze Skript abzubrechen. */
+    let res=null, threw=null;
+    try { res=w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'x.xlsx'); }
+    catch(e){ threw=e; }
+    ok(!threw,'Kontoname "'+name+'": parseWorkbook wirft nicht: '+(threw&&threw.message));
+    ok(!!res&&res.ok===true,'Kontoname "'+name+'": Import gelingt: '+(res&&JSON.stringify(res.errors)));
+    ok(!!res&&res.errors.length===0,'Kontoname "'+name+'": keine Fehler: '+(res&&JSON.stringify(res.errors)));
+    const names=res&&res.ok?res.model.accounts.liquid.map(a=>a.name):[];
+    ok(names.indexOf(name)>=0,'Kontoname "'+name+'" steht unter seinem Namen im Modell: '+names.join(', '));
+  });
+
+  ok(errors.length===0,'keine Fehler im Fenster: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- Bug 2: Warnungen werden in der Mappenwährung formatiert, nicht in der Anzeigewährung ---------- */
+/* checkSums() formatiert den Abweichungsbetrag mit `fmt` (der aktuellen
+   Anzeigewährung), bevor currencyResult() in parseWorkbook() die Währung der
+   Mappe überhaupt erkannt hat. Eine USD-Mappe erhält so eine Warnung in Euro. */
+sec('Bug 2: Gegenprobe-Warnung in der erkannten Mappenwährung, nicht der Anzeigewährung');
+{ const {w,errors}=await boot();
+  const XLSX=w.XLSX;
+  const EC=(r,c)=>XLSX.utils.encode_cell({r,c});
+  const ROW=TINY_ROWS;
+  const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Data Input'); return b; };
+  w.NORDSTERN.util.setCurrency('EUR');   // die Anzeigewährung der App bleibt Euro
+
+  /* USD-Mappe: alle Zahlenzellen mit $-Zahlenformat, wie im Origin-Fixture
+     (originSheet in harness.mjs), plus eine bewusste Abweichung bei "Cash"
+     im ersten Monat gegen "Total liquid" (100). */
+  function usdSheetWithMismatch(){
+    const ws=tinySheet(w,[[2026,1],[2026,2]]);
+    const range=XLSX.utils.decode_range(ws['!ref']);
+    for(let r=range.s.r;r<=range.e.r;r++) for(let c=1;c<=range.e.c;c++){
+      const a=XLSX.utils.encode_cell({r,c}); const cell=ws[a]; if(!cell||cell.t!=='n') continue;
+      cell.z='"$"#,##0.00';
+    }
+    ws[EC(ROW.CASH,1)]={t:'n', v:1234.56, z:'"$"#,##0.00'};   // weicht von "Total liquid" (100) ab
+    return ws;
+  }
+  const usd=w.NORDSTERN.importer.parseWorkbook(wbOf(usdSheetWithMismatch()),'x.xlsx',
+    {currency:'EUR', fmt:w.NORDSTERN.util.eurIn});
+  ok(usd.ok,'USD-Mappe liest sich trotz Abweichung: '+JSON.stringify(usd.errors));
+  ok(usd.currency==='USD','die $-Formate ergeben USD: '+usd.currency);
+  const usdWarn=(usd.warnings||[]).find(t=>/differ from the total row/.test(t));
+  ok(!!usdWarn,'es gibt eine Gegenprobe-Warnung: '+JSON.stringify(usd.warnings));
+  ok(!!usdWarn && /\$\s?1[,.]134\.56|max\.\s*\$1,134\.56/.test(usdWarn),
+     'der Betrag steht in Dollar (1.134,56 in USD-Schreibweise): '+usdWarn);
+  ok(!!usdWarn && usdWarn.indexOf('€')<0,'kein Euro-Zeichen in der Warnung: '+usdWarn);
+
+  /* Regressionswache: eine Mappe ohne erkennbares Währungsformat bleibt bei
+     der Anzeigewährung (heute Euro), wie bisher. */
+  const eurWs=tinySheet(w,[[2026,1],[2026,2]]);
+  eurWs[EC(ROW.CASH,1)]={t:'n', v:1234.56};   // dieselbe Abweichung, ohne Währungsformat
+  const eur=w.NORDSTERN.importer.parseWorkbook(wbOf(eurWs),'x.xlsx',
+    {currency:'EUR', fmt:w.NORDSTERN.util.eurIn});
+  ok(eur.ok,'EUR-Mappe (ohne Formatinfo) liest sich trotz Abweichung: '+JSON.stringify(eur.errors));
+  ok(eur.currency===null,'keine Währung zu erkennen: '+eur.currency);
+  const eurWarn=(eur.warnings||[]).find(t=>/differ from the total row/.test(t));
+  ok(!!eurWarn,'es gibt eine Gegenprobe-Warnung: '+JSON.stringify(eur.warnings));
+  ok(!!eurWarn && eurWarn.indexOf('€')>=0,'der Betrag steht weiterhin in Euro: '+eurWarn);
+
+  ok(errors.length===0,'keine Fehler im Fenster: '+errors.join(' | '));
+  w.close();
+}
+}
+
+/* ---------- Audit 2026-09-06 (Codex Astra): Structure-Legende und Fokus-Rückweg ---------- */
+{
+/* Zwei eigene Mappen, weil TINY_ROWS/tinySheet nur ein Konto je Sektion
+   kennt (Cash) und dessen Betrag an den Monatsindex koppelt — hier zählt der
+   Betrag selbst: einmal eine Sektion, deren einziges Konto und deren Summe
+   negativ sind (ein überzogenes Konto), einmal eine Sektion mit zwei
+   gegenläufigen Konten, deren Summe exakt null ist. Beide Mappen bleiben so
+   klein wie tinySheet, nur mit frei gewählten Beträgen statt der Formel
+   dort. */
+function negLiquidSheet(w) {
+  const D = (y, m) => new w.Date(y, m - 1, 1);
+  return w.XLSX.utils.aoa_to_sheet([
+    ['Month',              D(2026, 8)],
+    ['Liquid'],
+    ['  Cash',             -500],
+    ['Total liquid',       -500],
+    ['Claims'],
+    ['Total claims',       0],
+    ['Investments'],
+    ['  Depot',            1000],
+    ['Total investments',  1000],
+    ['Property'],
+    ['Total property',     0],
+    ['Retirement'],
+    ['Total retirement',   0],
+    ['Total assets',       500],
+    ['Liabilities'],
+    ['  Loan',             0],
+    ['Total liabilities',  0],
+    ['Total net worth',    500]
+  ], {cellDates: true});
+}
+function negLiquidWorkbook(w) {
+  const wb = w.XLSX.utils.book_new();
+  w.XLSX.utils.book_append_sheet(wb, negLiquidSheet(w), 'Data Input');
+  return wb;
+}
+
+function zeroOffsetSheet(w) {
+  const D = (y, m) => new w.Date(y, m - 1, 1);
+  return w.XLSX.utils.aoa_to_sheet([
+    ['Month',              D(2026, 8)],
+    ['Liquid'],
+    ['  Cash',             300],
+    ['  Overdraft',        -300],
+    ['Total liquid',       0],
+    ['Claims'],
+    ['Total claims',       0],
+    ['Investments'],
+    ['  Depot',            1000],
+    ['Total investments',  1000],
+    ['Property'],
+    ['Total property',     0],
+    ['Retirement'],
+    ['Total retirement',   0],
+    ['Total assets',       1000],
+    ['Liabilities'],
+    ['  Loan',             0],
+    ['Total liabilities',  0],
+    ['Total net worth',    1000]
+  ], {cellDates: true});
+}
+function zeroOffsetWorkbook(w) {
+  const wb = w.XLSX.utils.book_new();
+  w.XLSX.utils.book_append_sheet(wb, zeroOffsetSheet(w), 'Data Input');
+  return wb;
+}
+
+/* Dieselbe Reise wie importFixture, nur ab einer schon gebauten Mappe statt
+   einer Datei — parseWorkbook nimmt beides direkt entgegen. */
+function importWorkbook(w, wb, fileName) {
+  const res = w.NORDSTERN.importer.parseWorkbook(wb, fileName);
+  if (res.ok) {
+    w.NORDSTERN.app.state.model = res.model;
+    w.NORDSTERN.store.saveModel(res.model);
+    w.NORDSTERN.app.refresh();
+    w.document.getElementById('gate').hidden = true;
+  }
+  return res;
+}
+
+/* ================================================================
+   Fehler 1: Sektionen mit negativer oder exakt null Summe fallen aus
+   der Legende der Scheibe, samt ihrem Drill-down.
+   ================================================================ */
+
+sec('Fehler 1: negative Sektionssumme bleibt in der Legende');
+{ const {w, errors} = await boot();
+  const d = w.document;
+  const res = importWorkbook(w, negLiquidWorkbook(w), 'neg.xlsx');
+  ok(res.ok, 'Import gelingt trotz negativer Sektionssumme: ' + (res.errors || []).join(' | '));
+  await tick(30);
+
+  const rows = () => [...d.querySelectorAll('.orbit-legend .legend-row')];
+  const legRow = d.querySelector('.legend-row[data-id="liquid"]');
+  ok(!!legRow, 'die Legende zeigt eine Zeile für „liquid": ' + rows().map(r => r.dataset.id).join(','));
+
+  if (legRow) {
+    const val = N(legRow.querySelector('.legend-val').textContent);
+    ok(val.replace('−', '-').trim().startsWith('-'), 'der Betrag steht mit Vorzeichen: ' + val);
+    ok(val.includes('500'), 'und mit dem echten Betrag, nicht auf null gekappt: ' + val);
+    ok(legRow.querySelector('.legend-pct').textContent === '',
+       'kein Anteil an den Vermögenswerten für eine negative Sektion: „' + legRow.querySelector('.legend-pct').textContent + '"');
+    ok(legRow.classList.contains('is-open-able'), 'die Zeile bleibt anklickbar, sie hat einen Posten');
+  }
+  ok(arcSweep(d, 'liquid') === null, 'kein Bogen im äusseren Ring für die negative Sektion');
+
+  if (legRow) {
+    legRow.dispatchEvent(new w.MouseEvent('click', {bubbles: true}));
+    await tick(20);
+    ok(!!d.querySelector('.legend-back'), 'der Klick öffnet den Drill-down der Sektion');
+    const items = rows().filter(r => (r.dataset.id || '').indexOf('item-') === 0);
+    ok(items.length === 1, 'genau ein Posten im Drill-down: ' + items.length);
+    if (items.length) {
+      const itemVal = N(items[0].querySelector('.legend-val').textContent);
+      ok(itemVal.replace('−', '-').trim().startsWith('-'),
+         'der negative Posten steht auch dort mit Vorzeichen: ' + itemVal);
+    }
+  }
+  ok(errors.length === 0, 'keine Fehler: ' + errors.join(' | '));
+  w.close();
+}
+
+sec('Fehler 1: Sektionssumme exakt 0 mit gegenläufigen Konten bleibt in der Legende');
+{ const {w, errors} = await boot();
+  const d = w.document;
+  const res = importWorkbook(w, zeroOffsetWorkbook(w), 'zero.xlsx');
+  ok(res.ok, 'Import gelingt: ' + (res.errors || []).join(' | '));
+  await tick(30);
+
+  const legRow = d.querySelector('.legend-row[data-id="liquid"]');
+  ok(!!legRow, 'die Legende zeigt die Nullsektion: ' +
+     [...d.querySelectorAll('.orbit-legend .legend-row')].map(r => r.dataset.id).join(','));
+  if (legRow) {
+    ok(N(legRow.querySelector('.legend-val').textContent).includes('0'),
+       'mit dem Betrag 0: ' + legRow.querySelector('.legend-val').textContent);
+    ok(legRow.querySelector('.legend-pct').textContent === '',
+       'kein Anteil für eine Sektion ohne positive Summe: „' + legRow.querySelector('.legend-pct').textContent + '"');
+    ok(legRow.classList.contains('is-open-able'),
+       'anklickbar, weil zwei gegenläufige Konten Posten sind');
+  }
+  ok(arcSweep(d, 'liquid') === null, 'kein Bogen, weil die Summe nicht über der Zeichenschwelle liegt');
+  ok(errors.length === 0, 'keine Fehler: ' + errors.join(' | '));
+  w.close();
+}
+
+/* ================================================================
+   Fehler 2: open(id) fängt lastFocus erst nach select(id), das bei
+   „expenses" einen refresh() auslösen kann, der den öffnenden Knopf
+   entfernt — der Fokus fällt danach ins geschlossene, inerte Blatt.
+   ================================================================ */
+
+sec('Fehler 2: Fokus verlässt das geschlossene Blatt nicht, wenn der öffnende Knopf verschwindet');
+{ const {w, errors} = await boot();
+  const d = w.document;
+  importFixture(w);
+  await tick(30);
+
+  ok(w.NORDSTERN.app.state.settings.expensesSet === false,
+     'frische Einstellungen: expensesSet ist noch nicht gesetzt');
+  const hint = d.querySelector('.st-hint');
+  ok(!!hint, 'der Hinweis „expenses are an estimate" steht da');
+
+  if (hint) {
+    hint.focus();
+    ok(d.activeElement === hint, 'der Hinweis trägt den Fokus, bevor geklickt wird');
+    hint.dispatchEvent(new w.MouseEvent('click', {bubbles: true}));
+    await tick(30);
+  }
+  ok(d.querySelector('.overlay').classList.contains('is-open'), 'das Blatt ist offen');
+  ok(!d.querySelector('.st-hint'),
+     'der Hinweis ist durch den ausgelösten refresh() verschwunden — sein Knopf hängt jetzt in der Luft');
+  ok(d.querySelector('.sheet-nav-item[aria-selected="true"]').textContent === 'expenses',
+     'und zwar im Abschnitt expenses: ' + d.querySelector('.sheet-nav-item[aria-selected="true"]').textContent);
+
+  w.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+  await tick(20);
+  const overlay = d.querySelector('.overlay');
+  const panel = d.querySelector('.sheet');
+  ok(!overlay.classList.contains('is-open'), 'das Blatt ist zu');
+  ok(!!d.activeElement && d.activeElement.isConnected,
+     'der Fokus steht auf einem noch vorhandenen Element, nicht auf gar keinem');
+  ok(!panel.contains(d.activeElement) && !overlay.contains(d.activeElement),
+     'und nicht mehr im jetzt inerten Einstellungsblatt: ' +
+     (d.activeElement && (d.activeElement.id || d.activeElement.className)));
+  ok(d.activeElement === d.getElementById('btnSettings'),
+     'sondern auf dem Zahnrad-Knopf, der ihn geöffnet hätte, wäre der Hinweis nicht gewesen: ' +
+     (d.activeElement && d.activeElement.id));
+  ok(errors.length === 0, 'keine Fehler: ' + errors.join(' | '));
+  w.close();
+}
+
+sec('Fehler 2, Regressionsschutz: gewöhnliches Öffnen über das Zahnrad kehrt weiter dorthin zurück');
+{ const {w, errors} = await boot();
+  const d = w.document;
+  const gear = d.getElementById('btnSettings');
+  gear.focus();
+  gear.dispatchEvent(new w.Event('click'));
+  await tick(20);
+  ok(d.querySelector('.overlay').classList.contains('is-open'), 'das Blatt öffnet sich');
+  w.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+  await tick(20);
+  ok(d.activeElement === gear,
+     'der Fokus kehrt wie zuvor aufs Zahnrad zurück: ' + (d.activeElement && d.activeElement.id));
+  ok(errors.length === 0, 'keine Fehler: ' + errors.join(' | '));
+  w.close();
+}
 }
 
 console.log('\n'+pass+' bestanden, '+fail+' fehlgeschlagen');

@@ -193,6 +193,10 @@
           c.root.classList.remove('is-linked');
           c.root.classList.remove('is-inactive');
           c.root.removeAttribute('aria-disabled');
+          /* Sonst nennte der Vorleser weiter den Zielbetrag des letzten
+             Imports — build() setzt hier gar keins, das entfernen stellt
+             genau den Ausgangszustand wieder her. */
+          c.root.removeAttribute('aria-label');
           c.root.setAttribute('tabindex', '0');
           c.inactive = false;
           c.front.querySelector('.card-bar i').style.width = '0%';

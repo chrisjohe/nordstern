@@ -61,6 +61,21 @@
   /** Gerundeter Betrag für Achsen, Marker und enge Flächen. */
   function eur0(v) { return isNum(v) ? nfEur0.format(v) : '—'; }
 
+  /* Betrag in einer bestimmten Währung, unabhängig von der eingestellten: der
+     Importer nennt Abweichungen in der Währung der Mappe, die er erst am Ende
+     des Lesens kennt, während die Anzeige noch in der alten steht. Ein
+     unbekannter Code fällt auf die eingestellte Währung zurück. */
+  var nfIn = {};
+  function eurIn(v, code) {
+    if (!isNum(v)) return '—';
+    var c = Object.prototype.hasOwnProperty.call(CURRENCIES, code) ? code : curCode;
+    if (c === curCode) return nfEur.format(v);
+    var f = nfIn[c] || (nfIn[c] = new Intl.NumberFormat(CURRENCIES[c].locale, {
+      style: 'currency', currency: c, minimumFractionDigits: 2, maximumFractionDigits: 2
+    }));
+    return f.format(v);
+  }
+
   /** Kompakt (12k / 1,25M), nur für Achsen. */
   function eurShort(v) {
     if (!isNum(v)) return '—';
@@ -240,14 +255,14 @@
 
   /* Eine Fassung, an einer Stelle. Ohne Bauschritt kann nichts sie aus
      package.json holen, also steht sie hier. */
-  NS.VERSION = '1.2.1';
+  NS.VERSION = '1.2.2';
 
   /* Formatierer müssen vor dem ersten eur()/pct()-Aufruf existieren, auch
      wenn util.js allein geladen wird. */
   setCurrency('EUR');
 
   NS.util = {
-    isNum: isNum, eur: eur, eur0: eur0, eurShort: eurShort, eurSigned: eurSigned, eurSigned0: eurSigned0,
+    isNum: isNum, eur: eur, eur0: eur0, eurIn: eurIn, eurShort: eurShort, eurSigned: eurSigned, eurSigned0: eurSigned0,
     pct: pct, pctSigned: pctSigned, mult: mult,
     monthLong: monthLong, monthShort: monthShort, monthNo: monthNo, dateTime: dateTime,
     MONTHS_SHORT: MONTHS_SHORT,

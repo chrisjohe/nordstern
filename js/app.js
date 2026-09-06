@@ -121,7 +121,7 @@
     };
     fr.onload = function () {
       if (token !== importSeq) return;
-      var res = NS.importer.parseArrayBuffer(fr.result, file.name, { currency: state.settings.currency, fmt: NS.util.eur });
+      var res = NS.importer.parseArrayBuffer(fr.result, file.name, { currency: state.settings.currency, fmt: NS.util.eurIn });
       if (!res.ok) {
         ui.settings.setStatus('error', 'unknown structure');
         /* Mit einem stehenden Modell bleibt die Bühne stehen; der Vorhang
@@ -186,7 +186,7 @@
        `onload` zurück und zeichnete und speicherte die Mappe erneut. Die
        Marke entwertet ihn, wie eine zweite Auswahl die erste entwertet. */
     importSeq++;
-    NS.store.clearAll();
+    var res = NS.store.clearAll();
     state.model = null; state.view = null;
     state.settings = NS.store.loadSettings();       // mit den Vorgaben als Grund
     applyMotion();
@@ -202,7 +202,15 @@
     ui.settings.sync(null, null, state.settings);
     showGate('No data yet',
       'Drop the workbook with your snapshots here — or pick it. Only the sheet "Data Input" is read.');
-    ui.settings.setStatus('none', 'no import');
+    /* Die Bühne räumt sich in jedem Fall — aber blieb ein Schlüssel liegen,
+       kommt er beim nächsten Öffnen zurück, und das muss die Meldung sagen,
+       nicht ein Status, der einen sauberen Schnitt behauptet. */
+    if (res.ok) {
+      ui.settings.setStatus('none', 'no import');
+    } else {
+      toast('Local data could not be fully deleted. It may reappear when the page is reopened.', 'error');
+      ui.settings.setStatus('error', 'not deleted');
+    }
     ui.settings.close();
   }
 

@@ -29,7 +29,7 @@ Only one sheet is read: **`Data Input`**, or one of a short list of aliases
 `Dateneingabe`, `Vermögen`, `Bilanz`), matched in that order; a workbook with
 exactly one sheet needs no matching name at all. The parser is handed the one
 matching name, so in `.xlsx`, `.xlsm` and `.xlsb` no other sheet is decoded
-at all. SheetJS ignores that filter for `.ods` and `.numbers`; there every
+at all. SheetJS ignores that filter for `.xls`, `.ods` and `.numbers`; there every
 sheet is decoded into memory, and everything but the matching sheet is
 dropped the moment the workbook is open, before a single cell is read out of
 it. Either way, no other sheet and no sheet name reaches the model or your

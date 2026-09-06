@@ -270,8 +270,17 @@
       core(g, 'NET WORTH', U.eur0(v.current.netWorth), false, v.current.netWorth < 0);
       dial.appendChild(g);
 
-      sections.forEach(function (s) {
-        var r = row(s.id, secTone(s.id), s.label, s.value, s.share);
+      /* Die Legende zeigt ALLE Sektionen, auch die, die keinen Bogen tragen:
+         eine Sektion mit negativer Summe (ein überzogenes Konto) oder mit
+         Summe null bei gegenläufigen Konten fiele sonst spurlos heraus, samt
+         ihrem Drill-down. `sections` (der gefilterte Ring-Bestand) bleibt den
+         Bögen vorbehalten; hier zählt `v.sections` in seiner echten Reihenfolge.
+         Ein Anteil an den Vermögenswerten ergibt für so eine Summe keinen Sinn
+         (share: null); der Ton wechselt nur bei echtem Minus in den der
+         Verbindlichkeiten — genau wie bei den Einzelposten in renderSection. */
+      v.sections.forEach(function (s) {
+        var pos = s.value > 0.005, neg = s.value < 0;
+        var r = row(s.id, neg ? liabTone() : secTone(s.id), s.label, s.value, pos ? s.share : null);
         if (items(v, s.id).length) openable(r, s.id);
         legend.appendChild(r);
       });

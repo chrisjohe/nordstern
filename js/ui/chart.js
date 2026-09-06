@@ -500,6 +500,11 @@
         state.geom = null;
         state.hoverIdx = null;
         tip.classList.remove('is-on');
+        /* Sonst blieben Monat, Betrag und Zeilen der letzten Abtastung im DOM
+           stehen — sichtbar unsichtbar, aber trotzdem da. */
+        tip.innerHTML = '';
+        tip.style.left = '';
+        tip.style.top = '';
         live.textContent = '';
       },
       setData: function (view, arrive) { state.view = view; if (arrive) state.arrive = true; render(); }

@@ -498,8 +498,13 @@
     var lastFocus = null;
 
     function open(id) {
-      select(id || active);
+      /* Vor select(), nicht danach: „expenses" patcht expensesSet über
+         api.patchSettings und löst damit ein refresh() aus (js/app.js), das
+         das Positionspanel neu baut und den Knopf entfernt, der das Blatt
+         gerade geöffnet hat. Hinterher wäre document.activeElement schon der
+         entfernte Knopf oder das Blatt selbst — beides ohne Rückweg. */
       lastFocus = document.activeElement;
+      select(id || active);
       root.removeAttribute('inert');
       root.removeAttribute('aria-hidden');
       panel.setAttribute('aria-modal', 'true');
@@ -522,8 +527,15 @@
       root.setAttribute('aria-hidden', 'true');
       global.removeEventListener('keydown', onKey);
       /* Der Fokus kehrt dorthin zurück, wo er herkam, sofern es das Element
-         noch gibt („Delete local data" räumt die Bühne ab). */
-      if (lastFocus && lastFocus.isConnected && lastFocus.focus) lastFocus.focus();
+         noch gibt („Delete local data" räumt die Bühne ab) und nicht selbst
+         im Blatt sitzt (panel.focus() in open() zählte sonst als gültiges
+         Ziel und liesse den Fokus im geschlossenen, inerten Blatt zurück).
+         Sonst fällt er auf das Zahnrad zurück, das Einstiegspunkt für alles
+         hier ist — ein Test ohne dieses Element bleibt ohne Ziel, nicht ohne
+         Aufruf. */
+      var target = (lastFocus && lastFocus.isConnected && lastFocus.focus && !panel.contains(lastFocus))
+        ? lastFocus : global.document.getElementById('btnSettings');
+      if (target && target.focus) target.focus();
       lastFocus = null;
     }
 
