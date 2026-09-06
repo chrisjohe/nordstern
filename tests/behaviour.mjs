@@ -3698,5 +3698,122 @@ sec('Fehler 2, Regressionsschutz: gewöhnliches Öffnen über das Zahnrad kehrt 
 }
 }
 
+/* ---------- Codex-Audit 2026-09-06: Chart (Gitterschleife, Ansage, Basis) ---------- */
+{
+
+/* Ein Blatt mit derselben Ankerstruktur wie tinySheet, aber mit frei
+   wählbaren Werten in der liquiden Zeile — für Serien, die fast oder ganz
+   gleich sind (Rundungsrauschen, oder eine flache Linie). Alle anderen
+   Abschnitte bleiben auf null, damit „Total assets" und „Total net worth"
+   ohne eigene Rechnung dieselben Werte tragen wie „Cash": die
+   Konsistenzprüfung des Importers findet dann nichts zu bemängeln. */
+function levelSheet(w, months, cashVals) {
+  const D=(y,m)=>new w.Date(y,m-1,1);
+  return w.XLSX.utils.aoa_to_sheet([
+    ['Month',        ...months.map(([y,m])=>D(y,m))],
+    ['Liquid'],
+    ['  Cash',       ...cashVals],
+    ['Total liquid', ...cashVals],
+    ['Claims'],
+    ['Total claims', ...months.map(()=>0)],
+    ['Investments'],
+    ['  Depot',      ...months.map(()=>0)],
+    ['Total investments', ...months.map(()=>0)],
+    ['Property'],
+    ['Total property', ...months.map(()=>0)],
+    ['Retirement'],
+    ['Total retirement', ...months.map(()=>0)],
+    ['Total assets', ...cashVals],
+    ['Liabilities'],
+    ['  Loan',       ...months.map(()=>0)],
+    ['Total liabilities', ...months.map(()=>0)],
+    ['Total net worth', ...cashVals]
+  ],{cellDates:true});
+}
+function levelWorkbook(w, months, cashVals, sheetName='Data Input') {
+  const wb=w.XLSX.utils.book_new();
+  w.XLSX.utils.book_append_sheet(wb, levelSheet(w,months,cashVals), sheetName);
+  return wb;
+}
+
+/* ---------- 1. Fast gleiche Werte: keine Endlosschleife im Gitter ---------- */
+sec('Chart: fast gleiche Werte hängen das Gitter nicht auf');
+{ const {w,errors}=await boot();
+  const months=[[2024,1],[2024,2]];
+  const cash=[0.3, 0.1+0.2];                    // 0.30000000000000004 — Rundungsrauschen, keine Rundung im Importer
+  const res=w.NORDSTERN.importer.parseWorkbook(levelWorkbook(w,months,cash),'nearly-equal.xlsx');
+  ok(res.ok,'Import gelingt: '+ (res.errors||[]).join(' | '));
+  ok(res.warnings.length===0,'keine Warnungen, die Summen passen exakt: '+res.warnings.join(' | '));
+  w.NORDSTERN.app.state.model=res.model;
+  w.NORDSTERN.store.saveModel(res.model);
+  w.NORDSTERN.app.refresh();
+  w.document.getElementById('gate').hidden=true;
+  await tick(30);
+  const d=w.document;
+  ok(!!d.querySelector('.chart-line'),'die Linie steht trotz Mikro-Spanne');
+  const gridN=d.querySelectorAll('.chart-grid line').length;
+  ok(gridN>=0&&gridN<=12,'Gitterlinien bleiben gedeckelt: '+gridN);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 2. Flache Serie: dieselbe Deckelung ---------- */
+sec('Chart: eine flache Serie hängt das Gitter ebenfalls nicht auf');
+{ const {w,errors}=await boot();
+  const months=[[2024,1],[2024,2],[2024,3]];
+  const cash=[500,500,500];
+  const res=w.NORDSTERN.importer.parseWorkbook(levelWorkbook(w,months,cash),'flat.xlsx');
+  ok(res.ok,'Import gelingt: '+ (res.errors||[]).join(' | '));
+  ok(res.warnings.length===0,'keine Warnungen: '+res.warnings.join(' | '));
+  w.NORDSTERN.app.state.model=res.model;
+  w.NORDSTERN.store.saveModel(res.model);
+  w.NORDSTERN.app.refresh();
+  w.document.getElementById('gate').hidden=true;
+  await tick(30);
+  const d=w.document;
+  ok(!!d.querySelector('.chart-line'),'die Linie steht auch flach');
+  const gridN=d.querySelectorAll('.chart-grid line').length;
+  ok(gridN>=0&&gridN<=12,'Gitterlinien bleiben gedeckelt: '+gridN);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 3. Wiederherstellung aus dem Speicher hängt nicht ---------- */
+sec('Chart: nach Neustart aus dem Speicher rendert die Mikro-Spanne ohne Hänger');
+const levelStore={};
+{ const {w,errors}=await boot({storage:levelStore});
+  const months=[[2023,11],[2023,12]];
+  const cash=[0.3, 0.1+0.2];
+  const res=w.NORDSTERN.importer.parseWorkbook(levelWorkbook(w,months,cash),'nearly-equal.xlsx');
+  ok(res.ok&&res.warnings.length===0,'Import ohne Warnungen: '+res.warnings.join(' | '));
+  w.NORDSTERN.app.state.model=res.model;
+  w.NORDSTERN.store.saveModel(res.model);
+  w.NORDSTERN.app.refresh();
+  ok(errors.length===0,'keine Fehler beim ersten Start: '+errors.join(' | '));
+  w.close();
+}
+{ const {w,errors}=await boot({storage:levelStore});
+  const d=w.document;
+  await tick(30);
+  ok(d.getElementById('gate').hidden,'Gate zu nach Neustart aus dem Speicher');
+  ok(!!d.querySelector('.chart-line'),'die Linie steht nach dem Neustart');
+  ok(errors.length===0,'keine Fehler beim zweiten Start: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 4. Gitterzahl bleibt auch bei gewöhnlichen Daten gedeckelt ---------- */
+sec('Chart: Gitterzahl bei der Beispielmappe zwischen 2 und 12');
+{ const {w,errors}=await boot();
+  importFixture(w);
+  const d=w.document;
+  const gridN=d.querySelectorAll('.chart-grid line').length;
+  ok(gridN>=2&&gridN<=12,'gewöhnliche Daten zeigen eine vernünftige Gitterzahl: '+gridN);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 5. Lesefenster nennt dieselben Zeilen wie das Fadenkreuz-Fenster ---------- */
+}
+
 console.log('\n'+pass+' bestanden, '+fail+' fehlgeschlagen');
 process.exit(fail?1:0);

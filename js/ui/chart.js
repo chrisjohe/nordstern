@@ -158,7 +158,13 @@
 
       var min = Infinity, max = -Infinity;
       data.forEach(function (d) { if (d.value < min) min = d.value; if (d.value > max) max = d.value; });
-      var span = max - min || Math.abs(max) || 1;
+      /* Eine flache Linie hat keine Spanne; dann polstert der Betrag selbst.
+         Dasselbe gilt für fast gleiche Werte (Rundungsrauschen wie 0,3 und
+         0,1+0,2): ihre Spanne liegt nahe der Fliesskomma-Auflösung, die
+         Schrittweite unten würde kleiner als jeder darstellbare Unterschied,
+         und die Gitterschleife liefe nie aus. */
+      var span = max - min;
+      if (!(span >= Math.max(Math.abs(max), Math.abs(min), 1) * 1e-6)) span = Math.abs(max) || 1;
       min -= span * 0.16; max += span * 0.14;
       if (min > 0 && min < span * 0.5) min = 0;
 
@@ -232,17 +238,25 @@
       ]);
       g.appendChild(defs);
 
-      /* Orientierungslinien */
+      /* Orientierungslinien. Über den Index gezählt, mit einer Deckelung:
+         `v += step` in einer Fliesskomma-Schleife hängt sich auf, sobald der
+         Schritt kleiner als die Auflösung von `v` selbst ist — dieselbe Falle
+         wie bei der Spanne oben, nur eine Zeile weiter unten. */
       var step = niceStep(max - min, 3.2);
       var gy = U.svg('g', { class: 'chart-grid' });
       var gridLabels = [];                  /* Grundlinie und geschätzte Breite, für die Stationslabels */
-      for (var v = Math.ceil(min / step) * step; v <= max; v += step) {
-        var y = Y(v);
-        gy.appendChild(U.svg('line', { x1: pad.l, x2: w - pad.r, y1: y, y2: y }));
-        var t = U.svg('text', { x: pad.l + 2, y: y - 5, class: 'chart-ylab' });
-        t.textContent = U.eurShort(v);
-        gy.appendChild(t);
-        gridLabels.push({ y: y - 5, width: t.textContent.length * 5.6 });
+      if (isFinite(step) && step > 0) {
+        var first = Math.ceil(min / step) * step;
+        var count = Math.min(12, Math.max(0, Math.floor((max - first) / step) + 1));
+        for (var k = 0; k < count; k++) {
+          var v = first + k * step;
+          var y = Y(v);
+          gy.appendChild(U.svg('line', { x1: pad.l, x2: w - pad.r, y1: y, y2: y }));
+          var t = U.svg('text', { x: pad.l + 2, y: y - 5, class: 'chart-ylab' });
+          t.textContent = U.eurShort(v);
+          gy.appendChild(t);
+          gridLabels.push({ y: y - 5, width: t.textContent.length * 5.6 });
+        }
       }
       g.appendChild(gy);
 
