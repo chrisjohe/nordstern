@@ -192,9 +192,19 @@
     return s;
   }
 
+  /* Dieselbe Form wie saveModel(): ein verschlucktes `catch` liesse
+     app.js glauben, die Währung wäre notiert, wenn der Speicher in
+     Wahrheit voll war (siehe boot(), das genau deshalb das Modell als
+     Quelle der Währung liest, nicht die Einstellungen allein). */
   function saveSettings(s) {
-    if (!ok) return;
-    try { LS.setItem(KEY_SETTINGS, JSON.stringify(s)); } catch (e) {}
+    if (!ok) return { ok: false, reason: 'localStorage unavailable' };
+    try {
+      LS.setItem(KEY_SETTINGS, JSON.stringify(s));
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, reason: e && e.name === 'QuotaExceededError'
+        ? 'Local storage is full.' : String(e && e.message || e) };
+    }
   }
 
   NS.store = {

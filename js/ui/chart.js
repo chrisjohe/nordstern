@@ -100,6 +100,17 @@
 
     var svg = null;
 
+    /* Ohne verlässliche Zeichnung darf nichts von der letzten Abtastung
+       übrig bleiben: weder der Index, noch die Ansage, noch die Klasse, die
+       Vorleseprogramme und CSS an der Fläche lesen. render() und clear()
+       brauchen genau dasselbe, deshalb ein gemeinsamer Ort dafür. */
+    function resetProbe() {
+      state.hoverIdx = null;
+      tip.classList.remove('is-on');
+      body.classList.remove('is-probing');
+      live.textContent = '';
+    }
+
     function slice() {
       var s = state.view.series;
       var r = RANGES.filter(function (x) { return x.id === state.range; })[0];
@@ -114,9 +125,10 @@
       var oldEmpty = body.querySelector('.chart-empty');
       if (oldEmpty) oldEmpty.remove();
       /* Die Geometrie gehört zur Zeichnung; verschwindet die Zeichnung, muss
-         die Geometrie mit — sonst liest der Zeiger noch das alte Workbook. */
+         die Geometrie mit — sonst liest der Zeiger noch das alte Workbook,
+         und ohne Geometrie darf auch kein Index mehr auf sie zeigen. */
       state.geom = null;
-      tip.classList.remove('is-on');
+      resetProbe();
       var rect = body.getBoundingClientRect();
       var w = Math.max(260, rect.width), h = Math.max(120, rect.height);
       state.w = Math.round(rect.width); state.h = Math.round(rect.height);
@@ -375,8 +387,9 @@
     function probe(i) {
       var geo = state.geom;
       if (!geo) return;
-      state.hoverIdx = i;
       var d = geo.data[i];
+      if (!d) return;                    // zweiter Boden: Index ausserhalb der aktuellen Daten
+      state.hoverIdx = i;
       var px = geo.X(i), py = geo.Y(d.value);
       geo.cross.setAttribute('opacity', '1');
       geo.cross.children[0].setAttribute('x1', px);
@@ -463,7 +476,11 @@
       if (!geo) return;
       var n = geo.data.length;
       var i = state.hoverIdx;
+      /* `hoverIdx` kann von der vorigen Zeichnung stammen — ein anderes
+         Workbook hat inzwischen andere Länge. Erst klemmen, dann bewegen,
+         sonst geht ArrowLeft von einem Index los, den es nicht mehr gibt. */
       if (i == null) i = n - 1;
+      else i = U.clamp(i, 0, n - 1);
       if (ev.key === 'ArrowLeft') i = Math.max(0, i - 1);
       else if (ev.key === 'ArrowRight') i = Math.min(n - 1, i + 1);
       else if (ev.key === 'Home') i = 0;
@@ -498,14 +515,12 @@
         if (oldEmpty) oldEmpty.remove();
         /* Dieselbe Regel wie in render(): keine Zeichnung, keine Geometrie. */
         state.geom = null;
-        state.hoverIdx = null;
-        tip.classList.remove('is-on');
+        resetProbe();
         /* Sonst blieben Monat, Betrag und Zeilen der letzten Abtastung im DOM
            stehen — sichtbar unsichtbar, aber trotzdem da. */
         tip.innerHTML = '';
         tip.style.left = '';
         tip.style.top = '';
-        live.textContent = '';
       },
       setData: function (view, arrive) { state.view = view; if (arrive) state.arrive = true; render(); }
     };

@@ -37,6 +37,19 @@ jobs:
       # file is not self-contained.
       - run: npm test
 
+      # The privacy guard is not part of npm test, and a verdict in the tests
+      # workflow does not hold this one back. So it runs here too, before
+      # anything is assembled: without a workbook on the runner it still
+      # refuses an unverified image, a sentence about a person, and a
+      # spreadsheet outside examples/, honest extension or disguised bytes.
+      - name: "Privacy guard: images, names, disguised spreadsheets"
+        run: node tests/privacy.mjs
+
+      - name: No spreadsheet may enter the site
+        run: |
+          bad=$(git ls-files | grep -Ei '\.(xlsx|xlsm|xlsb|xls|ods|numbers|csv)$' | grep -v '^examples/' || true)
+          if [ -n "$bad" ]; then echo "::error::tracked spreadsheet outside examples/: $bad"; exit 1; fi
+
       - name: Assemble the site
         run: |
           mkdir -p _site

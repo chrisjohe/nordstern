@@ -109,6 +109,32 @@ ok(/BIFF\/OLE2/i.test(r.stdout + r.stderr), 'und nennt den BIFF/OLE2-Grund');
 git('reset', '-q');
 fs.unlinkSync(path.join(tmp, 'data.bin'));
 
+/* --- derselbe Riegel im Wächter allein, ohne Haken und ohne Mappe ------ */
+/* Der Haken läuft nur, wo er eingehängt ist; in der CI und bei einem Commit
+   von anderswo steht nur `node tests/privacy.mjs`, und dort gibt es keine
+   Mappe in excel/. Die Byte- und Endungsprüfung braucht keine, darf also
+   nicht hinter dem Ausstieg ohne Mappe stehen. Die getarnten Dateien sind
+   hier untracked, nicht gestaged: der Wächter ohne --staged sieht alles,
+   was ein Commit mitnähme. */
+const guardEnv = Object.assign({}, process.env);
+delete guardEnv.NORDSTERN_WORKBOOK; delete guardEnv.NORDSTERN_SCAN_STAGED; delete guardEnv.NORDSTERN_SCAN_ALL;
+const guard = () => spawnSync(process.execPath, ['tests/privacy.mjs'], { cwd: tmp, encoding: 'utf8', env: guardEnv });
+fs.copyFileSync(path.join(ROOT, 'examples/nordstern-example.xlsx'), path.join(tmp, 'notes.dat'));
+fs.writeFileSync(path.join(tmp, 'data.bin'), OLE2);
+fs.writeFileSync(path.join(tmp, 'notes.csv'), 'a;b\n1;2\n');
+r = guard();
+ok(r.status !== 0, 'der Wächter allein weist getarnte Tabellen auch ohne Mappe ab: ' + r.status);
+ok(/Keine echte Mappe/.test(r.stdout + r.stderr), 'und zwar im Zweig ohne Mappe, nicht am Nadel-Vergleich');
+ok(/notes\.dat.*Zip\/Office-Container/.test(r.stdout + r.stderr), 'nennt die Zip-Datei');
+ok(/data\.bin.*BIFF\/OLE2/.test(r.stdout + r.stderr), 'nennt die OLE2-Datei');
+ok(/notes\.csv.*außerhalb von examples/.test(r.stdout + r.stderr), 'nennt die Tabelle mit ehrlicher Endung');
+fs.unlinkSync(path.join(tmp, 'notes.dat'));
+fs.unlinkSync(path.join(tmp, 'data.bin'));
+fs.unlinkSync(path.join(tmp, 'notes.csv'));
+r = guard();
+ok(r.status === 0, 'ohne die drei ist der Wächter zufrieden, die Beispielmappe darf: ' +
+   (r.stdout + r.stderr).trim().split('\n').slice(-2).join(' | '));
+
 /* --- die Beispielmappe muss durchgehen --------------------------------- */
 /* Der Riegel darf nicht pauschal auf .xlsx losgehen — sonst liesse sich die
    Beispielmappe nie pflegen, und der Haken flöge nach dem zweiten Versuch

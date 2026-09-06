@@ -883,6 +883,11 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .sheet-warn { display: flex; flex-direction: column; gap: 4px; }
 .warn-title { font-size: 11px; color: var(--amber); letter-spacing: .04em; }
 .warn-item { font-size: 10.5px; color: var(--ink-3); line-height: 1.4; padding-left: 10px; border-left: 1px solid var(--amber-veil); }
+/* Diagnose eines Fehlversuchs (state.importError, js/app.js): dieselbe Form
+   wie die Notizen des geladenen Modells, aber in der Ember-Reihe statt der
+   Amber-Reihe — es ist ein Fehlschlag, keine blosse Anmerkung. */
+.warn-title.is-error { color: var(--ember); }
+.warn-item.is-error { border-left-color: var(--ember-veil); }
 .src-name { font-family: var(--font-mono); font-size: 11px !important; }
 
 /* Der Vorhang beginnt unter dem Kopf — Wortmarke, Einlesen und Einstellungen

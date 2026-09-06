@@ -279,17 +279,56 @@ for (const rel of files) {
   if (text != null) scanPersons(rel, text);
 }
 
+/* ------------------------------------------ Tabellen: Endung und Bytes */
+
+/* Eine Tabelle im Repository ist ausschließlich die Beispielmappe. Die
+   Endung fängt die ehrliche Kopie. Eine Umbenennung schlägt die Endung,
+   nicht die Bytes: .xlsx, .docx, .zip und Verwandte beginnen alle mit
+   derselben Zip-Signatur, das ältere .xls/.doc/.ppt-Familienformat mit der
+   OLE2-Signatur. Vier bzw. acht Bytes reichen, mehr zu lesen wäre nur
+   langsamer.
+
+   Beides braucht keine Mappe und steht deshalb vor dem Ausstieg unten,
+   also auch in der CI. Der Haken prüft dieselben Bytes noch einmal, aber
+   ein Commit kann am Haken vorbei entstehen. */
+const SPREADSHEET_EXT = /\.(xlsx|xlsm|xlsb|xls|ods|numbers|csv)$/i;
+const ZIP_SIG = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+const OLE2_SIG = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+
+const containerHits = [];
+for (const rel of files) {
+  if (rel === 'tests/privacy-allow.txt') continue;
+  if (SPREADSHEET_EXT.test(rel)) {
+    /* Die Beispielmappe selbst, eine .xlsx unter examples/, ist ebenfalls
+       ein Zip-Container und bleibt bewusst ausgenommen. */
+    if (!rel.startsWith('examples/')) {
+      containerHits.push({ rel, line: 0, needle: rel, what: 'Tabellendatei außerhalb von examples/' });
+    }
+    continue;
+  }
+  const buf = bytesOf(rel);
+  if (!buf || buf.length < 4) continue;
+  const head = buf.subarray(0, 8);
+  if (head.subarray(0, 4).equals(ZIP_SIG)) {
+    containerHits.push({ rel, line: 0, needle: rel, what: 'sieht aus wie ein Zip/Office-Container' });
+  } else if (head.length === 8 && head.equals(OLE2_SIG)) {
+    containerHits.push({ rel, line: 0, needle: rel, what: 'sieht aus wie eine BIFF/OLE2-Datei (Alt-Tabellenformat)' });
+  }
+}
+
 function imageVerdict() {
   const n = images.length;
   console.log('\n== Bilder: ' + n + (n === 1 ? ' Bild' : ' Bilder') + ', ' +
               (imageHits.length ? imageHits.length + ' ungeprüft' : 'alle mit Prüfeintrag'));
   console.log('== Personenbezug: ' + persons.size + ' Wendungen, ' +
               (personHits.length ? personHits.length + ' Treffer' : 'nichts ausserhalb der Urheberzeilen'));
+  console.log('== Tabellen: ' + (containerHits.length
+              ? containerHits.length + ' ausserhalb von examples/ oder getarnt' : 'nur die Beispielmappe'));
 }
 
 if (!WORKBOOK || !fs.existsSync(WORKBOOK)) {
   imageVerdict();
-  const early = imageHits.concat(personHits);
+  const early = imageHits.concat(personHits, containerHits);
   if (early.length) { report(early); }
   console.log('\nⓘ Keine echte Mappe in excel/ — keine Nadeln zu suchen.');
   console.log('  Auf einem fremden Rechner ist das der Normalfall. Wer die Reihe fahren will,');
@@ -351,42 +390,13 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
    liest sie mit. */
 const rx = new Map([...needles].map(([n, w]) => [n, new RegExp('(?<![\\w.,])' + esc(n) + '(?![\\w.,])')]));
 
-const SPREADSHEET_EXT = /\.(xlsx|xlsm|xlsb|xls|ods|numbers|csv)$/i;
-
-/* Eine Umbenennung schlägt die Endungsprüfung, nicht die Bytes: .xlsx, .docx,
-   .zip und Verwandte beginnen alle mit derselben Zip-Signatur; das ältere
-   .xls/.doc/.ppt-Familienformat mit der OLE2-Signatur. Vier bzw. acht Bytes
-   reichen, mehr zu lesen wäre nur langsamer. */
-const ZIP_SIG = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
-const OLE2_SIG = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
-
 const scanned = [];
-const hits = imageHits.concat(personHits);   // Bilder und Personenbezug zählen mit
+const hits = imageHits.concat(personHits, containerHits);   // Bilder, Personen, Tabellen zählen mit
 
 for (const rel of files) {
   if (rel === 'tests/privacy-allow.txt') continue;   // steht voller Nadeln, das ist ihr Zweck
+  if (BINARY.test(rel)) continue;
   const buf = bytesOf(rel);
-
-  /* Die Bytes zuerst, unabhängig von der Endung: eine als notes.dat getarnte
-     Mappe hat keine der Endungen unten, aber die Signatur verrät sie. Die
-     Beispielmappe selbst — eine .xlsx unter examples/ — ist ebenfalls ein
-     Zip-Container und bleibt bewusst ausgenommen. */
-  if (buf && buf.length >= 4 && !(rel.startsWith('examples/') && SPREADSHEET_EXT.test(rel))) {
-    const head = buf.subarray(0, 8);
-    if (head.subarray(0, 4).equals(ZIP_SIG)) {
-      hits.push({ rel, line: 0, needle: rel, what: 'sieht aus wie ein Zip/Office-Container' });
-    } else if (head.length === 8 && head.equals(OLE2_SIG)) {
-      hits.push({ rel, line: 0, needle: rel, what: 'sieht aus wie eine BIFF/OLE2-Datei (Alt-Tabellenformat)' });
-    }
-  }
-
-  if (BINARY.test(rel)) {
-    /* Eine Tabelle im Repository ist ausschließlich die Beispielmappe. */
-    if (SPREADSHEET_EXT.test(rel) && !rel.startsWith('examples/')) {
-      hits.push({ rel, line: 0, needle: rel, what: 'Tabellendatei außerhalb von examples/' });
-    }
-    continue;
-  }
   if (!buf || buf.length > 8 * 1024 * 1024) continue;
   const text = buf.toString('utf8');
   scanned.push(rel);

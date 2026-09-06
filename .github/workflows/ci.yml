@@ -1,7 +1,7 @@
 # The whole suite on every push and pull request. tests/privacy.mjs also
 # runs: its needle scan against a real workbook cannot say anything here,
-# since there is none on a runner, but its image and person checks need no
-# workbook and run below.
+# since there is none on a runner, but its image, person and disguised-
+# spreadsheet checks need no workbook and run below.
 name: tests
 
 on:
@@ -32,7 +32,7 @@ jobs:
 
       - run: npm test
 
-      - name: "Privacy guard: images and names"
+      - name: "Privacy guard: images, names, disguised spreadsheets"
         run: node tests/privacy.mjs
 
       - name: No spreadsheet may enter the repository

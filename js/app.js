@@ -10,8 +10,14 @@
   /* `arriving` ist wahr für genau ein Refresh: das, in dem neue Daten zum
      ersten Mal auf der Bühne landen. Alles Weitere — Schieberegler, Schalter,
      Fenstergrösse — rendert, aber baut sich nicht neu auf. */
+  /* `importError` merkt sich einen fehlgeschlagenen Nach-Import, solange ein
+     Modell schon steht (siehe readFile()) — nur für die laufende Sitzung,
+     nie gespeichert. Ohne das verschwänden die Diagnosen des Importers
+     spurlos, sobald schon etwas auf der Bühne stand: der erste Import zeigt
+     sie auf dem Vorhang, ein Nach-Import mit stehendem Modell hätte sonst
+     nur einen allgemeinen Toast. */
   var state = { model: null, view: null, settings: NS.store.loadSettings(),
-                arriving: false };
+                arriving: false, importError: null };
   var ui = {};
 
   /* Zwei Dateidialoge kurz nacheinander: die zuerst gewählte, grössere Mappe
@@ -127,7 +133,14 @@
         /* Mit einem stehenden Modell bleibt die Bühne stehen; der Vorhang
            ist nur für den Fall, dass nichts zu zeigen ist. */
         if (state.model) {
-          toast('The file does not match the expected layout. The current data stays.', 'error');
+          state.importError = { source: file.name, errors: res.errors || [] };
+          /* state.view besteht unverändert fort — es wird nur die
+             Einstellungen-Ansicht neu gezogen, kein voller refresh(): das
+             stehende Modell hat sich nicht geändert, und ein voller
+             Neuaufbau von Route, Scheibe und Karten wäre hier verlorene
+             Arbeit. */
+          ui.settings.sync(state.view, state.model, state.settings, state.importError);
+          toast('The file does not match the expected layout. The current data stays; see the data source in settings.', 'error');
           return;
         }
         showGate('The structure does not match',
@@ -135,15 +148,27 @@
           res.errors);
         return;
       }
+      /* Ein gültiger Import löscht die Diagnose eines vorigen Fehlversuchs —
+         sie galt nur, solange die alte Mappe noch stand. */
+      state.importError = null;
+      /* Die Währung gehört zur Mappe, nicht zur Einstellung: sie wird im
+         Modell selbst mitgespeichert (ein Schreibvorgang statt zweier), sonst
+         hinterliesse ein Fehlschlag in nur einem der beiden Speicherorte ein
+         falsches Paar (das alte Modell mit der neuen Währung, oder
+         umgekehrt). boot() liest sie beim nächsten Start aus dem Modell
+         zurück, siehe dort. */
+      res.model.currency = res.currency || state.settings.currency;
       state.model = res.model;
       var saved = NS.store.saveModel(res.model);
       /* Die erkannte Währung wird vor dem ersten Rendern übernommen, sonst
-         springt die Schreibweise nach dem ersten Bild um. */
+         springt die Schreibweise nach dem ersten Bild um. Geschrieben wird
+         sie in die Einstellungen erst nach dem Zeichnen, zusammen mit dem
+         Modell-Ergebnis weiter unten: sonst überschriebe ihr eigener Toast
+         den Lesehinweis, bevor er zu sehen war. */
       var switchedTo = null;
       if (res.currency && res.currency !== state.settings.currency) {
         switchedTo = res.currency;
         state.settings.currency = res.currency;
-        NS.store.saveSettings(state.settings);
         applyCurrency();
       }
       /* Zweiter Boden auch hier, getrennt von dem in boot(): dort wird ein
@@ -171,7 +196,10 @@
         ui.settings.setStatus('error', 'render error');
         toast('The page could not be drawn. See the message on the curtain.', 'error');
       }
+      /* Erst jetzt geschrieben, siehe Kommentar oben. */
+      var savedSettings = switchedTo ? NS.store.saveSettings(state.settings) : null;
       if (!saved.ok) toast('Could not be stored locally: ' + saved.reason, 'warn');
+      else if (savedSettings && !savedSettings.ok) toast('Could not be stored locally: ' + savedSettings.reason, 'warn');
     };
     fr.readAsArrayBuffer(file);
   }
@@ -187,7 +215,7 @@
        Marke entwertet ihn, wie eine zweite Auswahl die erste entwertet. */
     importSeq++;
     var res = NS.store.clearAll();
-    state.model = null; state.view = null;
+    state.model = null; state.view = null; state.importError = null;
     state.settings = NS.store.loadSettings();       // mit den Vorgaben als Grund
     applyMotion();
     applyTheme();
@@ -199,7 +227,7 @@
     ui.cards.clear();
     if (ui.mountain) ui.mountain.clear();
     U.el('#mountStatus').innerHTML = '';
-    ui.settings.sync(null, null, state.settings);
+    ui.settings.sync(null, null, state.settings, null);
     showGate('No data yet',
       'Drop the workbook with your snapshots here — or pick it. Only the sheet "Data Input" is read.');
     /* Die Bühne räumt sich in jedem Fall — aber blieb ein Schlüssel liegen,
@@ -221,7 +249,19 @@
      (change/blur am Regler bzw. Zahlenfeld). */
   function patchSettings(patch, opts) {
     for (var k in patch) state.settings[k] = patch[k];
-    if (!opts || !opts.transient) NS.store.saveSettings(state.settings);
+    if (!opts || !opts.transient) {
+      var savedSettings = NS.store.saveSettings(state.settings);
+      if (!savedSettings.ok) toast('Could not be stored locally: ' + savedSettings.reason, 'warn');
+      /* boot() liest die Währung aus dem Modell (siehe dort). Eine Wahl von
+         Hand muss deshalb ebenfalls im Modell stehen, sonst setzte der nächste
+         Start sie auf die beim Import erkannte zurück. */
+      if (state.model && Object.prototype.hasOwnProperty.call(patch, 'currency')
+          && state.model.currency !== patch.currency) {
+        state.model.currency = patch.currency;
+        var savedModel = NS.store.saveModel(state.model);
+        if (savedModel.ok === false && savedSettings.ok) toast('Could not be stored locally: ' + savedModel.reason, 'warn');
+      }
+    }
     applyMotion();
     applyTheme();
     applyContrast();
@@ -232,7 +272,7 @@
   /* --------------------------------------------------------------- Refresh */
   function refresh() {
     /* Ohne Modell zeigen die Schalter im Blatt trotzdem ihren Stand. */
-    if (!state.model) { ui.settings.sync(null, null, state.settings); return; }
+    if (!state.model) { ui.settings.sync(null, null, state.settings, state.importError); return; }
     var v = NS.calc.derive(state.model, state.settings);
     var arrive = state.arriving; state.arriving = false;
     state.view = v;
@@ -241,7 +281,7 @@
     ui.orbit.setData(v, arrive);
     ui.cards.setData(v, arrive);
     if (ui.mountain) ui.mountain.setData(v);
-    ui.settings.sync(v, state.model, state.settings);
+    ui.settings.sync(v, state.model, state.settings, state.importError);
     renderStatus(v);
   }
 
@@ -375,6 +415,17 @@
     var standing = false;
     if (stored) {
       try {
+        /* Das Modell trägt seine eigene Währung (siehe readFile()); weicht
+           sie von den geladenen Einstellungen ab, gilt das Modell als
+           Wahrheit, nicht die Einstellungen: sonst könnte ein Fehlschlag
+           beim Schreiben der einen oder anderen Seite die falsche Paarung
+           aus altem Bestand und neuer Währung (oder umgekehrt) auf die
+           Bühne bringen. */
+        if (stored.currency && stored.currency !== state.settings.currency) {
+          state.settings.currency = stored.currency;
+          applyCurrency();
+          NS.store.saveSettings(state.settings);
+        }
         state.model = stored;
         hideGate();
         state.arriving = true;

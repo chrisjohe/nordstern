@@ -152,6 +152,11 @@
          verworfen. */
       refs.skipped = U.make('dd', { class: 'is-foot' });
       refs.skippedRow = U.make('dt', { class: 'is-foot', text: 'Ignored' });
+      /* Ein fehlgeschlagener Nach-Import (state.importError in js/app.js)
+         bekommt einen eigenen Block, getrennt von den Notizen des stehenden
+         Modells darunter: die Diagnose gehört zur verworfenen Datei, nicht
+         zur geladenen. */
+      refs.importErr = U.make('div', { class: 'sheet-warn' });
       refs.warn = U.make('div', { class: 'sheet-warn' });
       refs.reimport = U.make('button', { type: 'button', class: 'btn', text: 'Re-read workbook' });
       refs.forget = U.make('button', { type: 'button', class: 'btn btn-ghost btn-danger', text: 'Delete local data' });
@@ -169,6 +174,7 @@
           U.make('dt', { text: 'As of' }), refs.snap,
           refs.skippedRow, refs.skipped
         ]),
+        refs.importErr,
         refs.warn,
         U.make('div', { class: 'sheet-actions' }, [refs.reimport, refs.forget]),
         U.make('p', { class: 'sheet-copy', text:
@@ -561,7 +567,7 @@
         refs.status.className = 'meta-import status-dot is-' + kind;
       },
       isOpen: function () { return root.classList.contains('is-open'); },
-      sync: function (v, model, settings) {
+      sync: function (v, model, settings, importError) {
         lastSettings = settings;
         /* Gilt auch ohne Modell (v === null) — die Wahl der Währung hängt an
            den Einstellungen, nicht am Import. */
@@ -619,6 +625,17 @@
           refs.skippedRow.hidden = true;
           refs.skipped.hidden = true;
           refs.warn.innerHTML = '';
+        }
+        /* Unabhängig vom Modell: ein Fehlversuch bleibt sichtbar, auch wenn
+           er (noch) keins ersetzt hat. `text:` statt innerHTML, denn jede
+           Zeile stammt aus dem Importer und kann Text aus der Mappe tragen. */
+        refs.importErr.innerHTML = '';
+        if (importError && importError.errors && importError.errors.length) {
+          refs.importErr.appendChild(U.make('p', { class: 'warn-title is-error',
+            text: 'Last import failed: ' + importError.source }));
+          importError.errors.forEach(function (e) {
+            refs.importErr.appendChild(U.make('p', { class: 'warn-item is-error', text: e }));
+          });
         }
       }
     };

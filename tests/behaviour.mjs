@@ -638,6 +638,181 @@ sec('Währung: Import übernimmt die Formatwährung');
   w.close();
 }
 
+/* Zwei getrennte Schreibvorgänge beim Import (Modell und Einstellungen)
+   konnten bisher auseinanderlaufen: scheiterte nur einer der beiden, lag
+   danach ein falsches Paar im Speicher (altes Modell mit neuer Währung, oder
+   umgekehrt), ohne dass beim nächsten Start etwas davon zu sehen war. Seit
+   dem Fix trägt das Modell seine Währung selbst (readFile() in js/app.js);
+   boot() liest sie beim nächsten Start aus dem Modell zurück, nicht aus den
+   Einstellungen (js/app.js, js/store.js: saveSettings() liefert jetzt
+   ok/reason wie saveModel()). */
+/* Das Modell trägt seit dem Import seine Währung, und boot() lässt sie
+   gewinnen. Eine Wahl von Hand in den Einstellungen muss diesen Neustart
+   trotzdem überstehen: importFixture() im Abschnitt oben umgeht readFile()
+   und hätte das nie bemerkt, deshalb hier über den echten Dateiweg. */
+sec('Währung von Hand gewählt überlebt den Neustart, auch mit Modellwährung im Speicher');
+{ const s={};
+  { const {w,errors}=await boot({storage:s});
+    const d=w.document;
+    const buf=fs.readFileSync(FIXTURE);
+    const ab=buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength);
+    const picker=d.getElementById('filePicker');
+    Object.defineProperty(picker,'files',{value:[new w.File([ab],'by-hand.xlsx')],configurable:true});
+    picker.dispatchEvent(new w.Event('change'));
+    await tick(120);
+    ok(JSON.parse(s['nordstern.model.v1']).currency==='EUR','das Modell trägt die Importwährung EUR');
+    d.getElementById('btnSettings').dispatchEvent(new w.Event('click'));
+    const sel=d.getElementById('setCurrency');
+    sel.value='USD';
+    sel.dispatchEvent(new w.Event('change'));
+    await tick(30);
+    ok(JSON.parse(s['nordstern.settings.v1']).currency==='USD','die Wahl steht in den Einstellungen');
+    ok(JSON.parse(s['nordstern.model.v1']).currency==='USD',
+       'und zieht ins Modell nach: '+JSON.parse(s['nordstern.model.v1']).currency);
+    ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+    w.close();
+  }
+  { const {w,errors}=await boot({storage:s});
+    ok(w.NORDSTERN.app.state.settings.currency==='USD',
+       'nach dem Neustart gilt weiter die Handwahl: '+w.NORDSTERN.app.state.settings.currency);
+    ok(w.document.querySelector('.hero-val').textContent.startsWith('$'),
+       'und die Bühne steht in Dollar: '+w.document.querySelector('.hero-val').textContent);
+    ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+    w.close();
+  }
+}
+
+sec('Eine fehlgeschlagene Speicherung verfärbt nicht die Währung des alten Bestands');
+{ /* (a) Das Schreiben des Modells scheitert, das der Einstellungen gelingt:
+     der alte Bestand muss auch nach dem Neustart in seiner alten Währung
+     erscheinen, nicht in der gerade erkannten. */
+  const s={};
+  { const {w}=await boot({storage:s});
+    const d=w.document;
+    const buf=fs.readFileSync(FIXTURE);
+    const ab=buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength);
+    const picker=d.getElementById('filePicker');
+    Object.defineProperty(picker,'files',{value:[new w.File([ab],'baseline-a.xlsx')],configurable:true});
+    picker.dispatchEvent(new w.Event('change'));
+    await tick(120);
+    ok(JSON.parse(s['nordstern.model.v1']).currency==='EUR',
+       'die Basismappe trägt EUR im Modell: '+s['nordstern.model.v1']);
+    w.close();
+  }
+  { const {w,errors}=await boot({storage:s});
+    const d=w.document;
+    /* Nur der Modell-Schlüssel wirft, der Rest des Speichers bleibt normal,
+       dieselbe Technik wie im Abschnitt „Voller Speicher“ oben. */
+    const realSetItem=w.localStorage.setItem;
+    w.localStorage.setItem=function(k,v){
+      if(k==='nordstern.model.v1'){ const e=new w.Error('full'); e.name='QuotaExceededError'; throw e; }
+      return realSetItem.call(w.localStorage,k,v);
+    };
+    /* Eine USD-Mappe lässt sich mangels erhaltener Zellformate nicht echt
+       bauen (siehe Abschnitt oben); parseArrayBuffer wird deshalb ebenso
+       umhüllt und behauptet die erkannte Währung. */
+    const orig=w.NORDSTERN.importer.parseArrayBuffer;
+    w.NORDSTERN.importer.parseArrayBuffer=function(){
+      const r=orig.apply(null,arguments);
+      if(r.ok) r.currency='USD';
+      return r;
+    };
+    const months=[[2026,1],[2026,2],[2026,3]];
+    const file=new w.File([w.XLSX.write(tinyWorkbook(w,months),{type:'array',bookType:'xlsx'})],'usd-a.xlsx');
+    const picker=d.getElementById('filePicker');
+    Object.defineProperty(picker,'files',{value:[file],configurable:true});
+    picker.dispatchEvent(new w.Event('change'));
+    await tick(120);
+    ok(d.getElementById('toast').textContent.includes('Could not be stored locally'),
+       'das Scheitern des Modell-Schreibens meldet sich noch in dieser Sitzung: '+d.getElementById('toast').textContent);
+    ok(JSON.parse(s['nordstern.settings.v1']).currency==='USD',
+       'die Einstellungen wurden trotzdem geschrieben: '+s['nordstern.settings.v1']);
+    ok(JSON.parse(s['nordstern.model.v1']).currency==='EUR',
+       'im Speicher steht weiter das alte, EUR-Modell: '+s['nordstern.model.v1']);
+    ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+    w.close();
+  }
+  { const {w}=await boot({storage:s});
+    const d=w.document;
+    ok(w.NORDSTERN.app.state.model.sourceName==='baseline-a.xlsx',
+       'nach dem Neustart steht weiter das alte Modell: '+w.NORDSTERN.app.state.model.sourceName);
+    ok(w.NORDSTERN.app.state.settings.currency==='EUR',
+       'boot() zieht die Einstellung auf die Währung des alten Modells zurück, nicht auf USD: '
+       +w.NORDSTERN.app.state.settings.currency);
+    ok(N(d.querySelector('.hero-val').textContent)==='450.239 €',
+       'die Bühne zeigt den alten Bestand in Euro, nicht in Dollar: '+d.querySelector('.hero-val').textContent);
+    ok(JSON.parse(s['nordstern.settings.v1']).currency==='EUR',
+       'und der Speicher heilt sich mit: '+s['nordstern.settings.v1']);
+    w.close();
+  }
+}
+{ /* (b) Die Umkehrung: das Schreiben des Modells gelingt, das der
+     Einstellungen scheitert. Der neue Bestand muss trotzdem in seiner neuen
+     Währung erscheinen, und die Sitzung, in der importiert wurde, muss den
+     Fehlschlag melden. */
+  const s={};
+  { const {w}=await boot({storage:s});
+    const d=w.document;
+    const buf=fs.readFileSync(FIXTURE);
+    const ab=buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength);
+    const picker=d.getElementById('filePicker');
+    Object.defineProperty(picker,'files',{value:[new w.File([ab],'baseline-b.xlsx')],configurable:true});
+    picker.dispatchEvent(new w.Event('change'));
+    await tick(120);
+    ok(JSON.parse(s['nordstern.model.v1']).currency==='EUR',
+       'auch hier startet die Basismappe in EUR: '+s['nordstern.model.v1']);
+    /* Der Import blieb bei EUR (keine Formatwährung erkannt), deshalb wurden
+       die Einstellungen dabei nie geschrieben. Ein realer erster Start hätte
+       sie längst einmal notiert (z. B. beim Öffnen des Ausgaben-Paneels),
+       das wird hier nachgeholt, sonst prüfte der nächste Block nur gegen
+       einen Schlüssel, der nie da war. */
+    s['nordstern.settings.v1']=JSON.stringify(w.NORDSTERN.store.DEFAULT_SETTINGS);
+    w.close();
+  }
+  { const {w,errors}=await boot({storage:s});
+    const d=w.document;
+    const realSetItem=w.localStorage.setItem;
+    w.localStorage.setItem=function(k,v){
+      if(k==='nordstern.settings.v1'){ const e=new w.Error('full'); e.name='QuotaExceededError'; throw e; }
+      return realSetItem.call(w.localStorage,k,v);
+    };
+    const orig=w.NORDSTERN.importer.parseArrayBuffer;
+    w.NORDSTERN.importer.parseArrayBuffer=function(){
+      const r=orig.apply(null,arguments);
+      if(r.ok) r.currency='USD';
+      return r;
+    };
+    const months=[[2026,4],[2026,5],[2026,6]];
+    const file=new w.File([w.XLSX.write(tinyWorkbook(w,months),{type:'array',bookType:'xlsx'})],'usd-b.xlsx');
+    const picker=d.getElementById('filePicker');
+    Object.defineProperty(picker,'files',{value:[file],configurable:true});
+    picker.dispatchEvent(new w.Event('change'));
+    await tick(120);
+    ok(JSON.parse(s['nordstern.model.v1']).currency==='USD',
+       'das neue Modell ist geschrieben, mit USD: '+s['nordstern.model.v1']);
+    ok(JSON.parse(s['nordstern.settings.v1']).currency==='EUR',
+       'die Einstellungen blieben beim alten Stand, weil ihr Schreiben scheiterte: '+s['nordstern.settings.v1']);
+    ok(d.getElementById('toast').className.includes('is-warn')&&
+       d.getElementById('toast').textContent.includes('Could not be stored locally'),
+       'die importierende Sitzung meldet den Fehlschlag trotzdem: '+d.getElementById('toast').textContent);
+    ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+    w.close();
+  }
+  { const {w}=await boot({storage:s});
+    const d=w.document;
+    ok(w.NORDSTERN.app.state.model.sourceName==='usd-b.xlsx',
+       'nach dem Neustart steht das neue Modell: '+w.NORDSTERN.app.state.model.sourceName);
+    ok(w.NORDSTERN.app.state.settings.currency==='USD',
+       'boot() zieht die Einstellung auf die Währung des neuen Modells nach: '
+       +w.NORDSTERN.app.state.settings.currency);
+    ok(d.querySelector('.hero-val').textContent.startsWith('$'),
+       'die Bühne zeigt den neuen Bestand in Dollar: '+d.querySelector('.hero-val').textContent);
+    ok(JSON.parse(s['nordstern.settings.v1']).currency==='USD',
+       'und der Speicher heilt sich mit: '+s['nordstern.settings.v1']);
+    w.close();
+  }
+}
+
 /* Zwei Dateidialoge kurz hintereinander: wenn die zuerst gewählte Mappe
    grösser ist, kann ihr FileReader nach dem zweiten fertig werden. Ohne
    Gegenmassnahme gewinnt dann der langsamere, veraltete Import (js/app.js,
@@ -1221,6 +1396,70 @@ sec('Unbrauchbarer Import bei bereits geladenem Modell');
   ok(d.getElementById('toast').textContent.includes('does not match the expected layout')&&
      d.getElementById('toast').className.includes('is-error'),
      'der Toast nennt den Fehler, statt den Vorhang zu ziehen: '+d.getElementById('toast').textContent);
+  ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 5b2. Diagnose eines fehlgeschlagenen Nach-Imports bleibt sichtbar ---------- */
+/* Fehler, der zu diesem Fix führte: readFile() (js/app.js) verwarf res.errors
+   ganz, sobald schon ein Modell stand — der Nutzer bekam nur den allgemeinen
+   Toast oben, und das Einstellungen-Blatt zeigte weiter unverändert die
+   Notizen der alten Mappe, ohne je zu sagen, woran der Nach-Import
+   scheiterte. state.importError (js/app.js) trägt die Diagnose jetzt separat
+   vom Modell bis zum nächsten erfolgreichen Import oder bis „Delete local
+   data“, und js/ui/settings.js zeigt sie im Abschnitt „data source“. */
+sec('Diagnose eines fehlgeschlagenen Nach-Imports bleibt in den Einstellungen sichtbar');
+{ const {w,errors}=await boot({storage:{...store}});
+  const d=w.document;
+  const heroBefore=d.querySelector('.hero-val').textContent;
+  ok(!!w.NORDSTERN.app.state.model&&d.getElementById('gate').hidden,'ein Modell steht, der Vorhang ist zu');
+  ok(w.NORDSTERN.app.state.importError===null,'noch keine Diagnose eines Fehlversuchs');
+
+  /* parseArrayBuffer wird umhüllt, wie in den Abschnitten zur Währung oben:
+     ein eindeutiger Diagnosetext statt eines echten kaputten Layouts, damit
+     die Zusicherung unten nicht an einem Zufallstext des Importers hängt. */
+  const orig=w.NORDSTERN.importer.parseArrayBuffer;
+  w.NORDSTERN.importer.parseArrayBuffer=function(){
+    return {ok:false, errors:['unique-diagnostic-xyz']};
+  };
+  const buf=fs.readFileSync(FIXTURE);
+  const ab=buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength);
+  const file=new w.File([ab],'kaputt-nachimport.xlsx');
+  const picker=d.getElementById('filePicker');
+  Object.defineProperty(picker,'files',{value:[file],configurable:true});
+  picker.dispatchEvent(new w.Event('change'));
+  await tick(80);
+
+  ok(w.NORDSTERN.app.state.model!==null,'das Modell bleibt geladen');
+  ok(d.querySelector('.hero-val').textContent===heroBefore,
+     'der Heldenwert bleibt unverändert: '+d.querySelector('.hero-val').textContent);
+  ok(d.querySelector('.sheet-status .meta-import').textContent==='unknown structure',
+     'der Status meldet den Fehler: '+d.querySelector('.sheet-status .meta-import').textContent);
+  ok(d.getElementById('toast').textContent.includes('see the data source in settings')&&
+     d.getElementById('toast').className.includes('is-error'),
+     'der Toast verweist auf die Einstellungen statt nur allgemein zu warnen: '+d.getElementById('toast').textContent);
+
+  d.getElementById('btnSettings').dispatchEvent(new w.Event('click'));
+  const pane=d.querySelector('.sheet-sec[data-sec="source"]');
+  ok(pane.textContent.includes('kaputt-nachimport.xlsx'),
+     'die verworfene Datei wird beim Namen genannt: '+pane.textContent);
+  ok(pane.textContent.includes('unique-diagnostic-xyz'),
+     'die Diagnose des Importers steht im Blatt, statt verworfen zu werden: '+pane.textContent);
+  ok(!pane.querySelector('.warn-item.is-error').innerHTML.includes('<'),
+     'die Diagnose steht als Text, nicht als innerHTML');
+
+  /* Ein gültiger Nach-Import räumt den Block wieder weg. */
+  w.NORDSTERN.importer.parseArrayBuffer=orig;
+  const file2=new w.File([ab],'gut-nachimport.xlsx');
+  Object.defineProperty(picker,'files',{value:[file2],configurable:true});
+  picker.dispatchEvent(new w.Event('change'));
+  await tick(120);
+  ok(w.NORDSTERN.app.state.importError===null,'die Diagnose ist aus dem Zustand gelöscht');
+  const pane2=d.querySelector('.sheet-sec[data-sec="source"]');
+  ok(!pane2.textContent.includes('unique-diagnostic-xyz'),
+     'und verschwindet aus dem Blatt: '+pane2.textContent);
+  ok(!pane2.textContent.includes('kaputt-nachimport.xlsx'),
+     'ebenso der Name des Fehlversuchs: '+pane2.textContent);
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
   w.close();
 }
@@ -2331,6 +2570,61 @@ sec('Verlauf ohne genug Punkte, per Tastatur abtastbar');
   ok(d.querySelector('.chart-tip').classList.contains('is-on'),'und das Tooltip zeigt wie gewohnt');
 
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
+  w.close();
+}
+
+/* ---------- 6d. Tastatur überlebt einen Mappenwechsel während des Abtastens ---------- */
+/* Regressionstest: Ende tastet den letzten Punkt einer Acht-Monats-Mappe ab
+   (hoverIdx sitzt am letzten Index). Kommt danach eine kürzere Mappe herein,
+   baut render() die Geometrie neu — vergisst es dabei den alten Index, zeigt
+   Pfeil-links auf einen Platz, den es in der neuen Reihe nicht mehr gibt, und
+   probe() griff auf geo.data[i].value bei einem undefined Eintrag. */
+sec('Tastatur nach Mappenwechsel: kein Absturz auf einen verschwundenen Index');
+{ const {w,errors}=await boot();
+  const d=w.document;
+  const months8=[[2024,1],[2024,2],[2024,3],[2024,4],[2024,5],[2024,6],[2024,7],[2024,8]];
+  const res8=w.NORDSTERN.importer.parseWorkbook(tinyWorkbook(w,months8),'acht.xlsx');
+  ok(res8.ok,'die Mappe mit acht Monaten wird gelesen: '+res8.errors.join(' | '));
+  w.NORDSTERN.app.state.model=res8.model;
+  w.NORDSTERN.app.refresh();
+
+  const body=d.querySelector('.chart-body');
+  const view=()=>w.NORDSTERN.app.state.view;
+  const U=w.NORDSTERN.util;
+  const live=()=>d.querySelector('.chart-live').textContent;
+  const say=i=>U.monthLong(view().series[i].key)+': '+U.eur(view().series[i].value);
+  const key=k=>body.dispatchEvent(new w.KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true}));
+
+  body.focus();
+  ok(d.activeElement===body,'der Fokus steht auf der Fläche');
+  key('End');
+  ok(live()===say(7),'Ende tastet den letzten der acht Monate ab — '+live());
+
+  /* Jetzt die kleine Mappe: zwei Monate statt acht, derselbe Weg wie ein
+     echter Reimport (neues Modell, refresh()). */
+  const months2=[[2025,1],[2025,2]];
+  const res2=w.NORDSTERN.importer.parseWorkbook(tinyWorkbook(w,months2),'zwei.xlsx');
+  ok(res2.ok,'die Mappe mit zwei Monaten wird gelesen: '+res2.errors.join(' | '));
+  w.NORDSTERN.app.state.model=res2.model;
+  w.NORDSTERN.app.refresh();
+
+  ok(live()==='','die Ansage der alten Mappe steht nicht mehr, sofort nach dem Wechsel: '+live());
+  ok(!body.classList.contains('is-probing'),'die Fläche gilt nach dem Wechsel nicht mehr als abgetastet');
+
+  key('ArrowLeft');
+  ok(errors.length===0,'Pfeil-links auf den verkleinerten Datensatz wirft nicht: '+errors.join(' | '));
+  ok(live()===say(0),'und trifft den ersten der zwei neuen Monate — '+live());
+
+  key('ArrowRight');
+  ok(live()===say(1),'Pfeil-rechts geht auf den zweiten — '+live());
+
+  key('Home');
+  ok(live()===say(0),'Pos1 auf den ersten — '+live());
+
+  key('End');
+  ok(live()===say(1),'Ende auf den letzten der zwei — '+live());
+
+  ok(errors.length===0,'keine Fehler insgesamt: '+errors.join(' | '));
   w.close();
 }
 
