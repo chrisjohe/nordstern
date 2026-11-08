@@ -2072,9 +2072,14 @@ sec('A7: leere laufende Spalte vs. echte Projektion');
   const ROW=TINY_ROWS;
   const wbOf=(ws)=>{ const b=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(b,ws,'Data Input'); return b; };
   const parse=(ws)=>w.NORDSTERN.importer.parseWorkbook(wbOf(ws),'x.xlsx');
-  /* Heute ist September 2026: August ist der letzte echte Schnappschuss,
-     September (der laufende Monat) ist vorbereitet, aber leer, Oktober liegt
-     tatsächlich in der Zukunft. */
+  /* Der Kalender bleibt für diesen Fall im September 2026, damit Oktober
+     auch bei einem späteren Testlauf noch in der Zukunft liegt. */
+  const RealDate=w.Date;
+  const now=new RealDate(2026,8,15,12).getTime();
+  w.Date=class extends RealDate {
+    constructor(...args){ super(...(args.length?args:[now])); }
+    static now(){ return now; }
+  };
   const ws=tinySheet(w,[[2026,8],[2026,9],[2026,10]]);
   const EMPTY_ROWS=[ROW.CASH,ROW.DEPOT,ROW.LOAN,ROW.TOTALLIQUID,ROW.TOTALCLAIMS,ROW.TOTALINVEST,
     ROW.TOTALPROPERTY,ROW.TOTALRETIREMENT,ROW.TOTALASSETS,ROW.LIABTOTAL,ROW.NETWORTH];
@@ -3080,11 +3085,14 @@ sec('About: Fassung');
   const d=w.document;
   const head=d.querySelector('.about-head');
   ok(!!head,'das Blatt hat einen Kopf');
-  /* Die Fassung steht an einer Stelle im Quelltext und an einer in
-     package.json — laufen sie auseinander, sagt eine von beiden die Unwahrheit,
+  /* Die Fassung steht im Quelltext, in package.json und im Lockfile —
+     laufen sie auseinander, sagt eine davon die Unwahrheit,
      und man erfährt es erst, wenn jemand einen Fehler mit falscher Nummer meldet. */
   const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+  const lock=JSON.parse(fs.readFileSync(new URL('../package-lock.json',import.meta.url),'utf8'));
   ok(w.NORDSTERN.VERSION===pkg.version,'NORDSTERN.VERSION und package.json stimmen überein: '+w.NORDSTERN.VERSION+' / '+pkg.version);
+  ok(lock.version===pkg.version,'Lockfile und package.json stimmen überein: '+lock.version+' / '+pkg.version);
+  ok(lock.packages[''].version===pkg.version,'Lockfile-Projekt und package.json stimmen überein: '+lock.packages[''].version+' / '+pkg.version);
   ok(head.querySelector('.about-ver').textContent==='Version '+pkg.version+' \u00b7 Apache-2.0',
      'und die Zeile darunter sagt es: '+head.querySelector('.about-ver').textContent);
   ok(errors.length===0,'keine Fehler: '+errors.join(' | '));
